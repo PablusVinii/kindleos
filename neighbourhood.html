@@ -216,6 +216,7 @@
             box-shadow: 3px 3px 0 #ccc;
             position: relative;
             overflow: hidden;
+            contain: content;
         }
 
         .card-content {
@@ -474,6 +475,7 @@
             border: 1px solid black;
             position: relative;
             overflow: hidden;
+            contain: content;
         }
 
         .post-name-row {
@@ -3116,32 +3118,36 @@
                 .orderBy('timestamp', 'desc')
                 .limit(100);
             const unsubscribe = commentsRef.onSnapshot(snapshot => {
-                listContainer.innerHTML = '';
-                if (snapshot.empty) return;
-
-                const comments = [];
-                snapshot.forEach(doc => {
-                    comments.push({ id: doc.id, ...doc.data() });
-                });
-
                 // Update count in toggle
                 const countEl = document.getElementById('comments-count-' + postId);
                 if (countEl) {
-                    countEl.innerText = comments.length > 0 ? ' (' + comments.length + ')' : '';
+                    countEl.innerText = snapshot.size > 0 ? ' (' + snapshot.size + ')' : '';
                 }
 
-                // Render oldest first
-                comments.reverse();
+                // Incremental updates: query is newest-first, DOM is oldest-first,
+                // so each doc is inserted before the element of the doc one index newer.
+                snapshot.docChanges().forEach(change => {
+                    const commentId = change.doc.id;
+                    const existing = listContainer.querySelector('[data-comment-id="' + commentId + '"]');
 
-                // Render each comment
-                for (const comment of comments) {
-                    renderComment(comment, postId, listContainer);
-                }
+                    if (change.type === 'removed') {
+                        if (existing) existing.remove();
+                        return;
+                    }
+
+                    if (change.type === 'added' && existing) return;
+                    if (change.type === 'modified' && existing) existing.remove();
+
+                    const comment = { id: commentId, ...change.doc.data() };
+                    const newerDoc = change.newIndex > 0 ? snapshot.docs[change.newIndex - 1] : null;
+                    const beforeEl = newerDoc ? listContainer.querySelector('[data-comment-id="' + newerDoc.id + '"]') : null;
+                    renderComment(comment, postId, listContainer, beforeEl);
+                });
             });
             commentListeners.set(postId, { unsubscribe: unsubscribe });
         }
 
-        function renderComment(comment, postId, container) {
+        function renderComment(comment, postId, container, beforeEl) {
             const date = new Date(getTimestampMillis(comment.timestamp));
             const timeStr = window.rekindleFormatTime ? window.rekindleFormatTime(date, { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -3154,8 +3160,9 @@
             const commentDiv = document.createElement('div');
             commentDiv.className = 'comment-item';
             commentDiv.dataset.uid = comment.uid;
+            commentDiv.dataset.commentId = comment.id;
             commentDiv.style.position = 'relative';
-            container.appendChild(commentDiv);
+            container.insertBefore(commentDiv, beforeEl || null);
 
             // Resolve user card and build HTML
             window.rekindleFetchUserCard(db, comment.uid, function (card) {

@@ -1081,36 +1081,42 @@
             // My Hand
             const myCards = (gameState.hands || {})[currentUser.uid] || [];
             const handDiv = document.getElementById('my-hand');
-            handDiv.innerHTML = '';
             
             const settings = gameState.settings || {};
+            const handHtml = [];
+            const disabledIndexes = [];
             myCards.forEach((card, index) => {
                 const canPlay = myTurn && isPlayable(card, topCard, gameState.currentColor, drawStack, settings.stacking);
                 const clickFn = canPlay ? 'tryPlayCard(' + index + ')' : '';
-                handDiv.innerHTML += renderCard(card, clickFn);
+                handHtml.push(renderCard(card, clickFn));
                 // Make unplayable cards translucent if it's my turn
                 if (myTurn && !canPlay) {
-                    handDiv.lastElementChild.classList.add('disabled');
+                    disabledIndexes.push(index);
                 }
+            });
+            handDiv.innerHTML = handHtml.join('');
+            disabledIndexes.forEach(index => {
+                handDiv.children[index].classList.add('disabled');
             });
             
             // Opponents
             const oppDiv = document.getElementById('opponents-ui');
-            oppDiv.innerHTML = '';
+            const oppHtml = [];
             playerOrder.forEach(uid => {
                 if (uid !== currentUser.uid) {
                     const count = ((gameState.hands || {})[uid] || []).length;
                     const isActive = (uid === turnId);
                     const p = gameState.players[uid] || {};
-                    oppDiv.innerHTML += `
+                    oppHtml.push(`
                         <div class="opponent opponent-card ${isActive ? 'active-turn' : ''}" style="display:flex; flex-direction:column; align-items:center;">
                             <canvas id="game-avatar-${uid}" width="32" height="32" style="border:2px solid black; width:32px; height:32px; image-rendering:pixelated; background:white;"></canvas>
                             <div>${isActive ? '▶ ' : ''}${escapeHtml(p.name)}</div>
                             <div style="font-size:0.8rem; font-weight:normal;">${count} cards</div>
                         </div>
-                    `;
+                    `);
                 }
             });
+            oppDiv.innerHTML = oppHtml.join('');
 
             // Draw game avatars
             setTimeout(() => {

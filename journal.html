@@ -965,8 +965,9 @@
 
             // Days of week header
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            let gridHtml = '';
             days.forEach(d => {
-                gridDiv.innerHTML += `<div class="calendar-day-header">${d}</div>`;
+                gridHtml += `<div class="calendar-day-header">${d}</div>`;
             });
 
             // Calculate days in month and starting day
@@ -975,13 +976,16 @@
 
             // Pad empty cells before 1st
             for (let i = 0; i < firstDayIdx; i++) {
-                gridDiv.innerHTML += `<div class="calendar-cell empty-cell"></div>`;
+                gridHtml += `<div class="calendar-cell empty-cell"></div>`;
             }
+
+            const notesById = {};
+            notes.forEach(n => { notesById[n.id] = n; });
 
             // Create cells for each day
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateId = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const note = notes.find(n => n.id === dateId);
+                const note = notesById[dateId];
                 const cellDateObj = new Date(year, month, day);
 
                 // Future check (strip time for fair comparison)
@@ -1019,15 +1023,17 @@
                     }
                     cellHtml += `</div>`;
                 }
-                gridDiv.innerHTML += cellHtml;
+                gridHtml += cellHtml;
             }
 
             // Pad empty cells after last day to complete max 6 rows
             const totalCells = firstDayIdx + daysInMonth;
             const remaining = Math.ceil(totalCells / 7) * 7 - totalCells;
             for (let i = 0; i < remaining; i++) {
-                gridDiv.innerHTML += `<div class="calendar-cell empty-cell"></div>`;
+                gridHtml += `<div class="calendar-cell empty-cell"></div>`;
             }
+
+            gridDiv.innerHTML = gridHtml;
 
             return monthContainer;
         }

@@ -589,6 +589,7 @@
         let selectedTileIdx = -1;
         let placedTiles = [];
         let unsubscribe = null;
+        let boardCells = [];
 
         // --- INIT ---
         window.onload = () => {
@@ -873,16 +874,21 @@
             document.getElementById('play-btn').disabled = !isMyTurn;
 
             // Render Board
-            document.querySelectorAll('.sq').forEach(sq => {
-                const existingTile = sq.querySelector('.tile-on-board');
-                if (existingTile && !existingTile.classList.contains('temp')) existingTile.remove();
-            });
+            for (let cy = 0; cy < 15; cy++) {
+                const row = boardCells[cy] || [];
+                for (let cx = 0; cx < 15; cx++) {
+                    const sq = row[cx];
+                    if (!sq) continue;
+                    const existingTile = sq.querySelector('.tile-on-board');
+                    if (existingTile && !existingTile.classList.contains('temp')) existingTile.remove();
+                }
+            }
 
             for (const [key, letter] of Object.entries(gameData.board)) {
                 const [x, y] = key.split('_').map(Number);
-                const cell = document.querySelector(`.sq[data-x="${x}"][data-y="${y}"]`);
+                const cell = boardCells[y] && boardCells[y][x];
                 if (cell && !cell.querySelector('.tile-on-board')) {
-                    cell.innerHTML += getTileHTML(letter);
+                    cell.insertAdjacentHTML('beforeend', getTileHTML(letter));
                 }
             }
 
@@ -933,8 +939,8 @@
             if (placedTiles.some(t => t.x === x && t.y === y)) return;
 
             const letter = myRack[selectedTileIdx];
-            const cell = document.querySelector(`.sq[data-x="${x}"][data-y="${y}"]`);
-            cell.innerHTML += getTileHTML(letter, true);
+            const cell = boardCells[y][x];
+            cell.insertAdjacentHTML('beforeend', getTileHTML(letter, true));
 
             placedTiles.push({ x, y, letter, indexInRack: selectedTileIdx });
             myRack[selectedTileIdx] = null;
@@ -947,7 +953,7 @@
         function recallTiles() {
             placedTiles.forEach(t => {
                 myRack[t.indexInRack] = t.letter;
-                const cell = document.querySelector(`.sq[data-x="${t.x}"][data-y="${t.y}"]`);
+                const cell = boardCells[t.y][t.x];
                 const temp = cell.querySelector('.temp');
                 if (temp) temp.remove();
             });
@@ -960,7 +966,9 @@
         function initBoard() {
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
+            boardCells = [];
             for (let y = 0; y < 15; y++) {
+                boardCells.push(new Array(15));
                 for (let x = 0; x < 15; x++) {
                     const sq = document.createElement('div');
                     sq.className = 'sq';
@@ -981,6 +989,7 @@
                         sq.innerHTML = `<span>${label}</span>`;
                     }
                     sq.onclick = () => handleBoardClick(x, y);
+                    boardCells[y][x] = sq;
                     boardEl.appendChild(sq);
                 }
             }

@@ -192,6 +192,7 @@
             cursor: pointer;
             display: flex;
             flex-direction: column;
+            contain: layout style;
         }
 
         .topic-item:hover {
@@ -508,6 +509,7 @@
             position: relative;
             margin-bottom: 10px;
             min-width: 0;
+            contain: layout style;
         }
 
         .msg.self {
@@ -1790,6 +1792,7 @@
             // Eager one-time fetch so chat isn't blank while the listener connects
             liveCommentsQuery.get().then(function(snapshot) {
                 if (commentsListener !== id) return;
+                var fragment = document.createDocumentFragment();
                 snapshot.forEach(function(doc) {
                     var data = doc.data();
                     data.id = doc.id;
@@ -1808,8 +1811,9 @@
                         }
                     }
 
-                    appendMessage(data);
+                    appendMessage(data, false, fragment);
                 });
+                historyEl.appendChild(fragment);
                 historyEl.scrollTop = historyEl.scrollHeight;
             }).catch(function(err) {
                 console.error('Comments initial get error:', err);
@@ -2198,8 +2202,8 @@
             }
         }
 
-        function appendMessage(msg, prepend) {
-            var historyEl = document.getElementById('chat-history');
+        function appendMessage(msg, prepend, container) {
+            var historyEl = container || document.getElementById('chat-history');
 
             var isSelf = msg.authorId === (currentUser ? currentUser.uid : null);
             var msgEl = document.createElement('div');

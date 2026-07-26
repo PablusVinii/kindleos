@@ -1155,7 +1155,10 @@ async function endRound() {
 }
 
 // ===== DRAWING =====
+let canvasRectCache = null;
+
 function resizeCanvas() {
+    canvasRectCache = null;
     const wrap = canvas.parentElement;
     const w = wrap.clientWidth;
     const h = wrap.clientHeight;
@@ -1175,7 +1178,7 @@ window.addEventListener('resize', function() {
     window.__pictResizeT = setTimeout(resizeCanvas, 120);
 });
 
-function getCanvasCoords(e) {
+function computeCanvasTransform() {
     const rect = canvas.getBoundingClientRect();
     let left = rect.left, top = rect.top, width = rect.width, height = rect.height;
     const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rekindle-scale')) || 1;
@@ -1187,8 +1190,13 @@ function getCanvasCoords(e) {
             left *= scale; top *= scale; width *= scale; height *= scale;
         }
     }
-    const x = (e.clientX - left) / width;
-    const y = (e.clientY - top) / height;
+    return { left, top, width, height };
+}
+
+function getCanvasCoords(e) {
+    const t = canvasRectCache || computeCanvasTransform();
+    const x = (e.clientX - t.left) / t.width;
+    const y = (e.clientY - t.top) / t.height;
     return { x: Math.round(x * 1000), y: Math.round(y * 1000) };
 }
 
@@ -1197,6 +1205,7 @@ canvas.addEventListener('pointerdown', function(e) {
     if (!e.isPrimary) return;
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
+    canvasRectCache = computeCanvasTransform();
     isDrawing = true;
     currentStroke = {
         c: currentColor,

@@ -403,6 +403,7 @@
         let dropInterval = 1000;
         let lastTime = 0;
         let isPaused = false;
+        let drawNeeded = true;
 
         // --- INIT ---
         window.addEventListener('pageshow', function (event) {
@@ -588,9 +589,6 @@
                     if (value !== 0) {
                         context.fillStyle = '#000';
                         context.fillRect(x + offset.x, y + offset.y, 1, 1);
-                        context.lineWidth = 0.1;
-                        context.strokeStyle = '#fff';
-                        context.strokeRect(x + offset.x, y + offset.y, 1, 1);
                     }
                 });
             });
@@ -629,12 +627,15 @@
                 updateScore();
             }
             dropCounter = 0;
+            drawNeeded = true;
         }
 
         function playerMove(dir) {
             player.pos.x += dir;
             if (collide(arena, player)) {
                 player.pos.x -= dir;
+            } else {
+                drawNeeded = true;
             }
         }
 
@@ -651,6 +652,7 @@
                     return;
                 }
             }
+            drawNeeded = true;
         }
 
         function playerReset() {
@@ -673,6 +675,7 @@
                         arena.forEach(row => row.fill(0));
                         player.score = 0;
                         updateScore();
+                        drawNeeded = true;
                     }
                     update();
                 }
@@ -703,7 +706,10 @@
             if (dropCounter > dropInterval) {
                 playerDrop();
             }
-            draw();
+            if (drawNeeded) {
+                drawNeeded = false;
+                draw();
+            }
             requestAnimationFrame(update);
         }
 

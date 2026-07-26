@@ -554,11 +554,13 @@
         }
 
         // --- INPUT ---
+        let dragRect = null;
+
         function startDrag(pos) {
             if (isMoving || turn !== 'player') return;
-            const rect = uCanvas.getBoundingClientRect();
-            const x = pos.clientX - rect.left;
-            const y = pos.clientY - rect.top;
+            dragRect = uCanvas.getBoundingClientRect();
+            const x = pos.clientX - dragRect.left;
+            const y = pos.clientY - dragRect.top;
             const cue = balls[cueBallIndex];
 
             isDragging = true;
@@ -569,9 +571,9 @@
 
         function moveDrag(pos) {
             if (!isDragging) return;
-            const rect = uCanvas.getBoundingClientRect();
-            dragCurrent.x = pos.clientX - rect.left;
-            dragCurrent.y = pos.clientY - rect.top;
+            if (!dragRect) dragRect = uCanvas.getBoundingClientRect();
+            dragCurrent.x = pos.clientX - dragRect.left;
+            dragCurrent.y = pos.clientY - dragRect.top;
             drawUI();
         }
 

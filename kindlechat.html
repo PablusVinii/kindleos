@@ -302,6 +302,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            contain: layout style;
         }
 
         .gallery-item:active {
@@ -402,6 +403,7 @@
             position: relative;
             min-width: 0;
             /* Allow shrinking */
+            contain: layout style;
         }
 
         .msg.self {
@@ -1616,6 +1618,11 @@
         function hideModal() {
             var overlay = document.getElementById('modal-overlay');
             if (overlay) overlay.style.display = 'none';
+            var flipImg = document.getElementById('gallery-flipbook-img');
+            if (flipImg && flipImg.dataset.playing === "true") {
+                flipImg.dataset.playing = "false";
+                if (flipImg.playTimer) clearTimeout(flipImg.playTimer);
+            }
             var generic = document.getElementById('generic-modal-content');
             if (generic) {
                 generic.style.padding = '';
@@ -1661,6 +1668,7 @@
         // general channel so child_added can dedupe across initial-load,
         // pagination, and live updates. Reset whenever the room changes.
         var renderedKindlechatIds = {};
+        var generalMsgData = {};          // Message bodies for rendered general msgs (avoids refetch on translation arrival)
         var generalDomMsgCount = 0;       // Counter replacing querySelectorAll('.msg') in kcAddedHandler
         var kcDeleteHandler = null;       // child_removed handler ref (on generalListener query)
         var kcChangedHandler = null;      // limitToLast(child_changed) handler ref
@@ -2450,6 +2458,7 @@
                     // (insertBefore(firstChild) each iteration puts newest first otherwise.)
                     for (var i = batch.length - 1; i >= 0; i--) {
                         renderedKindlechatIds[batch[i].id] = true;
+                        generalMsgData[batch[i].id] = batch[i].data;
                         renderMessage(batch[i].data, batch[i].id, true);
                         generalDomMsgCount++;
                     }
@@ -2487,47 +2496,6 @@
                     isLoadingMore = false;
                     hideLoadingIndicator();
                 });
-        }
-
-        // --- MESSAGE CACHING (localStorage) ---
-        var MSG_CACHE_PREFIX = 'kindlechat_msg_';
-        var MAX_CACHED_MESSAGES = 50;
-
-        function getMessageCacheKey(roomId) {
-            return MSG_CACHE_PREFIX + roomId;
-        }
-
-        function getCachedMessages(roomId) {
-            try {
-                var cached = localStorage.getItem(getMessageCacheKey(roomId));
-                if (cached) {
-                    var data = JSON.parse(cached);
-                    return data.messages || [];
-                }
-            } catch (e) { }
-            return [];
-        }
-
-        function getLastCachedTimestamp(roomId) {
-            try {
-                var cached = localStorage.getItem(getMessageCacheKey(roomId));
-                if (cached) {
-                    var data = JSON.parse(cached);
-                    return data.lastTimestamp || null;
-                }
-            } catch (e) { }
-            return null;
-        }
-
-        function cacheMessages(roomId, messages, lastTimestamp) {
-            try {
-                // Only keep last N messages
-                var toCache = messages.slice(-MAX_CACHED_MESSAGES);
-                localStorage.setItem(getMessageCacheKey(roomId), JSON.stringify({
-                    lastTimestamp: lastTimestamp,
-                    messages: toCache
-                }));
-            } catch (e) { }
         }
 
 
@@ -2574,6 +2542,7 @@
             kcTransAddedHandler = null;
             kcTransChangedHandler = null;
             renderedKindlechatIds = {};
+            generalMsgData = {};
             langTranslations = {};
             generalDomMsgCount = 0;
             // Reset Pixel Cache on reload
@@ -2606,6 +2575,7 @@
             history.innerHTML = '<div style="text-align:center; padding:20px">Connecting...</div>';
 
             renderedKindlechatIds = {};
+            generalMsgData = {};
             oldestGeneralTimestamp = null;
             oldestGeneralKey = null;
             noMoreGeneralMessages = false;
@@ -2624,10 +2594,14 @@
                 if (!snapshot.exists()) {
                     history.innerHTML = '<div style="text-align:center; padding:20px; color:#666;">No messages yet.</div>';
                 } else {
+                    // Render the initial batch with the container hidden so the 50
+                    // appends don't each force a synchronous layout; one reflow on show.
+                    history.style.display = 'none';
                     snapshot.forEach(function (child) {
                         var data = child.val();
                         var msgId = child.key;
                         renderedKindlechatIds[msgId] = true;
+                        generalMsgData[msgId] = data;
                         if (oldestGeneralKey === null) oldestGeneralKey = msgId;
 
                         if (typeof data.timestamp === 'number') {
@@ -2640,6 +2614,7 @@
                         generalDomMsgCount++;
                     });
 
+                    history.style.display = '';
                     history.scrollTop = history.scrollHeight;
                 }
 
@@ -2653,6 +2628,7 @@
                     renderedKindlechatIds[msgId] = true;
 
                     var data = childSnap.val();
+                    generalMsgData[msgId] = data;
 
                     // Clear "No messages yet." placeholder if present
                     if (history.children.length === 1 &&
@@ -2683,6 +2659,7 @@
                 kcChangedHandler = function (childSnap) {
                     if (currentRoomId !== 'general') return;
                     if (!renderedKindlechatIds[childSnap.key]) return;
+                    generalMsgData[childSnap.key] = childSnap.val();
                     renderMessage(childSnap.val(), childSnap.key);
                 };
                 generalListener.on('child_changed', kcChangedHandler);
@@ -2691,6 +2668,7 @@
                     if (currentRoomId !== 'general') return;
                     if (!renderedKindlechatIds[childSnap.key]) return;
                     delete renderedKindlechatIds[childSnap.key];
+                    delete generalMsgData[childSnap.key];
                     var msgEl = history.querySelector('.msg[data-msg-id="' + childSnap.key + '"]');
                     if (msgEl && msgEl.parentNode) {
                         // Only compensate scrollTop if the element was already scrolled
@@ -2736,6 +2714,14 @@
                     if (!text) return;
                     langTranslations[msgId] = text;
                     if (renderedKindlechatIds[msgId]) {
+                        // Skip if the element has slid out of the live window -
+                        // re-rendering would re-append an out-of-window message.
+                        if (!history.querySelector('.msg[data-msg-id="' + msgId + '"]')) return;
+                        var cachedMsg = generalMsgData[msgId];
+                        if (cachedMsg) {
+                            renderMessage(cachedMsg, msgId);
+                            return;
+                        }
                         generalChatRef.child(msgId).once('value').then(function (msgSnap) {
                             if (msgSnap.val()) renderMessage(msgSnap.val(), msgId);
                         });
@@ -2750,6 +2736,12 @@
                     if (!text) return;
                     langTranslations[msgId] = text;
                     if (renderedKindlechatIds[msgId]) {
+                        if (!history.querySelector('.msg[data-msg-id="' + msgId + '"]')) return;
+                        var cachedMsg = generalMsgData[msgId];
+                        if (cachedMsg) {
+                            renderMessage(cachedMsg, msgId);
+                            return;
+                        }
                         generalChatRef.child(msgId).once('value').then(function (msgSnap) {
                             if (msgSnap.val()) renderMessage(msgSnap.val(), msgId);
                         });
@@ -3187,6 +3179,7 @@
             var frameIdx = 0;
             function loop() {
                 if (imgEl.dataset.playing !== "true") return;
+                if (!imgEl.isConnected) { imgEl.dataset.playing = "false"; return; }
                 frameIdx = (frameIdx + 1) % frames.length;
                 imgEl.src = frames[frameIdx];
                 imgEl.playTimer = setTimeout(loop, 1000 / fps);
@@ -4836,6 +4829,7 @@
 
             function loop() {
                 if (imgEl.dataset.playing !== "true") return;
+                if (!imgEl.isConnected) { imgEl.dataset.playing = "false"; return; }
                 frameIdx = (frameIdx + 1) % frames.length;
                 imgEl.src = frames[frameIdx];
                 imgEl.playTimer = setTimeout(loop, 1000 / fps);

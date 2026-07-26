@@ -911,7 +911,6 @@
                 const data = await response.json();
                 if (data.solution) {
                     state.unlimited.targetWord = data.solution.toUpperCase();
-                    console.log("Unlimited Target:", state.unlimited.targetWord);
                     showMessage(""); // Clear loading message
                     saveState();
                     renderBoard();
@@ -951,7 +950,6 @@
                     state.daily.targetWord = data.solution.toUpperCase();
                     state.daily.lastPlayed = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
                     saveState();
-                    console.log("Loaded Live Target:", state.daily.targetWord);
                     showMessage(""); // Clear loading message
                     return;
                 }
@@ -971,7 +969,6 @@
             state.daily.targetWord = ANSWERS[dayOfYear % ANSWERS.length];
             state.daily.lastPlayed = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
             saveState();
-            console.log("Offline Target:", state.daily.targetWord);
             showMessage("");
         }
 

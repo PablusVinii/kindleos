@@ -1334,6 +1334,11 @@
 
         // --- MAIN LOOP ---
 
+        var lastRenderSig = null;
+        var lastIconSig = null;
+        var cachedTitleEl = null;
+        var lastAgeTxt = null;
+
         function tick(timestamp) {
             if (isReloading) return;
 
@@ -1373,15 +1378,29 @@
                 }
             }
 
-            // Render
-            render();
-            updateIconUI();
+            // Render (skip frames where nothing visible changed - e-ink refreshes are expensive)
+            var animQuantum = Math.floor(ui.animFrame / 30);
+            var continuous = (ui.screen === 'ANIMATION') || ui.cleaning;
+            var renderSig = animQuantum + '|' + ui.screen + '|' + state.stage + '|' + state.sick + '|' + state.poops + '|' + state.lightOn;
+            if (continuous || renderSig !== lastRenderSig) {
+                lastRenderSig = renderSig;
+                render();
+            }
 
-            // Update title bar age
-            var titleEl = document.querySelector('.title-text');
-            if (titleEl) {
+            var iconSig = ui.menuIndex + '|' + state.attention + '|' + state.stage + '|' + (state.attention ? Math.floor(now / 300) % 2 : 0);
+            if (iconSig !== lastIconSig) {
+                lastIconSig = iconSig;
+                updateIconUI();
+            }
+
+            // Update title bar age (only when the text actually changes)
+            if (!cachedTitleEl) cachedTitleEl = document.querySelector('.title-text');
+            if (cachedTitleEl) {
                 var ageTxt = window.t ? window.t('pet.title').replace('${count}', (state.age != null ? state.age : 0)) : 'Pet - ' + (state.age != null ? state.age : 0) + ' Years';
-                titleEl.innerText = ageTxt;
+                if (ageTxt !== lastAgeTxt) {
+                    lastAgeTxt = ageTxt;
+                    cachedTitleEl.innerText = ageTxt;
+                }
             }
 
             if (window.requestAnimationFrame) window.requestAnimationFrame(tick);

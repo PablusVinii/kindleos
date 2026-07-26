@@ -760,6 +760,7 @@
 
         let currentTool = 'pen';
         let isDrawing = false;
+        let canvasRectCache = null;
         let autoSaveTimer = null;
         let isOpening = false;
         let savePending = false;
@@ -1306,7 +1307,8 @@
 
         // --- DRAWING LOGIC ---
         function getPointerPos(e) {
-            const rect = canvas.getBoundingClientRect();
+            if (!canvasRectCache) canvasRectCache = canvas.getBoundingClientRect();
+            const rect = canvasRectCache;
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -1319,6 +1321,7 @@
             if (!e.isPrimary) return;
             e.preventDefault();
 
+            canvasRectCache = canvas.getBoundingClientRect();
             const pos = getPointerPos(e);
 
             if (currentTool === 'fill') {
@@ -1372,6 +1375,7 @@
         function stopDrawing(e) {
             if (!isDrawing) return;
             isDrawing = false;
+            canvasRectCache = null;
             bufferCtx.closePath();
             saveCurrentFrame();
             triggerAutoSave();

@@ -474,6 +474,7 @@
         let cameraY = 0;
         let blackY = -1;
         let blackMoving = false;
+        let drawNeeded = true;
 
         function rowType(y) {
             const cycle = ((y % 4) + 4) % 4;
@@ -794,6 +795,7 @@
             player = { x: 3, y: 0, facing: 1 };
             rows = [];
             inputQueue = [];
+            drawNeeded = true;
             ensureRows();
 
             if (gameLoop) cancelAnimationFrame(gameLoop);
@@ -852,6 +854,7 @@
 
             player.x = nx;
             player.y = ny;
+            drawNeeded = true;
 
             ensureRows();
 
@@ -888,6 +891,7 @@
 
             rows.forEach(function (row) {
                 if (row.type === ROAD_ROW || row.type === RIVER_ROW) {
+                    if (row.y >= cameraY - 2 && row.y <= cameraY + ROWS_VISIBLE + 2) drawNeeded = true;
                     row.items.forEach(function (item) {
                         item.x += row.speed * row.direction;
                         if (item.x > COLS) item.x -= COLS + item.len + 2;
@@ -928,6 +932,7 @@
 
             if (blackMoving && !isGameOver) {
                 blackY += BLACK_SPEED;
+                if (blackY >= cameraY - 1) drawNeeded = true;
                 if (player.y <= blackY + BLACK_KILL_OFFSET) endGame();
             }
         }
@@ -1046,7 +1051,10 @@
         function loop(timestamp) {
             if (!isGameOver) {
                 update(timestamp);
-                draw();
+                if (drawNeeded) {
+                    drawNeeded = false;
+                    draw();
+                }
                 gameLoop = requestAnimationFrame(loop);
             }
         }

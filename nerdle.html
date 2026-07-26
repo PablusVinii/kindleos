@@ -571,8 +571,6 @@
                 } else {
                     showMessage((window.t ? window.t('nerdle.msg.answer') : "Answer: ${ans}").replace('${ans}', targetEquation));
                 }
-            } else {
-                console.log("Target (Restored):", targetEquation);
             }
         }
 
@@ -626,7 +624,6 @@
                     const eq = `${expression}=${result}`;
                     if (eq.length === COLS) {
                         targetEquation = eq;
-                        console.log("Target:", targetEquation);
                         return;
                     }
                 }
