@@ -9,6 +9,8 @@
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
+    <script src="js/score-submit.js" data-game="snake"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="js/i18n.js"></script>
 
@@ -480,11 +482,7 @@
 
                 // Save to Cloud
                 if (uid) {
-                    db.collection('leaderboard_snake').doc(uid).set({
-                        username: username,
-                        score: newScore,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
+                    window.RekindleScores.submit('leaderboard_snake', { score: newScore });
                 }
             }
         }

@@ -422,7 +422,7 @@ The project uses **two separate Firebase projects**. You must know which one you
 *   **Used by:** Social apps — KindleChat, Neighbourhood, Topics, Flipbook, Pixel, Moderation. Any HTML file using `projectId: "rekindle-socials"`.
 *   **Config:** `firebase-social.json`
 *   **Firestore Rules:** `firestore-social.rules` — topics, neighbourhood posts/comments.
-*   **RTDB Rules:** `rtdb-social-rules.json` — KindleChat messages, translations, server-side rate limits (`kindlechat/server_rate_limits`), and per-user duplicate-detection cache (`kindlechat/user_recent`).
+*   **RTDB Rules:** `rtdb-social-rules.json` — KindleChat messages, translations, server-side rate limits (`kindlechat/server_rate_limits`), and the retired `kindlechat/user_recent` duplicate cache (rules kept, but nothing reads or writes it since 2026-10-20).
 *   **Cloud Functions:** Same `firebase-functions/index.js` (initialized as secondary `socialAdminApp`).
 
 #### Rule Update Checklist
@@ -437,6 +437,11 @@ When adding a new feature that writes to Firebase, you **must** update the corre
 | Social RTDB (chat messages) | `rtdb-social-rules.json` |
 
 Without matching rules, writes will be **silently rejected** by security rules. Always follow the existing patterns in the target file for authenticated-user-only collections.
+
+#### Game leaderboards are server-written (do not add client writes)
+`leaderboard_*` documents are written **only** by the `submitScore` Cloud Function (`firebase-functions/scores.js` + `score-config.js`). `firestore.rules` denies client create/update; the browser asks `startGameRun` for a server-timed run and then submits through `js/score-submit.js`. This exists because the old rules only checked `score is number`, so one console line (`set({score: 1e308})`) took first place on every board (the 2026-10 "IMAOKASDF" report).
+
+When adding a game with a leaderboard: add the collection to `score-config.js`, add a read/delete-only rules block, include `<script src="js/score-submit.js" data-game="…"></script>`, and call `RekindleScores.submit(collection, payload)` instead of `db…set()`. Deploy **functions before rules**. Full guide: [games.md](docs/agent/games.md#-leaderboard-integrity-added-2026-10-20-after-the-imaokasdf-is-hacking-report).
 
 ### 9. RTDB Turn Timers and `ServerValue.TIMESTAMP` Placeholders
 When building turn-based multiplayer games with RTDB, store `turnStartedAt` using `firebase.database.ServerValue.TIMESTAMP` so all clients share the same clock.
@@ -590,7 +595,7 @@ The moderation worker enforces **global, per-user token-bucket rate limits** usi
 
 #### Rate-limit data model
 *   **Bucket path:** `kindlechat/server_rate_limits/{uid}/{contentType}`
-*   **Bucket shape:** `{ tokens: number, lastRefill: number, updatedAt: number }`
+*   **Bucket shape:** `{ tokens: number, lastRefill: number, updatedAt: number }`, plus `rep: string` on the `kindlechat` bucket (the repetition-guard state — see §5; it rides on this bucket, so it costs no extra operations).
 *   **Concurrency:** RTDB REST `ETag` / `If-Match` optimistic locking with retry on `412` conflicts.
 
 #### Configured limits
@@ -604,10 +609,9 @@ The moderation worker enforces **global, per-user token-bucket rate limits** usi
 | `report` | 5 | 1 token / 12 min |
 
 #### Duplicate / repetitive-content detection
-*   **Path:** `kindlechat/user_recent/{uid}/{contentType}/{hash}`
-*   **Hash:** Normalized text (lowercased, punctuation stripped, whitespace collapsed) run through DJB2.
-*   **Window:** 5 minutes.
-*   Repeated identical or near-identical text within the window is rejected with a `429` error.
+*   **Chat:** handled by the repetition guard in §5 below (state rides on the rate-limit bucket; adds no Firebase operations).
+*   **Topics, topic comments, neighbourhood posts/comments:** **no duplicate check** (removed 2026-10-20). The old `checkUserRecentContent()` read `kindlechat/user_recent/...`, but nothing had written that node since 2026-09-21, so the check could never match — it was one wasted RTDB read per post. It is now gone, along with `recordUserRecentContent()` / `cleanupUserRecentContent()` / `rtdbSocialPutSimple()`. Duplicate protection for those types is covered by the token-bucket limits in the table above.
+*   **Do not re-add a `user_recent` check** unless you also add an awaited writer (`ctx.waitUntil()` if it runs after the response). A fire-and-forget writer is what silently killed it for a month.
 
 #### Important rules
 *   No user bypasses the limits — not even `ukiyo@rekindle.ink` or moderators.
@@ -623,6 +627,19 @@ Any page that reads/writes data owned by the **social** project (e.g. `users_pub
 2. Init the secondary app: `const socialApp = firebase.initializeApp(socialConfig, 'social'); const socialRtdb = socialApp.database(); const socialAuth = socialApp.auth();` (config in `neighbourhood.html:1151`).
 3. Sign in before any RTDB access: `firebase.functions().httpsCallable('getSocialToken')({})` → `socialAuth.signInWithCustomToken(result.data.token)`. The callable (main project) mints a social custom token carrying `moderator`/`pro`/`ageVerified`/`email` claims; social RTDB rules on `users_public` require `auth.token.ageVerified == true` even for reads.
 4. Non-social pages should NOT force the `ensureAgeVerified()` flow — instead degrade gracefully (e.g. `life.html` falls back to `localStorage` key `rekindle_life_birthday`) so non-age-verified users can still use the app; their data just won't sync.
+
+### 5. Repeated-Message Flood Guard (KindleChat, 2026-10-20)
+
+On 2026-10-19 a user flooded a dead chat for ~30 minutes with `hello hello hello`, `hi hi hi hi bhi hi`, `hhhh…eeee…llll…oooo` and `aaaa` messages. The exact-duplicate check should have stopped the repeat `hello` lines but never did: the newest `kindlechat/user_recent` entry is from **2026-09-21**, so duplicate blocking had silently been dead for a month (the record calls were fire-and-forget after the response, with no `ctx.waitUntil`).
+
+Fix: `evaluateChatRepetition()` in `workers/rekindle-moderate/worker.js` + the client mirror `js/spam-guard.js`.
+
+*   **Rule:** a user's 3rd near-identical message within 10 minutes is rejected (`429` with `retryAfter` and a reason string); the exact same message twice within 5 minutes is rejected. Pixel art compares the `grid_data` hash instead.
+*   **Near-identical** = same *dominant* word/letter after collapsing character runs and dropping `@mentions` — `hello` ≡ `hello hello hello` ≡ `hellllooooo` ≡ `hhhh…llll…oooo` — or token-set Jaccard ≥ 0.5 (`hi hi hi` ≡ `hi hi hi bhi hi`).
+*   🔴 **Zero extra Firebase cost (hard requirement — do not break this):** the state is stored in the **existing** `kindlechat/server_rate_limits/{uid}/kindlechat` bucket as a `rep` string (≤ ~350 bytes, hashes only, last 4 message shapes), which the worker already `GET`s and `PUT`s once per message. Never add a separate read/write for spam state. The change removes the 3 per-message `user_recent` ops (check GET + record PUT + cleanup GET), so chat posting is **net −3 RTDB operations**.
+*   Rejected attempts are still recorded, so a spammer cannot outlast the 10-minute window by hammering send.
+*   `kindlechat.html` checks `window.rekindleChatSpamCheck()` in `sendMessage()` (before `checkRules()`) and calls `window.rekindleRecordChatMessage()` after a successful post. The client copy is localStorage-only and must stay in sync with the worker (same KEEP IN SYNC convention as `js/promo-ban.js`). `doSendMessage()` shows the worker's `result.error` for `allowed: false` so the specific reason reaches the user.
+*   Tests: `node scripts/test-chat-spam.js` replays the real flood transcript through the worker logic and the client mirror, and asserts normal conversation is untouched.
 
 ## ✅ Best Practices
 -   **Images:** Use **WebP** or **SVG**. They are fully supported and perform best.

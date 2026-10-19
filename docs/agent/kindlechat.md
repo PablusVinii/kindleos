@@ -117,6 +117,43 @@ Invariants to preserve when touching the composer:
 
 **Regeneration rules:** when `POPULAR_EMOJIS` changes, regenerate `EMOJI_ASSETS` in `sw.js` (derive filenames from `EMOJI_SVG_MAP`); if the openmoji/ art itself is ever regenerated (library upgrade, same filenames new content), bump `CACHE_NAME` so clients drop the stale icons.
 
+## Repetition / Flood Spam Guard (2026-10-20)
+
+Built after a user flooded a dead chat for ~30 minutes (2026-10-19 23:01–23:21 JST) with `hello`, `hello hello hello`, `llo hello hello`, `hellllooooo`, `hhhh…eeee…llll…oooo`, `hi hi hi hi bhi hi…`, `aaaa…` and `ima njot stop spamming…`. 47 messages from one account, nothing else in the chat.
+
+**Why the existing checks missed it:** the exact-duplicate check (`checkUserRecentContent`) was returning "no duplicate" for every message. `kindlechat/user_recent` had **no entries newer than 2026-09-21** — one month stale — across all 111 users, including the spammer, even though the same request had just written `server_rate_limits/{uid}/kindlechat` successfully. The `user_recent` record/cleanup calls ran *after* the response was returned (fire-and-forget, no `ctx.waitUntil`), so they were being dropped. Repeating `hello` 48 s apart therefore passed.
+
+**Design (and the rule to keep):** the guard must not add Firebase reads or writes. The rate-limit bucket is already read and written once per message, so the repetition state rides inside it:
+
+```text
+kindlechat/server_rate_limits/{uid}/kindlechat
+  { tokens, lastRefill, updatedAt,
+    rep: "1792422156000:2741339713:261238937:261238937|..." }   // last 4 message shapes, newest first
+```
+
+Each entry is `<timestamp>:<textHash>:<dominantHash>:<tokenHashes>` — hashes only, never message text (≤ ~350 bytes). Because the old `user_recent` check+record+cleanup are removed from the chat path, posting a message now costs **2 RTDB ops instead of 5**.
+
+**Matching (`chatTextShapes` + `evaluateChatRepetition`):**
+1. Normalise: lowercase, strip non-letter/digit, drop `@mentions` (conversation context, not content).
+2. Collapse character runs (`hello`/`hellllo`/`hhhhhh` → `helo`) and de-duplicate words.
+3. `dominant` = the word with the plurality if it is ≥ half of the words (or the message is a single word). Single-character dominants are tagged `#x`, and character dominance is measured on the **un-collapsed** text: `aaaa…saaaa` (120 chars) must become `#a`, not the three-letter word `asa`. That rule is what catches letter-mash spam.
+4. Two messages match when their dominants are equal or their token sets have Jaccard ≥ 0.5 (`hi hi hi` vs `hi hi hi bhi hi`). Dominant matching is what stops junk words from diluting Jaccard.
+5. **Block** when the 2nd matching shape is already in the 10-minute window (so a user gets two near-identical messages, the third is rejected) or when the same text repeats within 5 minutes. Response: `429 { allowed:false, error, retryAfter }`.
+
+Blocked attempts are still recorded (the evaluation runs before the POST is rejected), so hammering send cannot outlast the window — it just extends it and burns rate-limit tokens.
+
+**Measured behaviour** on the real transcript (`scripts/test-chat-spam.js`): 14 of the 27 flood lines blocked, starting at the 3rd `hello` variant and covering the entire "hello loop"; the substantive lines (`im not gonna stop saying…`, `ima njot stop spamming…`, the sign-off) still pass. Replaying 500 real messages from a normal 3-hour session produced **3 blocks, all exact duplicates** (`k.`, `Hi`, `¯\_(ツ)_/¯`) — no false positives from the near-repeat rule. An earlier content-agnostic flood cap (N messages per minute) was rejected because real users in that session hit 6 messages/minute and 17 per 5 minutes.
+
+**Files:**
+- `workers/rekindle-moderate/worker.js` — `consumeRateLimitToken(uid, contentType, accessToken, spamOpts)` now evaluates and persists `bucket.rep`; `evaluateChatRepetition()` / `chatTextShapes()` above the legacy rate limiter.
+- `js/spam-guard.js` — client mirror (`window.rekindleChatSpamCheck`, `window.rekindleRecordChatMessage`), localStorage key `rekindle_chat_recent_sent`. **KEEP IN SYNC** with the worker (same convention as `js/promo-ban.js`).
+- `kindlechat.html` — includes `js/spam-guard.js?v=1`, pre-send check in `sendMessage()`, records on success in `doSendMessage()`, and shows the worker's `result.error` when `allowed === false` (the old code always replaced it with a generic "Please wait N seconds").
+- `scripts/test-chat-spam.js` — unit tests for both mirrors (`node scripts/test-chat-spam.js`). Importing `worker.js` from Node works because Node detects the ESM syntax; the three pure helpers are exported for the test only.
+
+**Deploy:** the guard is worker-side, so it is not live until the worker is redeployed (`cd workers/rekindle-moderate && npx wrangler deploy`). The client mirror ships with the Pages build.
+
+**`kindlechat/user_recent` is retired (2026-10-20).** Nothing reads or writes it any more: the chat guard uses the rate-limit bucket, and the old per-type duplicate checks for topics / topic comments / neighbourhood posts & comments were deleted along with `checkUserRecentContent()`, `recordUserRecentContent()`, `cleanupUserRecentContent()` and `rtdbSocialPutSimple()` — they spent one RTDB read per post and could never match (nothing had recorded since 2026-09-21). Do not bring the pattern back unless the writer is awaited (`ctx.waitUntil()` when it runs after the response); a fire-and-forget writer is exactly what killed it. The stale RTDB node (111 users, ~175 entries) and its `rtdb-social-rules.json` block are still there and harmless; delete the node if you want the storage back.
+
 ---
 
 New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).

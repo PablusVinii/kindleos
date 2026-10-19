@@ -10,6 +10,8 @@
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
+    <script src="js/score-submit.js" data-game="solitaire"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/gamerules.js"></script>
@@ -1056,11 +1058,7 @@
 
         function saveScoreToDb(ref, finalMoves) {
             const username = currentUser.displayName || currentUser.email.split('@')[0];
-            ref.set({
-                username: username,
-                moves: finalMoves,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            }).then(() => {
+            window.RekindleScores.submit('leaderboard_solitaire', { moves: finalMoves }).then(() => {
                 console.log("Score submitted!");
             }).catch(err => console.error("Error submitting score:", err));
         }

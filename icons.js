@@ -489,15 +489,13 @@ const APPS = [
     },
 
     // --- GAMES ---
-    /*     {
-            id: 'oregontrail',
-            name: 'Oregon Trail',
-            cat: 'games',
-            new: true,
-            filled: true,
-            desc: 'Travel the trail to Oregon.',
-            icon: '<path d="M4 32 C 32 20 0 12 14 2 L 18 2 C 4 12 36 20 28 32 Z" fill="black"/>'
-        }, */
+    {
+        id: 'oregontrail',
+        name: 'Oregon Trail',
+        cat: 'games',
+        desc: 'Five people, 2,000 miles, one wagon.',
+        icon: '<path d="M4 23 V17 H28 V23 Z" fill="none" stroke="black" stroke-width="2"/><path d="M6 17 C6 7 26 7 26 17" fill="none" stroke="black" stroke-width="2"/><circle cx="10" cy="25" r="3" fill="white" stroke="black" stroke-width="2"/><circle cx="22" cy="25" r="3" fill="white" stroke="black" stroke-width="2"/><line x1="1" y1="28" x2="31" y2="28" stroke="black" stroke-width="1.5"/>'
+    },
     {
         id: 'trivia',
         name: 'Trivia',
@@ -934,6 +932,22 @@ const APPS = [
         cat: 'games',
         new: true,
         icon: '<rect x="3" y="13" width="13" height="13" fill="white" stroke="black" stroke-width="2"/><rect x="6" y="16" width="7" height="7" fill="black" stroke="none"/><path d="M18 26 L23 13 L28 26 Z" fill="white" stroke="black" stroke-width="2"/><line x1="1" y1="29" x2="31" y2="29" stroke="black" stroke-width="2"/>'
+    },
+    {
+        id: 'cargames',
+        name: 'Car Games',
+        cat: 'games',
+        new: true,
+        desc: 'Ten games for the car, one Kindle.',
+        icon: '<path d="M3 22 H29 M6 22 V17 L10 11 H22 L26 17 V22" fill="none" stroke="black" stroke-width="2"/><circle cx="10" cy="24" r="3" fill="white" stroke="black" stroke-width="2"/><circle cx="22" cy="24" r="3" fill="white" stroke="black" stroke-width="2"/><line x1="10" y1="11" x2="10" y2="17" stroke="black" stroke-width="1.5"/><line x1="22" y1="11" x2="22" y2="17" stroke="black" stroke-width="1.5"/>'
+    },
+    {
+        id: 'gutenberg',
+        name: 'Gutenberg',
+        cat: 'lifestyle',
+        new: true,
+        desc: '70,000 free books, read here.',
+        icon: '<path d="M16 10 C12 7 6 7 3 9 V26 C6 24 12 24 16 27 C20 24 26 24 29 26 V9 C26 7 20 7 16 10 Z" fill="none" stroke="black" stroke-width="2"/><line x1="16" y1="10" x2="16" y2="27" stroke="black" stroke-width="2"/><line x1="7" y1="13" x2="12" y2="13" stroke="black" stroke-width="1.5"/><line x1="7" y1="17" x2="12" y2="17" stroke="black" stroke-width="1.5"/><line x1="20" y1="13" x2="25" y2="13" stroke="black" stroke-width="1.5"/><line x1="20" y1="17" x2="25" y2="17" stroke="black" stroke-width="1.5"/>'
     }
 ];
 

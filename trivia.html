@@ -11,6 +11,8 @@
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
+    <script src="js/score-submit.js" data-game="trivia"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <style>
         /* SYSTEM 7 / E-INK AESTHETICS */
@@ -1072,18 +1074,15 @@
                 if (doc.exists) {
                     // Update existing record
                     const data = doc.data();
-                    await docRef.update({
+                    await window.RekindleScores.submit('leaderboard_trivia', {
                         totalPercent: data.totalPercent + percent,
-                        gameCount: data.gameCount + 1,
-                        lastUpdated: Date.now()
+                        gameCount: data.gameCount + 1
                     });
                 } else {
                     // Create new record
-                    await docRef.set({
-                        username: username,
+                    await window.RekindleScores.submit('leaderboard_trivia', {
                         totalPercent: percent,
-                        gameCount: 1,
-                        lastUpdated: Date.now()
+                        gameCount: 1
                     });
                 }
             } catch (e) {

@@ -6,6 +6,8 @@
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
+    <script src="js/score-submit.js" data-game="hanoi"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/gamerules.js"></script>
@@ -559,11 +561,7 @@
 
                 // Only save if this is a new best (fewer moves)
                 if (!doc.exists || movesCount < doc.data().moves) {
-                    await docRef.set({
-                        username: username,
-                        moves: movesCount,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
+                    await window.RekindleScores.submit('leaderboard_hanoi_' + difficulty, { moves: movesCount });
                 }
             } catch (e) {
                 console.error("Error saving score:", e);

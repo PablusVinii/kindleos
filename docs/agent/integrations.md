@@ -94,4 +94,71 @@ Errors: `{error:'session_expired'|'bad_request'|'upstream_blocked'|'upstream_tim
 
 ---
 
+## 📚 Project Gutenberg (gutenberg.html + functions/api/gutenberg.js, 2026-10-20)
+
+In-app search and reader for Project Gutenberg's ~70,000 books, added as the
+in-app counterpart to `epub.html` (which only links out to gutenberg.org).
+
+### Gutendex is dead — use Gutenberg's own OPDS
+The obvious API, `gutendex.com`, was unreachable when this was built (connection
+hangs, then `000`; its API now 301-redirects to itself). Do **not** reintroduce it
+as the primary search source.
+
+Use the official catalogue instead:
+
+| Need | URL |
+| :--- | :--- |
+| Search | `https://www.gutenberg.org/ebooks/search.opds/?query=<q>` |
+| Next page | follow the feed's own `<link rel="next" href="...&start_index=26">` |
+| Book text (primary) | `https://www.gutenberg.org/cache/epub/{id}/pg{id}.txt` |
+| Text fallbacks | `/files/{id}/{id}-0.txt`, `/ebooks/{id}.txt.utf-8` (302 → follow) |
+
+Search results are Atom `<entry>` blocks carrying `<title>`, `<content type="text">`
+(author) and `https://www.gutenberg.org/ebooks/{id}.opds`. There is **no
+download_count and no language** in the search feed, and no plain-text link in the
+detail feed — the text URL has to be constructed from the id. Thumbnails are
+multi-KB base64 data URIs: strip `<link ... rel="http://opds-spec.org/image" .../>`
+before matching entries or the regex pass gets expensive on the Kindle. Regex
+parsing beats `DOMParser` here for the same reason.
+
+### CORS and the proxy
+`www.gutenberg.org` sends no CORS headers, so every OPDS/text fetch goes through
+`functions/api/gutenberg.js?url=<encoded>` first, with a direct `fetch` only as a
+last resort. The proxy mirrors `functions/api/reddit.js`: exact allowlist
+(`gutenberg.org`, `www.gutenberg.org` — no suffix matching), GET/HEAD only,
+`redirect:'follow'`, 15s `AbortController` timeout, `body.tee()` +
+`context.waitUntil` edge caching, and 3 attempts with 400ms/1200ms backoff on
+429/5xx (honouring `Retry-After`). Cache TTLs: 1800s for `.opds`, 86400s for
+`.txt`, 3600s otherwise.
+
+### Reader choices that matter on e-ink
+- **Pagination by viewport, not measurement**: the pane is fixed-height and
+  `overflow-y:auto`; Prev/Next set `scrollTop` by exactly `clientHeight`
+  (instant, never smooth). Page count is `ceil(scrollHeight/clientHeight)`; when
+  `scrollTop >= scrollMax - 0.5` the index is pinned to the last page so the final
+  partial page is reachable and Prev can leave it.
+- **One `innerHTML` for the whole book**: thousands of individual paragraph
+  appends would each trip the i18n `MutationObserver`.
+- **Cache-first reopen**: browser Cache API `rekindle-gutenberg-v1` keyed by the
+  text URL, then network. Guard `typeof caches !== 'undefined'` — the Kindle
+  browser may not have it.
+- Text is cleaned between the `*** START/END OF (THE|THIS) PROJECT GUTENBERG
+  EBOOK ***` markers, CRLF normalised, 3+ blank lines collapsed. Over 2,000,000
+  chars is truncated with a visible notice rather than risking a jitless freeze.
+
+### Storage keys
+`rekindle_gb_recent` (`{id,title,author,pct,ts}`, max 8), `rekindle_gb_pos_<id>`
+(`{scrollTop, pct}`), `rekindle_gb_font` (16/18/20/24).
+
+### Testing
+Local static servers cannot exercise Pages Functions, and direct gutenberg.org
+fetches fail CORS locally, so expect the network-error state outside
+`wrangler pages dev`/Pages. The page itself can be driven headlessly with `jsdom`
+and a stubbed `window.fetch` returning a saved OPDS feed + a text excerpt (verified:
+25 Dickens results, correct first title, contents modal, paragraph render, error
+state, shelf). The proxy was tested in Node against the live site (allowlist,
+403/405/OPTIONS/HEAD, redirect-follow, cache headers all correct).
+
+---
+
 New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).

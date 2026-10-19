@@ -1297,6 +1297,7 @@
 
     <script src="bad_words.js?v=4"></script>
     <script src="js/promo-ban.js?v=1"></script>
+    <script src="js/spam-guard.js?v=1"></script>
     <script src="time.js"></script>
     <script src="theme.js?v=18"></script>
     <link rel="stylesheet" href="css/custom-select.css">
@@ -3981,6 +3982,16 @@
             if (containsUrl(text)) { showModal('Links and URLs are not allowed.'); return; }
             if (containsPromotedTerm(text)) { showModal('Promotional content is not allowed.'); return; }
 
+            // Repeated-message guard. The moderation worker enforces the same
+            // rule server-side; this local mirror blocks the obvious repeat
+            // instantly (e.g. "hello hello hello" for the tenth time) without
+            // a round-trip. State is localStorage only - no Firebase calls.
+            var spamCheck = window.rekindleChatSpamCheck ? window.rekindleChatSpamCheck(text) : null;
+            if (spamCheck && spamCheck.blocked) {
+                showModal(spamCheck.message, false);
+                return;
+            }
+
             checkRules(function () {
                 // Timeout is enforced server-side by the moderation worker;
                 // its error response is shown via showModal(result.error) in doSendMessage.
@@ -4018,7 +4029,9 @@
             }).then(function (result) {
                 if (result.allowed === false) {
                     var waitSec = Math.ceil((result.retryAfter || 20000) / 1000);
-                    showModal('Please wait ' + waitSec + ' seconds before posting again.', false);
+                    // The worker now sends a specific reason for repeat-spam
+                    // rejections; fall back to the generic wait message.
+                    showModal(result.error || ('Please wait ' + waitSec + ' seconds before posting again.'), false);
                     resetSendState();
                     return;
                 }
@@ -4030,6 +4043,7 @@
                 inputEl.innerHTML = '';
                 replyTarget = null;
                 resetSendState();
+                if (window.rekindleRecordChatMessage) window.rekindleRecordChatMessage(text);
                 if (TRANSLATION_WORKER_URL) {
                     fireTranslationRequest(currentUser.uid, text, result.key, 1);
                 }

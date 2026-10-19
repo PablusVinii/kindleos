@@ -1054,6 +1054,21 @@ exports.getSocialToken = onCall(callOptions, async (request) => {
 });
 
 /**
+ * Game leaderboards — server-authoritative score submission.
+ *
+ * The browser can no longer write `leaderboard_*` documents (firestore.rules
+ * denies it). Games call startGameRun when the page opens and submitScore when
+ * the run ends; the server bounds the claimed value by real elapsed time and a
+ * per-game absolute maximum. See firebase-functions/scores.js + score-config.js.
+ *
+ * DEPLOY ORDER: functions first, then firestore.rules — otherwise scores stop
+ * saving between the two deploys.
+ */
+const scoreHandlers = require("./scores");
+exports.startGameRun = onCall(callOptions, scoreHandlers.startGameRun);
+exports.submitScore = onCall(callOptions, scoreHandlers.submitScore);
+
+/**
  * createRssFeed — Server-enforced RSS feed creation for free users.
  * Pro users write directly to Firestore (rules allow it); free users call this.
  *

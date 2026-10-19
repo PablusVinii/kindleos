@@ -112,23 +112,47 @@ Validated like Oregon Trail: DOM-stub + `eval` the inline script + auto-play bot
 ### Validation harness
 Validated like Oregon Trail: DOM-stub + `eval` + auto-play bot (perfect play survived 25×180s with 0 deaths; idle player dies at ~17s; ~135 coins/run collected). **Any change to jump/roll physics, `COLLIDE_Z`, spawn gaps, or speed ramp must re-run a survival bot** — fairness regressions are invisible to eyeball testing. Harness pattern: capture rAF manually, step 100ms frames, bot dodges/jumps/rolls from a state export.
 
-## 🐂 Oregon Trail (oregontrail.html) — Full Rebuild (2026-07)
+## 🐂 Oregon Trail (oregontrail.html) — Rebuilt 2026-10
 
-Rebuilt from scratch as a faithful classic-style trail sim. The previous version (single health stat, four buttons, no party/landmarks/forts) was replaced entirely; its `rekindle_oregontrail_save` key was superseded by `rekindle_oregontrail_save_v2` (old saves are ignored, not migrated).
+A faithful, readable trail sim built for a 600x800 e-ink viewport. Rebuilt from scratch (2026-10) after the 2026-07 version: the old one clipped its action bar on short viewports, flashed the screen while hunting (anti-aliased canvas strokes), and could strand a run at The Dalles. Save key is `rekindle_oregontrail_save_v3` (v2 saves are ignored, not migrated); high score is `oregontrail_highscore_v1`.
 
-### Structure
-*   **Screens:** setup (profession/party names/departure month) → general store → trail → win/game-over. Forts and hunting are overlay screens on top of the trail.
-*   **Day engine:** everything runs through `advanceDay(opts)` (`{travel, resting, fixedMiles, log}`) which rolls weather, consumes food, applies pace/climate/affliction damage, fires random events, checks landmarks and game end, saves, renders, and drains the modal queue.
-*   **Modal sequencing:** two queues — `deathQueue` (filled by `hurtMember` whenever a member hits 0 HP, merged into `modalQueue` by `advanceDay`) and `modalQueue` (events, deaths, river/fort/landmark/dalles arrivals, win, gameover). `processQueue()` shifts ONE item per call; each modal's close handler calls `processQueue()` again. Never show two modals at once outside this queue.
-*   **The Dalles multi-day road:** `state._dallesActive` flag + empty-queue branch in `processQueue()` chains the next `dallesRoadStep()` only after any event/death modal from the previous day has been dismissed. Do not replace this with a plain loop or a `modalQueue.length === 0` check right after `advanceDay()` — `processQueue` shifts items synchronously, so the queue is empty while a modal is still on screen.
-*   **Balance invariants** (found by simulation — see below): resting while `food <= 0` gives NO healing (otherwise a starving party rests forever); repair without parts has a pity timer (`repairFails`, 25%→100% over 4 attempts) so `wagonBroken + 0 parts` can't softlock; blizzard travel multiplier is 0.25, not lower, or winter mountains become unfinishable.
-*   **Landmarks/rivers** are data-driven from the `LANDMARKS` array (distance, type, ferry flag, fort price multiplier). `checkLandmarks()` caps distance at the landmark and must early-return when `state.riverPending` — otherwise waiting at a river re-rolls its depth every day.
-*   **Hunting minigame:** canvas, step-based (`setInterval` 700 ms hops, not rAF) to stay readable on e-ink. The page uses the standard canvas zoom-exemption CSS block (section 6 of `AGENTS.md`) so tap coordinates line up. **Sizing:** on open, set `canvas.width/height` from `canvas.clientWidth/clientHeight` (flex-computed) so the drawing buffer matches layout pixels 1:1 — never let CSS stretch a fixed-size canvas buffer (that was the "graphics are stretched" bug). All draw/spawn coordinates are derived from `hunt.W`/`hunt.H`, never hard-coded.
-*   **Trail scene SVG:** viewBox `0 0 300 64` with `.art-scene svg { width: 100%; height: auto; }` so the scene fills the window width at any size. A narrow viewBox (e.g. 100 wide) with fixed CSS height letterboxes into a tiny centered strip on wide windows.
-*   **i18n:** short UI strings are translated in all 10 locale files (`oregontrail.*`); long narrative strings (event/log text) live in `en.json` + in-code fallbacks elsewhere. Dynamic interpolated text goes through the local `tpl()` helper (manual `${var}` replace) — never `window.t(key, vars)`. **Gotcha:** when a rebuilt feature reuses an *existing* locale key but changes the value to include `${...}` placeholders, an add-only-if-missing locale update will keep the old static value and silently show wrong numbers (bit us on `event.fruit` "Gain 30 food"). Overwrite those keys in all 10 locales instead.
+### Screen flow
+`setup` (profession, 5 names, departure month) → `store` → `trail` ⇄ `fort` (full screen) and overlays for the hunt and the generic modal. The trail screen is a fixed column: scene, HUD (3 rows + Pace/Rations toggles), progress track, party chips, journal (the only flexible row) and a 2x2 action bar. **Keep the flexible row the journal** — the window is `height: 90vh; min-height: 0` and `body { overflow: hidden }`, so anything that cannot shrink gets clipped on a rotated Kindle.
 
-### Testing narrative games headlessly
-The game was balance-tested with a Node DOM-stub harness: stub `document`/`localStorage`/`window` (memoized `getElementById`, classList via `Set`, no-op canvas 2d context via `Proxy`), `eval` the extracted `<script>`, then auto-play full runs draining modals each day. This caught: party-wide simultaneous deaths from uniform damage (fixed with per-member `variedDamage`), the starving-rest exploit, repair softlocks, and winter death spirals. Target outcome for a "reasonable player" harness: ~90% win rate with occasional mid-trail wipes; reckless play should still lose. If you change difficulty knobs, re-run a few dozen simulated playthroughs rather than guessing.
+### Day engine (`advanceDay`)
+One call per day, in this order: date → weather → travel miles (blizzard may halt) → food → pace damage → rest heal → climate → conditions → oxen exhaustion → random event → landmarks → merge the death queue → winter check → end check → save → render → `processQ()`.
+
+* **Two queues.** `Q` is the per-day modal queue; `DQ` holds deaths as they happen. `advanceDay` starts with `Q = DQ.slice(0)` and ends with `Q = Q.concat(DQ)`, so a death that occurred *outside* the day (river, Dalles) is still shown, and a death during the day is shown after the day's event. Never push a death straight into `Q` — the next `advanceDay` would wipe it.
+* **Modal system.** One generic `#modal` whose buttons are built per item (`showModal({title,text,extra,buttons})`). `processQ()` opens at most one item (`if (modalOpen) return`) and calls `afterQueue()` only when the queue is empty. `afterQueue()` re-opens a pending river/Dalles and chains the Barlow Road days; it is guarded by `roadPending` so a double `processQ()` cannot schedule the road twice.
+* **The Dalles** is a *flag* (`G.dalles`), not a one-shot modal: `takeAction` refuses to travel while it is set and `afterQueue` re-opens it after a reload. Both choices end in `roadStep()` days and a normal `checkEnd()` win.
+* **Forts** are screens, not modals. `G.nextLm` still points at the fort until `leaveFort()` increments it — that is also how `resume()` knows to re-open the fort store.
+
+### Balance invariants (found by simulation — change with a harness run, not by guessing)
+* **Rest is not a free reset.** Resting heals `+6` (`+2` while sick) and cures at `restCure`; filling rations only heal `+1` and only for healthy members. Earlier values (8/+2) made the party unkillable: 100% wins with 4.9 survivors.
+* **Contagion** — each member carrying cholera/dysentery/typhoid/measles gives a 5%/day chance to infect one healthy member. This is what produces mid-trail wipes; removing it flattens the difficulty curve.
+* **Cold needs two sets per person.** `clothing >= 2*alive` → 1 dmg, `>= alive` → 2, else 4; a blizzard adds +2 even when dressed.
+* **The passes close.** `WINTER_DAY = 366` (Dec 31) ends the run if `miles < 2000`; `WINTER_WARN = 305` (Nov 1) posts a warning modal. Without the deadline, late departures simply crawl through the snow for 240 days and still win, and resting has no cost.
+* **Pace** `13 + oxen*1.8` base miles/day, `×[1, 1.2, 1.45]` pace, `×[1..0.3]` weather, `×0.7–1` terrain, `×[0.55..1]` ox fatigue, `×0.85..1` party condition. A March start finishes in ~165 days; June in ~180 with far more blizzard days.
+* Rations consume `[1.5, 1.0, 0.6]` lbs/person/day. Starving damages `5/`day and blocks rest healing; a stranded party (no oxen) gets 4 days of grace before `Game Over`.
+* Repair without parts keeps the pity timer (`repairFails`, 25% → 100% over 4 attempts) so `wagonBroken + 0 parts` cannot softlock. A party with 0 oxen can always buy one from the Trade offer (`{cash:40} → 1 ox`).
+
+### Hunting minigame (1-bit, no flashing)
+Canvas scene, `setInterval` at **600 ms** (not rAF). The renderer is strict 1-bit: integer `fillRect` only — a 2 px ground bar, a 1 px stepped ridge skyline, grass/pines/animals built from rects, and hit/miss marks as rect crosses. **No `stroke()`, `fillText()`, `arc()` or fractional coordinates** — one anti-aliased pixel forces a full grayscale refresh on the Kindle every tick (see the Surfer note above). All text lives in DOM (`#hunt-status`, footer hint).
+
+Sizing: on open, set `canvas.width/height` from `clientWidth/clientHeight` after the overlay is shown, and derive every spawn/draw coordinate from `hunt.W/hunt.H`. The page includes the standard zoom-exemption CSS block so `getBoundingClientRect()` matches touch coordinates. Shots consume `G.bullets`; the day advances on `endHunt()`.
+
+### i18n
+Short UI strings are translated in all 10 locales; narrative strings (events, landmark descriptions, game-over text) live in `en.json` plus in-code fallbacks. Dynamic interpolated text goes through `tpl()` (manual `${var}` replace) — `window.t(key, vars)` does **not** interpolate. The page's helper is named `translate()`, never `t()`, to avoid shadowing `window.t`. New UI elements must have their English default in the HTML *and* an `en.json` entry; a missing locale key just leaves the HTML text.
+
+### Leaderboard (server-written)
+Collection `leaderboard_oregontrail`, registered in `firebase-functions/score-config.js` (`max 50000, rate 25, base 5000, dir higher`) with a read/owner-delete rules block. The page includes `js/score-submit.js` (`data-game="oregontrail"`) and calls `RekindleScores.submit('leaderboard_oregontrail', { score })` on a win — **never** a client `db…set()`. Deploy functions before rules.
+
+### Headless validation harness
+`node scripts/test-oregontrail.js [runs] [seed]` — DOM/localStorage/timer stubs, `vm.runInThisContext` of the inline script, then a reasonable-player bot (rests when hurt or tired, hunts at two weeks of food, buys at forts and leaves them). Env switches: `OT_CASUAL=1`, `OT_RECKLESS=1`, `OT_MONTH=6`, `OT_PROF=farmer`, `OT_EDGE=1`.
+
+`OT_EDGE=1` checks the paths the bot skips: stranded ox purchase, river wait → ferry, save/resume, resume at a fort, restart, win scoring, and the 4-day stranded game over. **Run `OT_EDGE=1` after touching modals, resume or the end-game code.**
+
+Reference numbers (2026-10, 200 seeded runs): 82% wins, ~171 days, 4.8 survivors, score 4.3k average / 6.4k max; reckless play (travel only, never rest or hunt) wins ~15%; every loss is either the winter deadline or a disease cascade. If a change moves these numbers a lot, it changed the game's difficulty.
 
 ## 📓 Flipbook (flipbook.html) — Frame Corruption & Performance Fixes (2026-07)
 
@@ -168,6 +192,122 @@ function resizeCanvas() {
 ```
 
 Call it in init, on `resize`/`orientationchange`/`load`, and with a couple of delayed `setTimeout`s (theme.js may apply title-bar zoom after first paint, changing available height).
+
+---
+
+## 🏆 Leaderboard Integrity (added 2026-10-20, after the "IMAOKASDF IS HACKING" report)
+
+**Symptom:** a user set `6.7e+67` on Pac-Man and "infinity" on several other games, and appeared first everywhere. The old design let the browser write its own score and `firestore.rules` only checked `score is number`:
+
+```javascript
+// OLD — still what every pre-2026-10 build tries to do
+db.collection('leaderboard_surfer').doc(uid).set({ username, score: 1e308, timestamp: … });
+```
+
+One line in the devtools console was enough. **Do not reintroduce a client write to `leaderboard_*`.** There is no client-side check that a cheater cannot skip.
+
+### How it works now
+
+| Piece | File | Job |
+| :--- | :--- | :--- |
+| Score policy | `firebase-functions/score-config.js` | Per-collection `min`/`max`/`dir`/`rate`/`base`; the only place to tune limits |
+| Server writes | `firebase-functions/scores.js` | `startGameRun` + `submitScore` callables; the only writer of leaderboard docs |
+| Rules | `firestore.rules` | `leaderboard_*`: `read` for signed-in users, `delete` for the owner, **create/update denied** |
+| Client helper | `js/score-submit.js` | Starts a run on page load, submits on game over; never throws into the game |
+| Cleanup | `admin/reset_cheated_scores.js` | Dry-run by default; `--apply` deletes entries outside the configured bounds |
+
+Flow:
+
+1. Game page includes `<script src="js/score-submit.js" data-game="surfer"></script>` (after the Firebase compat scripts). On auth it calls `startGameRun`, which writes `game_runs/{uid}_{game}` with a **server** `startedAt`.
+2. When the game ends, `window.RekindleScores.submit('leaderboard_surfer', { score: n })` calls `submitScore`.
+3. The server accepts a new best only if
+   `max(prev, base) + rate × secondsSinceRunStart <= n <= absMax` — `base` replaces `prev` only for a brand-new entry, it does **not** stack on every run (otherwise reloading would farm it) — then writes `username` (looked up from RTDB `users_public`), `timestamp` (server) and `verified: true`.
+
+So a fabricated value is capped by *how long the game was actually open*, and a hard per-game maximum. Rejected attempts are logged to `score_audit` (admin-only) for review.
+
+### Adding / changing a leaderboard
+
+1. Add the collection to `firebase-functions/score-config.js` with sensible bounds (`max` near the best human score, `rate` ≈ 10× a good player's points/sec).
+2. Add a matching block to `firestore.rules` with read + owner delete only (see the existing ones).
+3. Include `js/score-submit.js` with the right `data-game`, and replace any direct write with `RekindleScores.submit(collection, payload)`.
+4. Deploy **functions first, rules second** — deploying the rules alone makes every score submission fail silently.
+
+Notes:
+
+- `dir: 'lower'` (moves, time) has no time allowance: you cannot grind your way to fewer moves, so only `min`/`max` apply.
+- `float: true` is only for trivia's cumulative percentage; everything else must be a whole number.
+- `opaque` fields (`stats`, `daily`, `unlimited`) sync wordle/spellbound state; they are size-capped but never used for ranking.
+- The pet board uses `base = max` because age grows with real time, not with play.
+- Run documents are per `(uid, game)` and are replaced on every page load, so a stale "started last year" token cannot be kept around.
+- Deleting a leaderboard document is allowed for its owner (reset); re-creating it still goes through the server, so it cannot be used to launder a score.
+
+### Purging the scores that were already written
+
+```bash
+cd admin
+node reset_cheated_scores.js            # dry run: list every impossible entry
+node reset_cheated_scores.js --apply    # delete them
+```
+
+It flags non-numeric, non-finite, fractional-integer, and out-of-range values against `score-config.js`. Deleting removes that player's whole entry for the board — they re-earn a real score.
+
+### Calibration lessons from the 2026-10 incident
+
+The live data is the only reliable source of bounds — check it before tightening anything:
+
+- The client SDK happily stored `Infinity` as a Firestore double, and one user stored the **string** `"∞²"` in `leaderboard_dino_v1`. Any numeric validation must therefore reject non-finite values and non-numbers, not just "too big".
+- Real pet ages were **100-439**, not 0-100. A guessed cap of 100 would have deleted dozens of legitimate entries; the board now allows up to 100,000 (it grows with real time, not play).
+- Mario `time` is **fractional** (`42.356599999998274`), so that field needs `float: true`. Most other boards are whole integers and are validated as such.
+- `totalPercent` on trivia is a **sum of per-game fractions**, so it must be allowed to grow by <1 per game and must stay a float.
+- The dry run is the safety net: run `node admin/reset_cheated_scores.js` and read the offender list before ever using `--apply`. `--apply` writes a JSON backup to `admin/backups/` (gitignored) first.
+
+The 2026-10 run removed exactly 12 entries (Infinity / `6.77e+67` / `"∞²"`) across snake, pacman, dino, pet, mario and surfer; a second dry run reported 0 offenders.
+
+### Residual risk (be honest about this)
+
+These games run entirely in the browser, so the server can bound a score but cannot verify that it was *played*. A determined user can still open a page, wait, and submit a value the time allowance permits. What is gone is the "one line, infinite score, first place" attack; anything remaining costs real time and leaves an audit trail.
+
+## 🚗 Car Games (cargames.html, 2026-10-20)
+
+Ten pass-the-device party games in one page, built to match the road-trip pack on
+KindleHub: Car Cricket, Alphabet Hunt, Categories, Keep It Going, Plate Words,
+Rhyme Time, Same Page, Spot Bingo, Story Chain, Would You Rather.
+
+### Why one page, not ten
+The Kindle is handed around in a car, so switching games must not cost a page load
+(this browser reloads the whole document per navigation). `cargames.html` keeps a
+hub view and a game view and toggles panels in place; all ten live in one document.
+
+### Shared crew
+`localStorage.rekindle_car_crew` holds 2-8 player names (default `Player 1`,
+`Player 2`). Every turn-based game reads it, so names are entered once on the hub
+instead of per game.
+
+### Per-game state
+Each game persists under `localStorage.rekindle_car_<gameid>` (`cricket`,
+`alphabet`, `categories`, `keepgoing`, `plate`, `rhyme`, `samepage`, `bingo`,
+`story`, `wyr`). Normalisers (`normCricket`, `normBingo`, ...) coerce a restored
+blob back into a valid shape so a corrupted or older blob cannot throw at boot.
+`showHub()` and `showGame()` both call `plateStop()` / `storyStop()`: the
+60-second intervals would otherwise keep ticking (and writing state) while a
+different game is open.
+
+### Deliberate non-features
+- No Firebase, no leaderboards, no network. These are offline car games; the
+  server-timed `submitScore` flow (leaderboard section above) does not apply and
+  must not be bolted on without a run-token design.
+- No canvas: everything is DOM buttons/text, so it stays touch-accurate under
+  `theme.js` CSS zoom (the canvas coordinate bug in `AGENTS.md` §6).
+- No animation for the Same Page countdown: Ready → 3 → 2 → 1 → prompt are four
+  explicit taps, not a timer, so a slow e-ink refresh cannot desync the players.
+
+### Testing without a browser
+`jsdom` (installed in a temp dir, not the repo), `runScripts:'dangerously'`, then
+drive it: click every tile, assert each panel opens and Back returns, then per game
+(cricket run/out/reset, alphabet count, plate rejects out-of-order letters, bingo
+marks, Same Page four-tap reveal, Would You Rather tallies). All 10 initialise with
+0 JS errors. The page also passes the static checker: no `?.`/`??`, no flex `gap`,
+no emoji, no `alert`, no `aspect-ratio`/`min()`/`max()`.
 
 ---
 

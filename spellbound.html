@@ -10,6 +10,8 @@
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
+    <script src="js/score-submit.js" data-game="spellingbee"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/gamerules.js"></script>
@@ -1047,17 +1049,15 @@
                     let username = currentUser.email ? currentUser.email.split('@')[0] : "Guest";
 
                     const saveData = {
-                        username: username,
                         score: score,
-                        stats: state.stats,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                        stats: state.stats
                     };
-                    
+
                     if (state.daily) saveData.daily = state.daily;
                     if (state.unlimited) saveData.unlimited = state.unlimited;
                     if (state.savedDate) saveData.savedDate = state.savedDate;
 
-                    await db.collection('leaderboard_spellingbee').doc(currentUser.uid).set(saveData, { merge: true });
+                    await window.RekindleScores.submit('leaderboard_spellingbee', saveData);
                 } catch (e) {
                     console.error("Failed to save state to Firebase", e);
                 }

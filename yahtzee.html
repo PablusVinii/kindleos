@@ -194,6 +194,8 @@
     </style>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
+    <script src="js/score-submit.js" data-game="yahtzee"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="theme.js?v=18"></script>
     <script src="js/i18n.js"></script>
@@ -384,11 +386,7 @@
                 if (doc.exists) currentHigh = doc.data().score || 0;
                 
                 if (score > currentHigh) {
-                    await db.collection('leaderboard_yahtzee').doc(uid).set({
-                        username: username,
-                        score: score,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
+                    await window.RekindleScores.submit('leaderboard_yahtzee', { score: score });
                 }
             } catch (e) { console.error("Could not save score:", e); }
         }

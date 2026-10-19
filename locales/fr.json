@@ -3123,5 +3123,16 @@
   "yahtzee.status.loading": "Chargement...",
   "yahtzee.status.login_required": "Connectez-vous pour voir les scores mondiaux.",
   "yahtzee.status.no_scores": "Pas encore de scores !",
-  "yahtzee.title": "Yahtzee"
+  "yahtzee.title": "Yahtzee",
+  "oregontrail.btn.back": "Retour",
+  "oregontrail.btn.close": "Fermer",
+  "oregontrail.btn.scores": "Scores",
+  "oregontrail.store.left": "Reste",
+  "oregontrail.ui.next_prefix": "Suivant",
+  "oregontrail.scores.title": "Meilleurs pionniers",
+  "oregontrail.scores.loading": "Chargement...",
+  "oregontrail.scores.none": "Aucun voyage terminé pour l'instant.",
+  "oregontrail.scores.login": "Connectez-vous pour voir les scores mondiaux.",
+  "oregontrail.scores.error": "Impossible de charger les scores.",
+  "oregontrail.score.best": "Meilleur score personnel"
 }

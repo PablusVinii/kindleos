@@ -3123,5 +3123,16 @@
   "yahtzee.status.loading": "Załadunek...",
   "yahtzee.status.login_required": "Zaloguj się, aby zobaczyć globalne wyniki.",
   "yahtzee.status.no_scores": "Nie ma jeszcze żadnych wyników!",
-  "yahtzee.title": "Kości"
+  "yahtzee.title": "Kości",
+  "oregontrail.btn.back": "Wstecz",
+  "oregontrail.btn.close": "Zamknij",
+  "oregontrail.btn.scores": "Wyniki",
+  "oregontrail.store.left": "Pozostało",
+  "oregontrail.ui.next_prefix": "Następny",
+  "oregontrail.scores.title": "Najlepsi pionierzy",
+  "oregontrail.scores.loading": "Ładowanie...",
+  "oregontrail.scores.none": "Brak ukończonych wypraw.",
+  "oregontrail.scores.login": "Zaloguj się, aby zobaczyć wyniki globalne.",
+  "oregontrail.scores.error": "Nie udało się wczytać wyników.",
+  "oregontrail.score.best": "Rekord osobisty"
 }

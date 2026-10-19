@@ -3123,5 +3123,16 @@
   "yahtzee.status.loading": "Laden...",
   "yahtzee.status.login_required": "Melden Sie sich an, um die globalen Ergebnisse anzuzeigen.",
   "yahtzee.status.no_scores": "Noch keine Punkte!",
-  "yahtzee.title": "Kniffel"
+  "yahtzee.title": "Kniffel",
+  "oregontrail.btn.back": "Zurück",
+  "oregontrail.btn.close": "Schließen",
+  "oregontrail.btn.scores": "Rangliste",
+  "oregontrail.store.left": "Übrig",
+  "oregontrail.ui.next_prefix": "Nächstes",
+  "oregontrail.scores.title": "Top-Siedler",
+  "oregontrail.scores.loading": "Lädt...",
+  "oregontrail.scores.none": "Noch keine Reise beendet.",
+  "oregontrail.scores.login": "Melde dich an, um die Rangliste zu sehen.",
+  "oregontrail.scores.error": "Rangliste konnte nicht geladen werden.",
+  "oregontrail.score.best": "Persönlicher Rekord"
 }

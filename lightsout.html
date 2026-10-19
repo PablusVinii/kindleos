@@ -6,6 +6,8 @@
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
+    <script src="js/score-submit.js" data-game="lightsout"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/gamerules.js"></script>
@@ -581,11 +583,7 @@
 
             // Save to Cloud
             try {
-                await db.collection(`leaderboard_lightsout_${difficulty}`).doc(uid).set({
-                    username: username,
-                    moves: moveCount,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                await window.RekindleScores.submit('leaderboard_lightsout_' + difficulty, { moves: moveCount });
                 personalBests[difficulty] = moveCount;
             } catch (e) { console.error("Error saving score:", e); }
         }

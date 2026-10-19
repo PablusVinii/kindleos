@@ -5,6 +5,8 @@
     <title>Pet</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
+    <script src="js/score-submit.js" data-game="pet"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="js/i18n.js"></script>
     <script src="theme.js?v=18"></script>
@@ -559,11 +561,7 @@
             return db.collection('leaderboard_pet_v1').doc(uid).get().then(function (doc) {
                 if (doc.exists && doc.data().score >= newAge) return;
 
-                return db.collection('leaderboard_pet_v1').doc(uid).set({
-                    username: username,
-                    score: newAge,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                return window.RekindleScores.submit('leaderboard_pet_v1', { score: newAge });
             }).then(function () {
                 console.log("Age synced to Firebase:", newAge);
             }).catch(function (e) {

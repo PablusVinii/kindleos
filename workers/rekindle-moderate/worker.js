@@ -973,23 +973,7 @@ async function rtdbSocialPut(path, data, etag, accessToken) {
     return { ok: true };
 }
 
-async function rtdbSocialPutSimple(path, data, accessToken) {
-    const url = `https://rekindle-socials-default-rtdb.firebaseio.com/${path}.json`;
-    const resp = await fetch(url, {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${accessToken}`
-        },
-        body: JSON.stringify(data)
-    });
-    if (!resp.ok) {
-        const errText = await resp.text();
-        console.error("[DEDUPE] Failed to record recent content:", resp.status, errText);
-    }
-}
-
-async function consumeRateLimitToken(uid, contentType, accessToken) {
+async function consumeRateLimitToken(uid, contentType, accessToken, spamOpts) {
     const config = RATE_LIMIT_CONFIG[contentType];
     if (!config) return { allowed: true };
 
@@ -1023,8 +1007,25 @@ async function consumeRateLimitToken(uid, contentType, accessToken) {
         bucket.tokens -= 1;
         bucket.updatedAt = now;
 
+        // Repetition guard: evaluated on the bucket we already read above and
+        // persisted in the same PUT, so it costs no extra Firebase operations.
+        let spamBlock = null;
+        if (spamOpts && typeof spamOpts.text === "string" && spamOpts.text.length) {
+            const evaluation = evaluateChatRepetition(bucket.rep, spamOpts.text, now, spamOpts.isArt === true);
+            bucket.rep = evaluation.rep;
+            spamBlock = evaluation.blocked;
+        }
+
         const putResult = await rtdbSocialPut(path, bucket, etag, accessToken);
         if (putResult.ok) {
+            if (spamBlock) {
+                return {
+                    allowed: false,
+                    spamBlocked: true,
+                    retryAfter: spamBlock.retryAfter,
+                    message: spamBlock.message
+                };
+            }
             return { allowed: true };
         }
 
@@ -1038,12 +1039,13 @@ async function consumeRateLimitToken(uid, contentType, accessToken) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  DUPLICATE / REPETITIVE CONTENT DETECTION (per-user, per-type)      */
+/*  TEXT NORMALISATION / HASHING (used by the chat repetition guard)   */
 /* ------------------------------------------------------------------ */
-// Stores a normalized hash of recently-submitted text under
-// kindlechat/user_recent/{uid}/{contentType}/{hash} -> timestamp.
-// Identical or near-identical messages sent within 5 minutes are rejected.
-const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
+// `kindlechat/user_recent` is retired: nothing records to it any more, so
+// the per-type duplicate checks were removed rather than left spending one
+// RTDB read per topic / comment / post. Chat repeats are handled by the
+// bucket-backed guard below; these helpers only normalise and hash text.
+const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;      // exact-repeat window for chat
 
 function normalizeForDedupe(text) {
     if (!text) return "";
@@ -1064,41 +1066,174 @@ function hashDedupeKey(text) {
     return String(hash >>> 0);
 }
 
-async function checkUserRecentContent(uid, contentType, text, accessToken) {
-    const hash = hashDedupeKey(text);
-    if (!hash) return { duplicate: false };
-    const path = `kindlechat/user_recent/${uid}/${contentType}/${hash}`;
-    const { data } = await rtdbSocialGet(path, accessToken);
-    const now = Date.now();
-    if (data && typeof data.timestamp === "number" && (now - data.timestamp) < DUPLICATE_WINDOW_MS) {
-        return { duplicate: true, retryAfter: Math.ceil((DUPLICATE_WINDOW_MS - (now - data.timestamp)) / 1000) };
+/* ------------------------------------------------------------------ */
+/*  KINDLE CHAT REPETITION GUARD                                       */
+/* ------------------------------------------------------------------ */
+// Repetition state lives INSIDE the existing server_rate_limits bucket, so
+// this guard adds ZERO Firebase reads/writes: that bucket is already read
+// and written once per message by consumeRateLimitToken().
+//
+// Why not kindlechat/user_recent? Those writes were fire-and-forget after
+// the response had been sent (no ctx.waitUntil) and they silently stopped
+// persisting: the newest entry is 2026-09-21, so exact-duplicate blocking
+// had been dead for a month. That is how the 2026-10-19 "hello hello
+// hello" flood went straight through. Replacing the three extra
+// user_recent ops per chat message (check GET + record PUT + cleanup GET)
+// with this guard is a net REDUCTION of 3 Firebase operations.
+//
+// Stored shape (compact string, hashes only - never message text):
+//   bucket.rep = "<ts>:<textHash>:<dominantHash>:<tokHash> <tokHash>|..."
+// holding the user's most recent message shapes (newest first).
+const CHAT_REP_WINDOW_MS = 10 * 60 * 1000;           // near-repeat window
+const CHAT_REP_DUP_WINDOW_MS = DUPLICATE_WINDOW_MS;  // 5 min, same as the old dedupe window
+const CHAT_REP_SIMILARITY = 0.5;                     // Jaccard over de-duplicated token hashes
+const CHAT_REP_LIMIT = 2;                            // 3rd near-identical message is rejected
+const CHAT_REP_MAX_ENTRIES = 4;
+const CHAT_REP_MAX_TOKENS = 16;
+
+// Collapses character runs ("hello", "hellllo", "hhhhh...") and drops
+// @mentions (conversation context, not content), so stretched spam and
+// plain greetings compare equal. Character dominance is measured on the
+// un-collapsed text, or a 120-character "aaaa...saaaa" mash would look
+// like a three-letter word.
+function chatTextShapes(text) {
+    const raw = String(text || "")
+        .toLowerCase()
+        .replace(/(^|\s)@[a-z0-9_.\-]+/g, " ")
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (!raw) return { toks: [], dom: "" };
+    const cleaned = raw.replace(/(.)\1+/g, "$1");
+    const words = cleaned.split(" ");
+    const counts = Object.create(null);
+    const order = [];
+    for (const w of words) {
+        if (!w) continue;
+        if (counts[w]) { counts[w]++; } else { counts[w] = 1; order.push(w); }
     }
-    return { duplicate: false };
+    // A "dominant" token means one word (or one letter) carries the message:
+    // "hello hello hello", "hi hi hi hi bhi hi", "aaaaaa". Those shapes must
+    // match each other even when junk words are sprinkled in (Jaccard alone
+    // dilutes them). Single-character dominants are tagged "#x" so a mashed
+    // "a a a" and "aaaaaa" compare equal without colliding with words.
+    let dominant = "";
+    const letters = raw.replace(/\s+/g, "");
+    if (letters.length >= 8) {
+        const charCounts = Object.create(null);
+        let topChar = "", topCharCount = 0;
+        for (const ch of letters) {
+            charCounts[ch] = (charCounts[ch] || 0) + 1;
+            if (charCounts[ch] > topCharCount) { topCharCount = charCounts[ch]; topChar = ch; }
+        }
+        if (topCharCount >= Math.ceil(letters.length * 0.7)) dominant = hashDedupeKey("#" + topChar);
+    }
+    if (!dominant) {
+        let topWord = "", topCount = 0;
+        for (const w of order) {
+            if (counts[w] > topCount) { topCount = counts[w]; topWord = w; }
+        }
+        if (words.length === 1 || topCount >= Math.max(2, Math.ceil(words.length * 0.5))) {
+            dominant = topWord.length === 1 ? hashDedupeKey("#" + topWord) : hashDedupeKey(topWord);
+        }
+    }
+    return {
+        toks: order.slice(0, CHAT_REP_MAX_TOKENS).map(hashDedupeKey),
+        dom: dominant
+    };
 }
 
-async function recordUserRecentContent(uid, contentType, text, accessToken) {
-    const hash = hashDedupeKey(text);
-    if (!hash) return;
-    const path = `kindlechat/user_recent/${uid}/${contentType}/${hash}`;
-    await rtdbSocialPutSimple(path, { timestamp: Date.now() }, accessToken);
+function decodeChatRep(rep) {
+    if (!rep || typeof rep !== "string") return [];
+    const out = [];
+    for (const part of rep.split("|")) {
+        const bits = part.split(":");
+        if (bits.length < 3) continue;
+        const t = Number(bits[0]);
+        if (!t) continue;
+        out.push({ t: t, h: bits[1] || "", dom: bits[2] || "", toks: bits[3] ? bits[3].split(" ").filter(Boolean) : [] });
+    }
+    return out;
 }
 
-async function cleanupUserRecentContent(uid, contentType, accessToken) {
-    try {
-        const path = `kindlechat/user_recent/${uid}/${contentType}`;
-        const { data } = await rtdbSocialGet(path, accessToken);
-        if (!data || typeof data !== "object") return;
-        const now = Date.now();
-        const deletes = [];
-        for (const [hash, entry] of Object.entries(data)) {
-            if (entry && typeof entry.timestamp === "number" && (now - entry.timestamp) > DUPLICATE_WINDOW_MS) {
-                deletes.push(rtdbDeleteWithAccessToken(`${path}/${hash}`, accessToken));
+function encodeChatRep(entries) {
+    return entries.map(e => e.t + ":" + e.h + ":" + (e.dom || "") + ":" + (e.toks || []).join(" ")).join("|");
+}
+
+function chatTokenOverlap(a, b) {
+    if (!a.length || !b.length) return 0;
+    const B = Object.create(null);
+    for (const t of b) B[t] = 1;
+    let shared = 0;
+    for (const t of a) { if (B[t]) shared++; }
+    // a and b are already de-duplicated, so this is a plain Jaccard index
+    return shared / (a.length + b.length - shared);
+}
+
+function chatShapesMatch(shape, entry) {
+    if (shape.dom && entry.dom && shape.dom === entry.dom) return true;
+    return chatTokenOverlap(shape.toks, entry.toks) >= CHAT_REP_SIMILARITY;
+}
+
+// Returns { blocked: {retryAfter, message}|null, rep: <state to persist> }.
+// The attempt is always recorded - blocked ones included - so a spammer
+// cannot outlast the window by hammering send.
+function evaluateChatRepetition(rep, text, now, isArt) {
+    const entries = decodeChatRep(rep).filter(e => now - e.t >= 0 && now - e.t < CHAT_REP_WINDOW_MS);
+    const textHash = hashDedupeKey(normalizeForDedupe(text));
+    let blocked = null;
+
+    if (isArt) {
+        // Same drawing reposted (the placeholder caption must not be compared)
+        for (const e of entries) {
+            const age = now - e.t;
+            if (e.h === textHash && age < CHAT_REP_DUP_WINDOW_MS) {
+                blocked = {
+                    retryAfter: Math.ceil((CHAT_REP_DUP_WINDOW_MS - age) / 1000),
+                    message: "You already posted this pixel art recently. Modify it to post again."
+                };
+                break;
             }
         }
-        await Promise.all(deletes);
-    } catch (e) {
-        console.error("[DEDUPE] Cleanup failed:", e.message);
+    } else {
+        const shape = chatTextShapes(text);
+        if (shape.toks.length) {
+            // 1. Exact repeat within the duplicate window
+            for (const e of entries) {
+                const age = now - e.t;
+                if (e.h === textHash && age < CHAT_REP_DUP_WINDOW_MS) {
+                    blocked = {
+                        retryAfter: Math.ceil((CHAT_REP_DUP_WINDOW_MS - age) / 1000),
+                        message: "You just sent that message. Say something different - repeated messages are blocked to keep chat readable."
+                    };
+                    break;
+                }
+            }
+            // 2. Same message reworded or stretched a few times in the window
+            if (!blocked) {
+                const ages = [];
+                for (const e of entries) {
+                    if (!e.toks.length) continue;
+                    if (chatShapesMatch(shape, e)) ages.push(now - e.t);
+                }
+                if (ages.length >= CHAT_REP_LIMIT) {
+                    ages.sort((x, y) => x - y);   // newest first
+                    const wait = Math.ceil((CHAT_REP_WINDOW_MS - ages[CHAT_REP_LIMIT - 1]) / 1000);
+                    blocked = {
+                        retryAfter: Math.max(10, wait),
+                        message: "You have sent the same message a few times. Please say something new - repeated messages are blocked to keep chat readable."
+                    };
+                }
+            }
+        }
     }
+
+    const shape = isArt ? { toks: [], dom: "" } : chatTextShapes(text);
+    const next = [{ t: now, h: textHash, dom: shape.dom, toks: shape.toks }]
+        .concat(entries)
+        .slice(0, CHAT_REP_MAX_ENTRIES);
+    return { blocked: blocked, rep: encodeChatRep(next) };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1440,26 +1575,28 @@ export default {
                     return new Response(JSON.stringify({ error: "That word is not allowed." }), { status: 400, headers });
                 }
 
-                // Rate limit
-                const rl = await consumeRateLimitToken(uid, "kindlechat", accessToken);
-                if (!rl.allowed) {
-                    return new Response(JSON.stringify({ allowed: false, error: `Rate limit exceeded. Please wait ${rl.retryAfter} second(s) before posting.`, retryAfter: rl.retryAfter }), { status: 429, headers });
-                }
-
                 const isFlipnote = body.is_flipnote === true;
                 const isPixelArt = body.is_pixel_art === true;
 
-                // Duplicate / repetitive content detection
-                if (isPixelArt && body.grid_data) {
-                    const pixelDupCheck = await checkUserRecentContent(uid, "kindlechat_pixel_art", body.grid_data, accessToken);
-                    if (pixelDupCheck.duplicate) {
-                        return new Response(JSON.stringify({ allowed: false, error: "You already posted this pixel art recently. Modify it to post again.", retryAfter: pixelDupCheck.retryAfter }), { status: 429, headers });
-                    }
-                } else if (!isPixelArt && !isFlipnote) {
-                    const dupCheck = await checkUserRecentContent(uid, "kindlechat", trimmed, accessToken);
-                    if (dupCheck.duplicate) {
-                        return new Response(JSON.stringify({ allowed: false, error: "You already sent this recently. Please wait a few minutes.", retryAfter: dupCheck.retryAfter }), { status: 429, headers });
-                    }
+                // Rate limit + repetition guard in a single RTDB round-trip.
+                // The repetition state rides on the rate-limit bucket, so this
+                // replaces the old user_recent duplicate checks (3 ops/message)
+                // without adding any Firebase reads or writes.
+                // Flipbooks are skipped: their placeholder caption is shared by
+                // every flipbook, so comparing captions would false-positive.
+                let spamOpts = null;
+                if (!isFlipnote) {
+                    spamOpts = isPixelArt
+                        ? { text: String(body.grid_data || ""), isArt: true }
+                        : { text: trimmed, isArt: false };
+                }
+                const rl = await consumeRateLimitToken(uid, "kindlechat", accessToken, spamOpts);
+                if (!rl.allowed) {
+                    return new Response(JSON.stringify({
+                        allowed: false,
+                        error: rl.message || `Rate limit exceeded. Please wait ${rl.retryAfter} second(s) before posting.`,
+                        retryAfter: rl.retryAfter
+                    }), { status: 429, headers });
                 }
 
                 const skipOpenAIModeration = isFlipnote || isPixelArt;
@@ -1512,17 +1649,8 @@ export default {
                     await rtdbSetWithAccessToken(`kindlechat/art_index/${result.name}`, artIndexEntry, accessToken).catch(e => console.error("[WORKER] art_index write failed:", e.message));
                 }
 
-                // Record this text for duplicate detection (non-blocking)
-                if (trimmed) {
-                    recordUserRecentContent(uid, "kindlechat", trimmed, accessToken).catch(e => console.error("[DEDUPE] record failed:", e.message));
-                    cleanupUserRecentContent(uid, "kindlechat", accessToken).catch(e => console.error("[DEDUPE] cleanup failed:", e.message));
-                }
-
-                // Record pixel art grid for duplicate detection (non-blocking)
-                if (isPixelArt && body.grid_data) {
-                    recordUserRecentContent(uid, "kindlechat_pixel_art", body.grid_data, accessToken).catch(e => console.error("[DEDUPE] record failed:", e.message));
-                    cleanupUserRecentContent(uid, "kindlechat_pixel_art", accessToken).catch(e => console.error("[DEDUPE] cleanup failed:", e.message));
-                }
+                // Duplicate/repetition state was already recorded on the
+                // rate-limit bucket by consumeRateLimitToken() above.
 
                 return new Response(JSON.stringify({ allowed: true, key: result.name }), { status: 200, headers });
             }
@@ -1582,12 +1710,6 @@ export default {
                     return new Response(JSON.stringify({ error: `Rate limit exceeded. You can create ${RATE_LIMIT_CONFIG.topic.capacity} topics every ${Math.round(RATE_LIMIT_CONFIG.topic.refillMs / 3600000)} hours. Please wait ${rl.retryAfter} second(s).`, retryAfter: rl.retryAfter }), { status: 429, headers });
                 }
 
-                // Duplicate / repetitive content detection
-                const dupCheck = await checkUserRecentContent(uid, "topic", title + " " + subheading, accessToken);
-                if (dupCheck.duplicate) {
-                    return new Response(JSON.stringify({ error: "You already posted a topic like this recently. Please wait a few minutes.", retryAfter: dupCheck.retryAfter }), { status: 429, headers });
-                }
-
                 // Moderation
                 let textToModerate = title + " " + subheading;
                 if (validatedPoll) {
@@ -1641,12 +1763,6 @@ export default {
                 const rl = await consumeRateLimitToken(uid, "topic_comment", accessToken);
                 if (!rl.allowed) {
                     return new Response(JSON.stringify({ error: `Rate limit exceeded. Please wait ${rl.retryAfter} second(s) before commenting.`, retryAfter: rl.retryAfter }), { status: 429, headers });
-                }
-
-                // Duplicate / repetitive content detection
-                const dupCheck = await checkUserRecentContent(uid, "topic_comment", commentText, accessToken);
-                if (dupCheck.duplicate) {
-                    return new Response(JSON.stringify({ error: "You already sent this comment recently. Please wait a few minutes.", retryAfter: dupCheck.retryAfter }), { status: 429, headers });
                 }
 
                 // Moderation
@@ -1715,12 +1831,6 @@ export default {
                     return new Response(JSON.stringify({ error: `Rate limit exceeded. Please wait ${rl.retryAfter} second(s) before posting.`, retryAfter: rl.retryAfter }), { status: 429, headers });
                 }
 
-                // Duplicate / repetitive content detection
-                const dupCheck = await checkUserRecentContent(uid, "neighbourhood_post", trimmed, accessToken);
-                if (dupCheck.duplicate) {
-                    return new Response(JSON.stringify({ error: "You already posted this recently. Please wait a few minutes.", retryAfter: dupCheck.retryAfter }), { status: 429, headers });
-                }
-
                 // Moderation
                 const mod = await moderateContent(trimmed, env.OPENAI_API_KEY);
                 if (mod.flagged) {
@@ -1759,12 +1869,6 @@ export default {
                 const rl = await consumeRateLimitToken(uid, "neighbourhood_comment", accessToken);
                 if (!rl.allowed) {
                     return new Response(JSON.stringify({ error: `Rate limit exceeded. Please wait ${rl.retryAfter} second(s) before commenting.`, retryAfter: rl.retryAfter }), { status: 429, headers });
-                }
-
-                // Duplicate / repetitive content detection
-                const dupCheck = await checkUserRecentContent(uid, "neighbourhood_comment", trimmed, accessToken);
-                if (dupCheck.duplicate) {
-                    return new Response(JSON.stringify({ error: "You already sent this comment recently. Please wait a few minutes.", retryAfter: dupCheck.retryAfter }), { status: 429, headers });
                 }
 
                 // Moderation
@@ -1903,3 +2007,7 @@ export default {
         }
     }
 };
+
+// Exported for scripts/test-chat-spam.js (unit tests). Wrangler only uses the
+// default export, so these are inert in production.
+export { chatTextShapes, chatTokenOverlap, evaluateChatRepetition };
