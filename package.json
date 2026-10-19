@@ -4,7 +4,8 @@
     "scripts": {
         "build": "node build-automation.js",
         "build:badwords": "node scripts/build-bad-words.js",
-        "deploy:beta": "npx wrangler pages deploy . --project-name=rekindle --branch=beta",
+        "deploy:beta": "npm run build && npx wrangler pages deploy _deploy/main --project-name=rekindle --branch=beta",
+        "deploy:prod": "npm run build && npx wrangler pages deploy _deploy/main --project-name=rekindle --branch=main",
         "deploy:rules:firestore": "firebase deploy --only firestore:rules",
         "deploy:rules:rtdb": "firebase deploy --only database:rules",
         "deploy:rules:storage": "firebase deploy --only storage",

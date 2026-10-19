@@ -25,10 +25,42 @@ const ignoreList = [
     'node_modules', '.git', '.github', '_deploy',
     'build-automation.js', 'package.json', 'package-lock.json',
     'wrangler.toml', '.gitignore', '.DS_Store',
-    'workers', 'scripts', 'screenshots',
+    'workers', 'scripts', 'screenshots', 'admin', 'Sync', 'pocketbase',
     // Firebase Backend Files (Keep in repo, ignore for hosting)
-    'firebase.json', '.firebaserc', 'firestore.rules', 'firestore.indexes.json', 'rtdb-rules.json'
+    'firebase.json', '.firebaserc', 'firestore.rules', 'firestore.indexes.json', 'rtdb-rules.json',
+    // CREDENTIALS — MUST NEVER BE PUBLISHED. These were live on rekindle.ink and
+    // beta.rekindle.ink until 2026-10-20 because they were missing from this list:
+    //  /service-account.json          (rekindle-dd1fa admin key)
+    //  /service-account-social.json   (rekindle-socials admin key)
+    //  /firebase-functions/.env       (OPENAI_API_KEY + the social admin key)
+    'service-account.json', 'service-account-social.json', '.env',
+    'firebase-functions', 'firebase-social.json'
 ];
+
+// Files/dirs that must never appear in a deploy directory. The build fails
+// loudly if any of them survive the copy step, so a future ignoreList edit
+// cannot silently republish credentials.
+const FORBIDDEN_IN_DEPLOY = [
+    'service-account.json', 'service-account-social.json', '.env',
+    'firebase-functions', 'firebase-social.json', 'firebase.json',
+    'rtdb-rules.json', 'firestore.rules', 'workers', 'scripts', 'admin'
+];
+
+async function assertNoSecretsInDeploy() {
+    const problems = [];
+    for (const dir of [MAIN_DIR, LITE_DIR, LEGACY_DIR]) {
+        for (const name of FORBIDDEN_IN_DEPLOY) {
+            const p = path.join(dir, name);
+            if (await fs.pathExists(p)) problems.push(p);
+            // Nested .env (e.g. firebase-functions/.env) is covered by the dir check
+        }
+    }
+    if (problems.length) {
+        console.error("\n🚨 BUILD ABORTED — credentials would have been published:");
+        problems.forEach(p => console.error("   " + p));
+        throw new Error("Refusing to build a deploy directory containing secrets.");
+    }
+}
 
 
 // --- MINIFICATION HELPERS ---
@@ -1570,7 +1602,13 @@ async function run() {
         console.error("Failed to generate sitemap", err);
     }
 
+    // 10. Refuse to publish credentials (see FORBIDDEN_IN_DEPLOY above)
+    await assertNoSecretsInDeploy();
+
     console.log("✅ Build Complete!");
 }
 
-run().catch(console.error);
+run().catch(err => {
+    console.error(err && err.message ? err.message : err);
+    process.exit(1);
+});

@@ -657,6 +657,16 @@ External APIs such as Reddit aggressively rate-limit shared cloud egress IPs (e.
 
 Example pattern: `functions/api/reddit.js`.
 
+## ⚠️ Deploying to Cloudflare Pages (do not deploy the repo root)
+
+`npx wrangler pages deploy .` uploads **everything in the directory, including `.gitignore`d files**. `service-account.json`, `service-account-social.json` and `firebase-functions/.env` (which also holds `OPENAI_API_KEY`) were publicly downloadable from both `rekindle.ink` and `beta.rekindle.ink` until 2026-10-20 because the deploy scripts pointed at `.` and `build-automation.js`'s `ignoreList` did not exclude them.
+
+**Rules:**
+*   Deploy the build output, never the source tree: `npm run build && npx wrangler pages deploy _deploy/main --project-name=rekindle --branch=main` (prod) or `--branch=beta` (beta). `npm run deploy:prod` / `npm run deploy:beta` now do this.
+*   `_deploy/main` must contain `functions/` — Cloudflare Pages needs it at the deploy root, and `build-automation.js` copies it in.
+*   `build-automation.js` has `FORBIDDEN_IN_DEPLOY` + `assertNoSecretsInDeploy()`: the build aborts if any credential file survives the copy. Keep that list in sync with `ignoreList` when adding new secret files.
+*   Pages caches non-HTML assets on the edge (`s-maxage=604800`). A file removed from a deployment can still be served from the custom-domain cache for up to 7 days — purge the cache (or rotate the credential) after any accidental publish.
+
 ## Local Testing Gotcha: Service Worker Forces Extensionless URLs
 
 `js/i18n.js` registers a service worker that reloads the page to the extensionless URL (`/jumpy.html` → `/jumpy`) on first load. `python3 -m http.server` then 404s, showing an "Error response" page with no `.title-text` — looks like a broken page, but isn't. Test locally with a static server that falls back to `.html` (try file, then file + '.html'), or use query params (`?lang=de`) which also bypass the reload. Production (Cloudflare Pages) serves extensionless URLs natively.
