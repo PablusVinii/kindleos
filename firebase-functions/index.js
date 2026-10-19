@@ -1147,3 +1147,19 @@ exports.createRssFeed = onCall(callOptions, async (request) => {
     return { success: true, id: docRef.id };
 });
 
+
+// ---------------------------------------------------------------------------
+// Akinator relay (Chrome-TLS proxy for akinator.html)
+// See firebase-functions/akinator.js for why this cannot run on Cloudflare.
+// ---------------------------------------------------------------------------
+const { akinatorHandler } = require("./akinator");
+
+exports.akinator = onRequest(
+    {
+        region: "us-central1",
+        memory: "256MiB",
+        timeoutSeconds: 30,
+        maxInstances: 5 // hard cost ceiling; idle cost is zero (no minInstances)
+    },
+    akinatorHandler
+);

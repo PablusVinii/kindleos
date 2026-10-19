@@ -332,7 +332,7 @@ To handle subpaths under a function route, use a catch-all file inside a folder:
 functions/api/foo/[[path]].js   → handles /api/foo and /api/foo/*
 ```
 
-**Real bug fixed (historical):** `functions/api/akinator.js` was deployed and the root `/api/akinator` worked, but `POST /api/akinator/start` returned 405 because the subpath fell through to the static asset handler. The fix was moving the function to `functions/api/akinator/[[path]].js`. (That function no longer exists — Akinator was moved to a worker, then the backend was removed entirely in 2026-07; the page now uses CORS proxies only. The routing lesson still applies to any future multi-endpoint function.)
+**Real bug fixed (historical):** `functions/api/akinator.js` was deployed and the root `/api/akinator` worked, but `POST /api/akinator/start` returned 405 because the subpath fell through to the static asset handler. The fix was moving the function to `functions/api/akinator/[[path]].js`. (That function no longer exists — Akinator moved to a worker, then to CORS proxies, and since 2026-10 it uses a Firebase HTTPS relay, `firebase-functions/akinator.js`, because Akinator's Cloudflare blocks Cloudflare Workers by TLS fingerprint. See [integrations.md](docs/agent/integrations.md). The routing lesson still applies to any future multi-endpoint function.)
 
 ## 🏗 System Architecture
 

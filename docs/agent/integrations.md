@@ -35,33 +35,62 @@ Library items are stored in localforage key `manga_library` and must have `sourc
 ### Dashboard entry
 The `icons.js` entry uses `id: 'comics'` (file `comics.html`) with `name: 'Comics'`. All locale files translate `manga.title` as their word for "Comics".
 
-## Akinator API (`akinator.html`)
-The Akinator game talks to Akinator.com through third-party **CORS proxies only** — there is no self-hosted backend (the Cloudflare Worker fallback was removed 2026-07 at user request; the old worker code still exists undeployed at `workers/rekindle-akinator/`).
+## Akinator (`akinator.html` + `firebase-functions/akinator.js`)
 
-## Transport chain (in `akinator.html`)
-- **CORS proxies** (`CORS_PROXIES` list, tried in order). The page itself scrapes `/game` for session/signature/question and POSTs form data to `/answer`, `/cancel_answer`, `/exclude`. Per-proxy entry shape: `{ base, encode }` — `encode: true` means append `encodeURIComponent(targetUrl)` (corsproxy.io, codetabs), `false` means append the raw URL (Zibri's `test.cors.workers.dev`).
+**Current transport (2026-10):** a self-hosted Firebase HTTPS relay, with the public CORS proxies kept only as a last-resort fallback. The 2026-07 decision to run proxies-only no longer works — see below.
 
-`withTransport(fn)` runs each operation against the chain; the first transport that succeeds becomes `activeTransport` and is tried first next time (reset on failure). **Akinator sessions are param-based** (`session` + `signature` in every POST, no cookies), so transports can switch mid-game without losing state.
+### Why the public proxies all died
+Akinator.com's Cloudflare now fingerprints the **TLS ClientHello (JA3/JA4)**, not just headers:
 
-## Proxy gotchas (verified 2026-07)
-- **`X-Requested-With: XMLHttpRequest` is required** on POSTs to Akinator's endpoints — without it Akinator's Cloudflare returns a 403 WAF block page. Browsers can send it (triggers a preflight; working proxies answer OPTIONS correctly).
-- `test.cors.workers.dev` (Zibri's cloudflare-cors-anywhere) is the only public proxy verified to work with Akinator. It **rejects requests without an `Origin` header** ("Error: use fetch()") and without a browser User-Agent — both are automatic from a real browser, but curl/node tests must set them manually.
-- `corsproxy.io` reaches Akinator but gets a Cloudflare challenge page; codetabs/allorigins are frequently down (522); `proxy.corsfix.com` requires per-domain registration; `cors.sh` needs an API key. Public proxies are flaky — with no worker fallback anymore, all proxies failing means the user sees a start/network error. Re-test before adding/reordering proxies.
-- The proxy path validates responses (regex-extracted session/signature/question for start, `JSON.parse` for actions), so a proxy returning a challenge page or HTML just fails through to the next transport.
+- Browser `fetch`, `curl`, Node `undici` (even with a full Chrome header set) and **Cloudflare Workers/Pages Functions** all get the 403 "Just a moment..." challenge page. Verified against the deployed `rekindle.ink/api/proxy`.
+- `got-scraping` (Chrome TLS + HTTP/2 fingerprint) gets the real page and JSON, from both a residential IP and Cloud Run.
+- Every public proxy is dead: `test.cors.workers.dev` → Cloudflare `error 1027` (account banned for abuse), `corsproxy.io` → Cloudflare challenge, `codetabs`/`allorigins` → 522, `cors.lol` → 429, several others → 404/DNS fail.
+- `en.akinator.com` sends **no** `Access-Control-Allow-Origin`, so the browser can never call it directly. A relay is unavoidable.
+- Cloudflare Workers cannot fake a Chrome TLS fingerprint, so the old `workers/rekindle-akinator/` worker (still in the repo, undeployed) would fail even if redeployed. That is why the relay lives on Firebase (Node) instead.
 
-## Akinator.com endpoint details
-- Akinator.com sits behind Cloudflare bot protection; calls can be blocked if the upstream IP/headers are flagged.
-- The start endpoint scrapes the Akinator `/game` page. Reliable patterns are:
-  - `session: '...'` (inline JS)
-  - `signature: '...'` (inline JS)
-  - `<p class="question-text" id="question-label">...</p>`
-  - Answer labels from `<a class="li-game" href="#" id="a_yes" onclick="chooseAnswer(0)">...</a>` (and `a_no`, `a_dont_know`, `a_probably`, `a_probaly_not`).
-- Action endpoints: `/answer` (send 0-4), `/cancel_answer` (back), `/exclude` (continue after wrong guess).
-- Supported regions and theme `sid` values: characters=1, objects=2, animals=14.
-- Sessions are short numeric strings (e.g. `'886'`) and the signature is base64 — both appear multiple times in the `/game` HTML. `extractFirst()` picks the **longest** match across all patterns to avoid short decoys.
-- Continue maps to Akinator `/exclude` and **must** send `forward_answer: '1'` (per the site's own `continuePartie()` JS) — **not** `step_last_proposition`. Without it, Akinator returns the HTML game page instead of JSON, and the browser's `JSON.parse` throws.
-- Canonical endpoint params (scraped from the `/game` page inline JS, 2026-07): `/answer` = step, progression, sid, cm, answer, step_last_proposition, session, signature. `/cancel_answer` = step, progression, sid, cm, session, signature. `/exclude` = step, sid, cm, progression, session, signature, forward_answer ('1' = keep playing, '0' = end game).
-- akinator.com hard-blocks some residential IPs with a Cloudflare 403 even with full browser headers. Don't trust local `curl` results for diagnosis.
+### The relay
+Defined in `firebase-functions/akinator.js`, exported as `exports.akinator` at the end of `firebase-functions/index.js`.
+
+- URL: `https://us-central1-rekindle-dd1fa.cloudfunctions.net/akinator`
+- Deploy: `firebase deploy --only functions:akinator` · remove: `firebase functions:delete akinator`
+- `onRequest`, us-central1, 256 MiB, 30 s, **`maxInstances: 5`**, no min-instances (idle cost $0).
+- **Stateless**: one HTTP request → one Akinator request. The `session` token is all that is needed (verified with and without cookies), so no Firestore/RTDB is used.
+- **Quota:** zero Firestore/RTDB/Auth/Storage usage. A game is ~21 invocations; the Cloud Functions free tier (2M invocations / 400k GB-s / 200k CPU-s per month) covers roughly **40,000 games/month**.
+- CORS allowlist: the four `rekindle.ink` origins + localhost. OPTIONS answered manually.
+- Per-instance token bucket (~120 burst, 2 req/s per IP) as a cheap abuse guard; keyed off the first `x-forwarded-for` entry so Cloud Run can't collapse all users into one bucket.
+- `got-scraping` is imported lazily so the other functions don't pay its cold start.
+- In `akinator.html`, the relay is always tried first. The dead public proxies are only a fallback for a relay *reachability* failure (`network`/`relay_error`); `session_expired`, `bad_request`, `rate_limited` and all `upstream_*` errors stop immediately so users don't stare at ~45 s of proxy timeouts before the same error.
+
+Request/response contract:
+
+| Request | Response |
+| :--- | :--- |
+| `{action:'start', region, childMode}` | `{session, question, step:1, progression:0, answers[], baseUrl, sid, region}` |
+| `{action:'answer', region, childMode, session, step, progression, answer:0-4, stepLast}` | `{step, progression, question}` or `{..., guess:{id,name,description,photo,noQuestion}}` |
+| `{action:'back', region, childMode, session, step, progression}` | `{step, progression, question}` |
+| `{action:'continue', region, childMode, session, step, progression}` | `{step, progression, question}` or next `guess` |
+
+Errors: `{error:'session_expired'|'bad_request'|'upstream_blocked'|'upstream_timeout'|'upstream_parse', message}` with 400/409/502/504. `session_expired` is **not** retried on another transport — the page shows the modal and resets to the start screen.
+
+### Akinator protocol changes (2026-10) — the bugs that broke the page even with a working proxy
+1. **`step` starts at 1**, not 0. Sending `step: 0` makes `/answer` return `{"completion":"KO"}`; the old page treated that as "no new question" and silently re-rendered the same question forever.
+2. **`signature` no longer exists** anywhere in the page (no hidden input, no JS variable). The old `apiStart()` required it, so every start threw even when the transport worked.
+3. `/cancel_answer` must receive the **current** step, not `step - 1`. The wrong value returns the full HTML game page instead of JSON (and invalidates the session). Back is only valid during a question, never at a proposition.
+4. `/exclude` still needs `forward_answer: '1'`. After a wrong guess the returned `step` can jump (e.g. 9 → 11); always copy `step`/`progression` from the response.
+5. Guesses may carry `no_question: "1"` (genie out of questions); the page then ends the game instead of continuing.
+
+### Endpoint details
+- Start: `POST /game` with `cm`, `sid`, `anim` → HTML. Parse `session: '...'` and the `id="question-label"` `<p>` (the tag spans two lines — match `id` without requiring `class` to come first).
+- Themes: characters `sid=1`, objects `2`, animals `14`.
+- `region` maps to `<lang>.akinator.com`. Only these hosts resolve: en, de, es, fr, it, nl, pl, pt, ru, tr, id, ar, cn, il, jp, kr, uk, vn, fa. (`gr` and `sp` do **not** — the page uses `es` for Spanish and `jp` for Japanese.)
+- Answer labels: `a_yes`, `a_no`, `a_dont_know`, `a_probably`, `a_probaly_not` (Akinator's own typo).
+- Action response fields: `step`, `progression`, `question`, `id_proposition`, `id_base_proposition`, `name_proposition`, `description_proposition`, `photo`, `no_question`, or `completion: "KO"`.
+- `X-Requested-With: XMLHttpRequest`, `Origin` and `Referer` (…/game, or …/theme-selection for `/game`) are all sent by the relay.
+
+### Testing
+- Local harness: load `firebase-functions/akinator.js`, call `akinatorHandler({method:'POST', body, headers:{origin:'https://rekindle.ink'}, ip}, fakeRes)`. This exercises the real upstream.
+- Deployed: `curl -X POST https://us-central1-rekindle-dd1fa.cloudfunctions.net/akinator -H 'Content-Type: application/json' -H 'Origin: https://rekindle.ink' --data '{"action":"start","region":"en"}'`.
+- The page can be tested without a browser by running its extracted inline script in a `vm` sandbox with a fake DOM (see the 2026-10 fix). The proxy fallback path can't be tested meaningfully while the proxies are dead.
 
 ---
 
