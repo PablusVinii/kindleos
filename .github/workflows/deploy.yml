@@ -3,6 +3,7 @@ name: Build and Deploy
 on:
   push:
     branches: [ main ] # Ensure this matches your branch name (e.g. 'main' or 'master')
+  workflow_dispatch: # Allows manual runs from the Actions tab
 
 jobs:
   deploy:
@@ -13,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20 # Uses Node 20 to fix dependency errors
 
@@ -25,38 +26,34 @@ jobs:
           npm install
           npm run build
 
-      # Deploy MAIN Site to your existing 'rekindle' project
+      # NOTE: cloudflare/pages-action was deprecated and removed on 2026-09-18
+      # (CVE-2026-11325), so GitHub can no longer resolve it. Cloudflare's
+      # recommended replacement is cloudflare/wrangler-action.
       - name: Publish Main
-        uses: cloudflare/pages-action@v1.5.0
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: rekindle  # YOUR EXISTING PROJECT
-          directory: _deploy/main
+          wranglerVersion: '4'
+          command: pages deploy _deploy/main --project-name=rekindle --branch=${{ github.ref_name }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          wranglerVersion: '3'
-          command: deploy
 
-      # Deploy LITE Site to the new 'rekindle-lite' project
+      # Deploy LITE Site to the 'rekindle-lite' project
       - name: Publish Lite
-        uses: cloudflare/pages-action@v1.5.0
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: rekindle-lite # NEW PROJECT
-          directory: _deploy/lite
+          wranglerVersion: '4'
+          command: pages deploy _deploy/lite --project-name=rekindle-lite --branch=${{ github.ref_name }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          wranglerVersion: '3'
-          command: deploy
 
-      # Deploy LEGACY Site to the new 'rekindle-legacy' project
+      # Deploy LEGACY Site to the 'rekindle-legacy' project
       - name: Publish Legacy
-        uses: cloudflare/pages-action@v1.5.0
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: rekindle-legacy # NEW PROJECT
-          directory: _deploy/legacy
+          wranglerVersion: '4'
+          command: pages deploy _deploy/legacy --project-name=rekindle-legacy --branch=${{ github.ref_name }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          wranglerVersion: '3'
-          command: deploy
