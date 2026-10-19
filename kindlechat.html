@@ -1296,6 +1296,7 @@
     <script src="js/emoji-render.js"></script>
 
     <script src="bad_words.js?v=4"></script>
+    <script src="js/promo-ban.js?v=1"></script>
     <script src="time.js"></script>
     <script src="theme.js?v=18"></script>
     <link rel="stylesheet" href="css/custom-select.css">
@@ -2043,7 +2044,11 @@
 
         function containsPromotedTerm(text) {
             if (!text) return false;
-            return /\b(?:unreader|un-reader|inkchat|kindlehub)\b/i.test(String(text));
+            // js/promo-ban.js folds homoglyphs, leetspeak, "DOT" and separators
+            // before matching, so "kindlеhub", "khub" and "kindlehubDOTpro" are
+            // all caught. Fallback keeps a basic net if the helper failed to load.
+            if (window.rekindleContainsPromotedTerm) return window.rekindleContainsPromotedTerm(text);
+            return /\b(?:unreader|un-reader|inkchat|kindlehub|khub)\b/i.test(String(text));
         }
 
         // --- ASCII PICKER LOGIC ---
@@ -2956,7 +2961,7 @@
 
             var thumb = getGalleryThumbnail(msg);
             var typeLabel = getGalleryTypeLabel(msg);
-            var authorName = escapeHtml(msg.user ? msg.user.split('@')[0] : (msg.uid ? msg.uid.substring(0, 8) : 'Unknown'));
+            var authorName = escapeHtml(censorUsername(msg.user ? msg.user.split('@')[0] : (msg.uid ? msg.uid.substring(0, 8) : 'Unknown')));
             var timeStr = msg.timestamp ? formatChatTime(msg.timestamp) : '';
             var text = msg.text || '';
             if (text) text = censorText(text);
@@ -2995,7 +3000,7 @@
                 drawAvatar(avatarId, seed);
                 var username = card.username || uid.substring(0, 8);
                 var nameEl = itemEl.querySelector('.gallery-author');
-                if (nameEl) nameEl.textContent = escapeHtml(username);
+                if (nameEl) nameEl.textContent = censorUsername(username);
                 // Cache for other lookups
                 if (username && !usernameToProfile[username]) {
                     usernameToProfile[username] = { uid: uid, avatarSeed: seed };
@@ -3105,7 +3110,7 @@
                     drawAvatar('pixel-modal-avatar', seed);
                     var username = card.username || msg.uid.substring(0, 8);
                     var nameEl = document.getElementById('pixel-modal-username');
-                    if (nameEl) nameEl.textContent = escapeHtml(username);
+                    if (nameEl) nameEl.textContent = censorUsername(username);
                 });
             }
         }
@@ -3203,8 +3208,19 @@
         }
 
         function censorText(text) {
-            if (window.filterBadWords) return window.filterBadWords(text);
-            return text;
+            if (!text) return text;
+            var out = text;
+            // Promo mentions are masked even in already-stored messages so old
+            // KindleHub spam stops showing up as free advertising.
+            if (window.rekindleCensorPromotedTerms) out = window.rekindleCensorPromotedTerms(out);
+            if (window.filterBadWords) out = window.filterBadWords(out);
+            return out;
+        }
+
+        function censorUsername(username) {
+            if (!username) return username;
+            if (window.rekindleCensorPromotedUsername) return window.rekindleCensorPromotedUsername(username);
+            return username;
         }
 
         function linkify(inputText) {
@@ -3344,9 +3360,9 @@
                     } else if (isPro) {
                         var crownSvg = '<svg class="supporter-crown" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 4L5 18H19L22 4L15 11L12 4L9 11L2 4Z" stroke="black" stroke-width="2" fill="none"/></svg>';
                         var crown = '<a href="http://link.rekindle.ink/donate" target="_blank" style="text-decoration:none;" title="Supporter">' + crownSvg + '</a>';
-                        nameContent = isSelf ? crown + window.t('kindlechat.msg.you', 'You') : crown + '<span style="font-weight:bold;">' + escapeHtml(username) + '</span>';
+                        nameContent = isSelf ? crown + window.t('kindlechat.msg.you', 'You') : crown + '<span style="font-weight:bold;">' + escapeHtml(censorUsername(username)) + '</span>';
                     } else {
-                        nameContent = isSelf ? window.t('kindlechat.msg.you', 'You') : '<span style="font-weight:bold;">' + escapeHtml(username) + '</span>';
+                        nameContent = isSelf ? window.t('kindlechat.msg.you', 'You') : '<span style="font-weight:bold;">' + escapeHtml(censorUsername(username)) + '</span>';
                     }
                     nameEl.innerHTML = nameContent;
                     nameEl.onclick = function () { openUserProfile(uid, username); };
@@ -3367,7 +3383,7 @@
                 // Update game link starter name (if present)
                 var gameStarterEl = msgEl.querySelector('.game-starter-name');
                 if (gameStarterEl) {
-                    gameStarterEl.textContent = username;
+                    gameStarterEl.textContent = censorUsername(username);
                 }
 
                 // Cache for username lookups
@@ -3573,7 +3589,7 @@
             if (text.length > 80) snippet += '...';
 
             var safeOriginalMsgId = (replyTo.msgId || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-            var safeUsername = escapeHtml(username);
+            var safeUsername = escapeHtml(censorUsername(username));
 
             return '<div class="reply-context" onclick="scrollToReplyMessage(\'' + safeOriginalMsgId + '\')">' +
                 '<div class="reply-context-author">@' + safeUsername + '</div>' +
@@ -3952,7 +3968,7 @@
 
             // Force reply @username prefix when replying to a specific message
             if (replyTarget) {
-                var prefix = '@' + replyTarget.username + ' ';
+                var prefix = '@' + censorUsername(replyTarget.username) + ' ';
                 if (text.indexOf(prefix) !== 0) {
                     text = prefix + text;
                     // Show the prefix in the composer without destroying emoji images
@@ -4458,6 +4474,10 @@
 
         // --- GENERAL CHANNEL: Send to Realtime Database (Direct/Fallback) ---
         function sendGeneralMessageToRTDB(text) {
+            // This path writes straight to RTDB (no moderation worker), so the
+            // content checks must run here too.
+            if (containsUrl(text)) { showModal('Links and URLs are not allowed.'); return; }
+            if (containsPromotedTerm(text)) { showModal('Promotional content is not allowed.'); return; }
             var messageData = {
                 uid: currentUser.uid,
                 timestamp: firebase.database.ServerValue.TIMESTAMP,

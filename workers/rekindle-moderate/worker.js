@@ -378,9 +378,98 @@ function containsUrl(text) {
     return protocolLike || wwwLike || domainLike || ipLike;
 }
 
+// Banned competitor mentions (KindleHub / kindlehub.pro / Unreader / InkChat).
+// KEEP IN SYNC with js/promo-ban.js - the client uses the same folding rules so
+// the UI and the server agree on what counts as a mention.
+//
+// The KindleHub owner evades naive regexes with spelled-out dots
+// ("kindlehubDOTpro"), Cyrillic/Greek homoglyphs ("kindlеhub"), leetspeak
+// ("Unr3ad3r"), separators ("kindle.hub") and the "khub" abbreviation, so the
+// text is folded to ASCII (homoglyphs -> letters, leet -> letters, diacritics
+// stripped) and compacted (non-alphanumerics dropped) before matching.
+const PROMO_HOMOGLYPHS = {
+    // Cyrillic
+    "\u0430": "a", "\u0432": "b", "\u0435": "e", "\u0451": "e", "\u043A": "k",
+    "\u043C": "m", "\u043D": "h", "\u043E": "o", "\u0440": "p", "\u0441": "c",
+    "\u0442": "t", "\u0443": "y", "\u0445": "x", "\u0456": "i", "\u0457": "i",
+    "\u0455": "s", "\u0501": "d", "\u04CF": "l", "\u0458": "j", "\u051B": "q",
+    "\u051D": "w", "\u0261": "g", "\u044C": "b", "\u043F": "n",
+    // Greek
+    "\u03B1": "a", "\u03B2": "b", "\u03B5": "e", "\u03B9": "i", "\u03BA": "k",
+    "\u03BD": "v", "\u03BF": "o", "\u03C1": "p", "\u03C3": "o", "\u03C4": "t",
+    "\u03C5": "u", "\u03C7": "x", "\u03C9": "w", "\u03B3": "y", "\u03B7": "n",
+    "\u03BC": "u", "\u03C0": "n", "\u03B6": "z",
+    // Latin small caps / dotless forms
+    "\u0131": "i", "\u0251": "a", "\u2113": "l", "\u026A": "i", "\u0280": "r",
+    "\u0274": "n", "\u028F": "y", "\u0262": "g", "\u029C": "h", "\u0299": "b",
+    "\u1D0B": "k", "\u1D1C": "u", "\u1D0F": "o", "\u1D00": "a", "\u1D04": "c",
+    "\u1D05": "d", "\u1D07": "e", "\u1D0A": "j", "\u029F": "l", "\u1D0D": "m",
+    "\u1D18": "p", "\uA731": "s", "\uA730": "f", "\u1D1B": "t"
+};
+const PROMO_LEET = {
+    "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b",
+    "9": "g", "@": "a", "$": "s", "!": "i", "|": "i"
+};
+const PROMO_TERMS = ["kindlehub", "unreader", "inkchat"];
+
+function promoFoldChar(ch) {
+    if (!ch) return "";
+    const code = ch.charCodeAt(0);
+    let c = ch;
+    if (code > 127 && typeof ch.normalize === "function") {
+        try {
+            const n = ch.normalize("NFKD");
+            if (n) c = n.charAt(0);
+        } catch (e) {
+            c = ch;
+        }
+    }
+    c = c.toLowerCase();
+    if (c.length !== 1) c = ch.charAt(0).toLowerCase();
+    return PROMO_HOMOGLYPHS[c] || PROMO_LEET[c] || c;
+}
+
+function promoFoldText(text) {
+    const s = String(text || "");
+    let folded = "";
+    let compact = "";
+    const map = [];
+    for (let i = 0; i < s.length; i++) {
+        const f = promoFoldChar(s.charAt(i));
+        folded += f;
+        if (f.length === 1 && /[a-z0-9]/.test(f)) {
+            compact += f;
+            map.push(i);
+        }
+    }
+    return { folded: folded, compact: compact, map: map };
+}
+
 function containsPromotedTerm(text) {
     if (!text) return false;
-    return /\b(?:unreader|un-reader|inkchat|kindlehub)\b/i.test(String(text));
+    const s = String(text);
+    const info = promoFoldText(s);
+
+    // Compact terms catch separators / homoglyphs / "DOT" spellings.
+    for (let t = 0; t < PROMO_TERMS.length; t++) {
+        const term = PROMO_TERMS[t];
+        let from = 0;
+        let at = info.compact.indexOf(term, from);
+        while (at !== -1) {
+            from = at + 1;
+            const start = info.map[at];
+            // "unreader"/"inkchat" need a word boundary or ordinary phrases
+            // ("run reader" -> "runreader") would match. "kindlehub" is
+            // distinctive enough to match inside a word.
+            const before = start > 0 ? promoFoldChar(s.charAt(start - 1)) : "";
+            if (term === "kindlehub" || !/[a-z0-9]/.test(before)) return true;
+            at = info.compact.indexOf(term, from);
+        }
+    }
+
+    // Standalone "khub" / "K-Hub" abbreviation.
+    const khubRe = /(^|[^a-z0-9])k[\W_]*hub(?![a-z0-9])/g;
+    return khubRe.test(info.folded);
 }
 
 function containsDih(text) {

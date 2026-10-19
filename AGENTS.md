@@ -501,20 +501,38 @@ function containsUrl(text) {
 
 **Error message (URL):** Use `"Links and URLs are not allowed."` consistently across all apps.
 
-### 9. Promotional Term Blocking in Social Apps
-The following competing-service names are banned from mention in social apps as promotional content: **Unreader**, **un-reader**, **Inkchat**, **kindlehub**. This is enforced **both client-side and server-side** (moderation worker).
+### 9. Banned Competitor Mentions in Social Apps
+**Any mention** of these competing services is banned from social apps (not just promos): **KindleHub** (`kindlehub`, `kindlehub.pro`, and its "khub" nickname), **Unreader** / **un-reader**, **Inkchat**. KindleHub's owner repeatedly spams promo for it, so this is enforced **client-side and server-side** (moderation worker), and existing mentions are masked for display.
 
-**Client-side helper** (add to each social app HTML next to `containsUrl`):
+**Evasion forms seen in the wild (all now caught):**
+* Spelled-out dots: `kindlehubDOTpro`, `Unr3ad3r-v4yf.onrender(DOT)com`
+* Cyrillic/Greek homoglyphs: `kindlеhub` (Cyrillic `е`), `httрs://kindlеhub.рro/`, `unrеаdеr`
+* Leetspeak: `Unr3ad3r`, `k1ndlehub`, `1nkchat`
+* Separators/spacing: `kindle.hub`, `kindle hub`, `un-reader`, `k i n d l e h u b`
+* The abbreviation `khub` / `K-Hub` (**must be blocked** - it is how users are funnelled to the competitor)
+* Zero-width characters between letters
+
+**Client-side helper:** `js/promo-ban.js` (loaded by `kindlechat.html`, `neighbourhood.html`, `topics.html`). It folds homoglyphs/leetspeak/diacritics to ASCII, compacts non-alphanumerics, matches `kindlehub` / `unreader` / `inkchat` plus standalone `khub`, and maps the match back to the original characters. Exposes:
 ```javascript
-function containsPromotedTerm(text) {
-    if (!text) return false;
-    return /\b(?:unreader|un-reader|inkchat|kindlehub)\b/i.test(String(text));
-}
+window.rekindleContainsPromotedTerm(text)      // true -> reject the write
+window.rekindleCensorPromotedTerms(text)       // masks matches with █████ for display
+window.rekindleContainsPromotedUsername(name)  // substring check for usernames
+window.rekindleCensorPromotedUsername(name)
 ```
+The local `containsPromotedTerm(text)` in each social page must stay as a thin wrapper that delegates to `window.rekindleContainsPromotedTerm` (with a plain-regex fallback in case the helper fails to load). **Do not re-implement the regex locally** - the old `\b(?:unreader|un-reader|inkchat|kindlehub)\b` was trivially bypassed by `kindlеhub`, `kindle.hub` and `khub`.
 
-**Where to block:** Same locations as URL blocking. Apply `containsPromotedTerm()` to message text, topic titles/subheadings, poll questions/options, post text, and comment text.
+**Server-side mirror:** `workers/rekindle-moderate/worker.js` `containsPromotedTerm()` carries the same folding logic (comments say KEEP IN SYNC with `js/promo-ban.js`). It is applied to every content type: `kindlechat`, `topic` (title/subheading/poll), `topic_comment`, `neighbourhood_post`, `neighbourhood_comment`.
 
-**Error message (promotion):** Use `"Promotional content is not allowed."` consistently across all apps.
+**Where to block (client):**
+* KindleChat: `sendMessage()` and `sendGeneralMessageViaWorker()`.
+* Neighbourhood: `submitPost()`, `submitComment()`, **`editPost()`** (edits write straight to Firestore, bypassing the worker), and `saveProfile()` (all bio/profile fields).
+* Topics: `submitTopic()` (title, subheading, poll question/options) and the comment send path.
+
+**Display masking:** `censorText()` (KindleChat, messages/translations/art captions) and `censorProfileText()` (Neighbourhood profiles/posts/comments) chain `rekindleCensorPromotedTerms()` before `filterBadWords()`, and displayed usernames go through `censorUsername()` (KindleChat + Neighbourhood). Topics masks titles, subheadings, poll options and comment bodies. This is intentional: old spam must not keep advertising the competitor.
+
+**Usernames:** banned-name usernames are rejected at registration - `login.html` / `index.html` `isForbiddenUsername()` lists `kindlehub`, `khub`, `unreader`, `inkchat`, and `registerUser` in `firebase-functions/index.js` enforces the same rule server-side (client checks are bypassable). Usernames are alphanumeric-only, so the server check is a plain lowercase substring match.
+
+**Error message (promotion):** Use `"Promotional content is not allowed."` consistently across all apps. For profiles the inline save status uses the `neighbourhood.msg.promo` key with an English fallback.
 
 ### 10. ASCII Emoji Stripping Before Moderation
 The OpenAI `omni-moderation-latest` model incorrectly flags innocent ASCII art emoticons (e.g. `¯\_(ツ)_/¯`, `( ͡° ͜ʖ ͡°)`, `(っ◕‿◕)っ`) as sexual or harassing content.

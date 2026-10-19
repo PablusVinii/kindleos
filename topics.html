@@ -806,6 +806,7 @@
     <script src="time.js"></script>
     <script src="theme.js?v=18"></script>
     <script src="bad_words.js?v=4"></script>
+    <script src="js/promo-ban.js?v=1"></script>
     <link rel="stylesheet" href="css/custom-select.css">
     <script src="js/i18n.js"></script>
     <script src="js/custom-select.js"></script>
@@ -1482,7 +1483,17 @@
 
         function containsPromotedTerm(text) {
             if (!text) return false;
-            return /\b(?:unreader|un-reader|inkchat|kindlehub)\b/i.test(String(text));
+            // js/promo-ban.js folds homoglyphs, leetspeak, "DOT" and separators
+            // before matching, so "kindlеhub", "khub" and "kindlehubDOTpro" are
+            // all caught. Fallback keeps a basic net if the helper failed to load.
+            if (window.rekindleContainsPromotedTerm) return window.rekindleContainsPromotedTerm(text);
+            return /\b(?:unreader|un-reader|inkchat|kindlehub|khub)\b/i.test(String(text));
+        }
+
+        function censorPromo(text) {
+            if (!text) return text;
+            if (window.rekindleCensorPromotedTerms) return window.rekindleCensorPromotedTerms(text);
+            return text;
         }
 
         function loadTopicStates() {
@@ -1661,8 +1672,8 @@
                     '<div style="display:flex; align-items:center;">' +
                     '<div class="topic-icon">' + iconSvg + '</div>' +
                     '<div class="topic-item-content">' +
-                    '<div class="topic-item-title">' + delBtn + escapeHtml(t.title) + '</div>' +
-                    (t.subheading ? '<div class="topic-item-subheading">' + escapeHtml(t.subheading) + '</div>' : '') +
+                    '<div class="topic-item-title">' + delBtn + escapeHtml(censorPromo(t.title)) + '</div>' +
+                    (t.subheading ? '<div class="topic-item-subheading">' + escapeHtml(censorPromo(t.subheading)) + '</div>' : '') +
                     '<div class="topic-item-meta">' + countStr + ' messages' + unreadBadge + ' • ' + lastActiveStr + '</div>' +
                     '</div>' +
                     '</div>';
@@ -1717,10 +1728,10 @@
             // Re-render sidebar to clear unread status for this topic
             renderSidebar();
 
-            document.getElementById('current-topic-title').innerText = topic.title;
+            document.getElementById('current-topic-title').innerText = censorPromo(topic.title);
             var subheadingEl = document.getElementById('current-topic-subheading');
             if (subheadingEl) {
-                var subText = topic.subheading || '';
+                var subText = censorPromo(topic.subheading || '');
                 if (isModMode && topic.authorId) {
                     var creatorInfo = 'Creator: (' + topic.authorId + ')';
                     subText = subText ? subText + ' • ' + creatorInfo : creatorInfo;
@@ -1941,9 +1952,9 @@
 
                 if (hasVoted) {
                     btn.disabled = true;
-                    btn.innerHTML = escapeHtml(topic.poll.options[i]) + ' <span style="float:right;">' + counts[i] + ' (' + percent + '%)</span>';
+                    btn.innerHTML = escapeHtml(censorPromo(topic.poll.options[i])) + ' <span style="float:right;">' + counts[i] + ' (' + percent + '%)</span>';
                 } else {
-                    btn.textContent = topic.poll.options[i];
+                    btn.textContent = censorPromo(topic.poll.options[i]);
                     (function(idx) {
                         btn.onclick = function() {
                             castPollVote(topic.id, idx);
@@ -2272,6 +2283,9 @@
 
             // Profanity Filter (Always enforced)
             var displayBody = msg.body;
+            if (window.rekindleCensorPromotedTerms) {
+                displayBody = window.rekindleCensorPromotedTerms(displayBody);
+            }
             if (window.filterBadWords) {
                 displayBody = window.filterBadWords(displayBody);
             }

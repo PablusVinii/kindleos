@@ -753,6 +753,7 @@
     <script src="time.js"></script>
     <script src="theme.js?v=18"></script>
     <script src="bad_words.js?v=4"></script>
+    <script src="js/promo-ban.js?v=1"></script>
     <link rel="stylesheet" href="css/custom-select.css">
     <script src="js/i18n.js"></script>
     <script src="js/custom-select.js"></script>
@@ -1604,6 +1605,15 @@
                 badWordFields.push(profileData.socialLinks[key]);
             });
 
+            // Banned competitor mentions are blocked everywhere in the profile
+            for (var p = 0; p < badWordFields.length; p++) {
+                if (containsPromotedTerm(badWordFields[p])) {
+                    statusEl.innerText = window.t('neighbourhood.msg.promo', "Promotional content is not allowed. Please remove any mention of competing services.");
+                    statusEl.style.color = '#cc0000';
+                    return;
+                }
+            }
+
             for (var i = 0; i < badWordFields.length; i++) {
                 if (profileContainsBadWords(badWordFields[i])) {
                     statusEl.innerText = window.t('neighbourhood.msg.profanity', "Profile contains inappropriate language. Please remove it and try again.");
@@ -1787,9 +1797,20 @@
             return 'Anonymous';
         }
 
+        function censorUsername(username) {
+            if (!username) return username;
+            if (window.rekindleCensorPromotedUsername) return window.rekindleCensorPromotedUsername(username);
+            return username;
+        }
+
         function censorProfileText(text) {
-            if (!text || !window.filterBadWords) return text || '';
-            return window.filterBadWords(String(text));
+            if (!text) return '';
+            var out = String(text);
+            // Banned competitor mentions are masked for display as well as blocked
+            // on write, so old profile bios cannot advertise them either.
+            if (window.rekindleCensorPromotedTerms) out = window.rekindleCensorPromotedTerms(out);
+            if (window.filterBadWords) out = window.filterBadWords(out);
+            return out;
         }
 
         function profileContainsBadWords(text) {
@@ -1827,7 +1848,7 @@
                 badgeHtml = '<svg class="supporter-crown" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 4L5 18H19L22 4L15 11L12 4L9 11L2 4Z" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
             }
 
-            document.getElementById('profile-view-name').innerHTML = badgeHtml + escapeHtml(kName);
+            document.getElementById('profile-view-name').innerHTML = badgeHtml + escapeHtml(censorUsername(kName));
 
             const pronouns = profile.pronouns ? `(${censorProfileText(profile.pronouns)})` : '';
             const pronunciation = profile.pronunciation ? `• /${censorProfileText(profile.pronunciation)}/` : '';
@@ -2501,8 +2522,10 @@
                 badgeHtml = '<svg class="supporter-crown" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 4L5 18H19L22 4L15 11L12 4L9 11L2 4Z" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
             }
 
-            const fullName = (dName === kName) ? escapeHtml(dName) :
-                `${escapeHtml(dName)} <span style="font-size:0.8em; font-weight:normal; color:#666; margin-left:5px;">@${escapeHtml(kName)}</span>`;
+            const safeDName = censorUsername(dName);
+            const safeKName = censorUsername(kName);
+            const fullName = (dName === kName) ? escapeHtml(safeDName) :
+                `${escapeHtml(safeDName)} <span style="font-size:0.8em; font-weight:normal; color:#666; margin-left:5px;">@${escapeHtml(safeKName)}</span>`;
 
             document.getElementById('popup-view-name').innerHTML = badgeHtml + fullName;
 
@@ -2703,7 +2726,11 @@
 
         function containsPromotedTerm(text) {
             if (!text) return false;
-            return /\b(?:unreader|un-reader|inkchat|kindlehub)\b/i.test(String(text));
+            // js/promo-ban.js folds homoglyphs, leetspeak, "DOT" and separators
+            // before matching, so "kindlеhub", "khub" and "kindlehubDOTpro" are
+            // all caught. Fallback keeps a basic net if the helper failed to load.
+            if (window.rekindleContainsPromotedTerm) return window.rekindleContainsPromotedTerm(text);
+            return /\b(?:unreader|un-reader|inkchat|kindlehub|khub)\b/i.test(String(text));
         }
 
         function escapeJs(text) {
@@ -3061,14 +3088,14 @@
                              <div style="display:flex; justify-content:space-between; align-items:center; min-width:0;">
                                 <div class="post-name-row" onclick="openUserProfile('${escapeHtml(post.uid)}')">
                                     ${nameBadge ? `<span style="margin-right:4px; display:flex; align-items:center; flex-shrink:0;">${nameBadge}</span>` : ''}
-                                    <strong style="font-size:0.95rem; margin-right:4px;">${escapeHtml(username)}</strong>
+                                    <strong style="font-size:0.95rem; margin-right:4px;">${escapeHtml(censorUsername(username))}</strong>
                                 </div>
                                 <div style="display:flex; align-items:center; flex-shrink:0; margin-left:5px; margin-right:${isAdminMode ? '100px' : '0'};">
                                     <small style="color:#666; font-size:0.75rem; white-space:nowrap;">${timeStr}</small>
                                     ${modPostControls}${reportControls}
                                 </div>
                              </div>
-                             <div id="post-text-${post.id}" data-state="${isTranslatedDisplay ? 'translated' : 'original'}" data-original="${escapeHtml(post.text)}" data-translated="${escapeHtml(translationText || '')}" style="white-space:pre-wrap; font-size:0.9rem; line-height:1.4; margin-top:5px; ${isTranslatedDisplay ? 'font-style:italic;' : ''}">${escapeHtml(displayText)}</div>
+                             <div id="post-text-${post.id}" data-state="${isTranslatedDisplay ? 'translated' : 'original'}" data-original="${escapeHtml(censorProfileText(post.text))}" data-translated="${escapeHtml(censorProfileText(translationText || ''))}" style="white-space:pre-wrap; font-size:0.9rem; line-height:1.4; margin-top:5px; ${isTranslatedDisplay ? 'font-style:italic;' : ''}">${escapeHtml(censorProfileText(displayText))}</div>
                              ${toggleBtnHtml}
                         </div>
                     </div>
@@ -3188,11 +3215,8 @@
             const date = new Date(getTimestampMillis(comment.timestamp));
             const timeStr = window.rekindleFormatTime ? window.rekindleFormatTime(date, { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-            // Profanity filter
-            let displayText = comment.text;
-            if (window.filterBadWords) {
-                displayText = window.filterBadWords(displayText);
-            }
+            // Profanity + banned competitor mentions
+            let displayText = censorProfileText(comment.text);
 
             const commentDiv = document.createElement('div');
             commentDiv.className = 'comment-item';
@@ -3254,7 +3278,7 @@
                     <div style="display:flex; align-items:center; min-width:0;">
                         <div class="comment-name-row" onclick="openUserProfile('${escapeHtml(comment.uid)}')">
                             ${nameBadge ? '<span style="margin-right:3px; display:inline-flex; align-items:center; flex-shrink:0;">' + nameBadge + '</span>' : ''}
-                            <strong style="font-size:0.85rem;">${escapeHtml(username)}</strong>
+                            <strong style="font-size:0.85rem;">${escapeHtml(censorUsername(username))}</strong>
                         </div>
                         <small style="color:#666; font-size:0.7rem; white-space:nowrap; flex-shrink:0; margin-left:5px;">${timeStr}</small>
                         ${modCommentControls}${reportCommentControls}
@@ -3765,10 +3789,16 @@
             if (!post) return;
 
             showPromptModal("Edit Post Content:", post.text, (newText) => {
-                if (newText !== null && newText.trim() !== "") {
-                    socialDb.collection('neighbourhood_posts').doc(id).update({ text: newText.trim() })
-                        .catch(e => showAlertModal("Update failed: " + e.message, "Error"));
-                }
+                if (newText === null) return;
+                const trimmedEdit = newText.trim();
+                if (trimmedEdit === "") return;
+                // Edits write straight to Firestore (not through the moderation
+                // worker), so the same URL / promo / length checks must run here.
+                if (trimmedEdit.length > 280) { showAlertModal("Message too long (max 280 chars).", "Error"); return; }
+                if (containsUrl(trimmedEdit)) { showAlertModal("Links and URLs are not allowed.", "Error"); return; }
+                if (containsPromotedTerm(trimmedEdit)) { showAlertModal("Promotional content is not allowed.", "Error"); return; }
+                socialDb.collection('neighbourhood_posts').doc(id).update({ text: trimmedEdit })
+                    .catch(e => showAlertModal("Update failed: " + e.message, "Error"));
             });
         }
 

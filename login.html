@@ -529,7 +529,7 @@
         window.doLogin = doLogin;
 
         function isForbiddenUsername(u) {
-            var forbidden = ["root", "system", "admin", "administrator", "mod", "moderator", "support", "ukiyo", "rekindle", "wantban"];
+            var forbidden = ["root", "system", "admin", "administrator", "mod", "moderator", "support", "ukiyo", "rekindle", "wantban", "kindlehub", "khub", "unreader", "inkchat"];
             var lowerU = u.toLowerCase();
             return forbidden.some(function (word) { return lowerU.indexOf(word) !== -1; });
         }

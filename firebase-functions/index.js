@@ -716,6 +716,14 @@ exports.registerUser = onCall(callOptions, async (request) => {
     if (!/^[a-zA-Z0-9]+$/.test(username)) {
         throw new HttpsError('invalid-argument', 'Username can only contain letters and numbers.');
     }
+    // Banned competitor names (KindleHub / kindlehub.pro / Unreader / InkChat)
+    // cannot be used as usernames - the client check is bypassable, so enforce
+    // it here as well. Usernames are alphanumeric-only, so a plain lowercase
+    // substring match is enough (no homoglyph folding needed).
+    const lowerUsername = username.toLowerCase();
+    if (["kindlehub", "khub", "unreader", "inkchat"].some((name) => lowerUsername.includes(name))) {
+        throw new HttpsError('invalid-argument', 'That username is not allowed.');
+    }
 
     // Get the real client IP from the server-side request
     let ip = '';
