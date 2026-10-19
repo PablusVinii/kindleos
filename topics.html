@@ -1066,7 +1066,23 @@
         var ADMIN_EMAIL = 'ukiyo@rekindle.ink';
         var supporterUsers = {};
 
+        var SUPPORTERS_CACHE_KEY = 'rekindle_supporters_cache';
+        var SUPPORTERS_CACHE_TTL = 3600000; // 1 hour
+
         function fetchSupporters() {
+            // Cache-first: reuse the final supporter map for up to 1h to avoid
+            // a config doc read on every page load.
+            try {
+                var cachedRaw = localStorage.getItem(SUPPORTERS_CACHE_KEY);
+                if (cachedRaw) {
+                    var cached = JSON.parse(cachedRaw);
+                    if (cached && cached.data && typeof cached.ts === 'number' && (Date.now() - cached.ts) < SUPPORTERS_CACHE_TTL) {
+                        supporterUsers = cached.data;
+                        return Promise.resolve();
+                    }
+                }
+            } catch (e) { /* localStorage unavailable or corrupt — fall through to fetch */ }
+
             return mainDb.collection('config').doc('supporters').get().then(function (doc) {
                 if (doc.exists) {
                     var data = doc.data();
@@ -1106,6 +1122,9 @@
                         }
                     }
                 }
+                try {
+                    localStorage.setItem(SUPPORTERS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: supporterUsers }));
+                } catch (e) { /* ignore — cache is best-effort */ }
             })['catch'](function (e) {
                 console.error("Error loading supporters:", e);
             });
@@ -1191,7 +1210,6 @@
         var isLoadingMoreComments = false;    // re-entry guard for paginated fetches
         var noMoreComments = false;           // True once we've reached the oldest comment in RTDB
         // Poll state
-        var pollVotesUnsubscribe = null;
         var currentPollVotes = {};            // { uid: optionIndex }
         var currentUserPollVote = null;       // optionIndex or null
 
@@ -1281,19 +1299,9 @@
                             }
                         }
 
-                        // Eager one-time fetch so the sidebar isn't blank while the listener connects
-                        socialDb.collection('topics')
-                            .orderBy('lastActive', 'desc').limit(200)
-                            .get().then(function(snapshot) {
-                                allTopicsCache = [];
-                                snapshot.forEach(function(doc) {
-                                    allTopicsCache.push(processTopicDoc(doc));
-                                });
-                                onTopicsReady();
-                            }).catch(function(err) {
-                                console.error('Topics initial get error:', err);
-                            });
-
+                        // The standing listener delivers the initial batch on its first
+                        // snapshot — no separate eager .get() (that would double-download).
+                        var firstSnapshot = true;
                         topicsListenerRef = socialDb.collection('topics')
                             .orderBy('lastActive', 'desc').limit(200)
                             .onSnapshot(function(snapshot) {
@@ -1301,7 +1309,12 @@
                                 snapshot.forEach(function(doc) {
                                     allTopicsCache.push(processTopicDoc(doc));
                                 });
-                                debouncedRenderSidebar();
+                                if (firstSnapshot) {
+                                    firstSnapshot = false;
+                                    onTopicsReady(); // immediate render for the initial batch
+                                } else {
+                                    debouncedRenderSidebar();
+                                }
                                 if (!deepLinkChecked) {
                                     deepLinkChecked = true;
                                     var params = new URLSearchParams(window.location.search);
@@ -1580,15 +1593,14 @@
                 var el = document.createElement('div');
 
                 // Auto-sync: If this is the currently viewed topic, keep lastReadCount up to date
-                // so switching away won't show false unread badges
+                // locally so switching away won't show false unread badges. Persisted to RTDB
+                // only in selectTopic() and on pagehide — NOT here (this render fires on every
+                // comment posted to any of the top-200 topics).
                 if (t.id === currentTopicId && topicStatesLoaded) {
                     var currentCount = t.commentCount || 0;
                     if (!userTopicStates[t.id]) userTopicStates[t.id] = {};
                     if ((userTopicStates[t.id].lastReadCount || 0) < currentCount) {
                         userTopicStates[t.id].lastReadCount = currentCount;
-                        if (currentUser) {
-                            db.ref('users_private/' + currentUser.uid + '/topic_states/' + t.id + '/lastReadCount').set(currentCount);
-                        }
                     }
                 }
 
@@ -1789,39 +1801,43 @@
             var liveCommentsQuery = socialDb.collection('topics').doc(id).collection('comments')
                 .orderBy('timestamp', 'asc').limitToLast(MESSAGES_INITIAL_LOAD);
 
-            // Eager one-time fetch so chat isn't blank while the listener connects
-            liveCommentsQuery.get().then(function(snapshot) {
-                if (commentsListener !== id) return;
-                var fragment = document.createDocumentFragment();
-                snapshot.forEach(function(doc) {
-                    var data = doc.data();
-                    data.id = doc.id;
-
-                    if (data.timestamp && typeof data.timestamp.toMillis === 'function') {
-                        data.timestamp = data.timestamp.toMillis();
-                    }
-
-                    if (!data.timestamp) return;
-                    if (renderedCommentIds[doc.id]) return;
-                    renderedCommentIds[doc.id] = true;
-
-                    if (typeof data.timestamp === 'number') {
-                        if (oldestRenderedTs === null || data.timestamp < oldestRenderedTs) {
-                            oldestRenderedTs = data.timestamp;
-                        }
-                    }
-
-                    appendMessage(data, false, fragment);
-                });
-                historyEl.appendChild(fragment);
-                historyEl.scrollTop = historyEl.scrollHeight;
-            }).catch(function(err) {
-                console.error('Comments initial get error:', err);
-            });
-
-            // Real-time listener for new/removed comments
+            // The standing listener delivers the initial batch on its first snapshot —
+            // no separate eager .get() (that would double-download). First snapshot is
+            // batched into a single DocumentFragment; later snapshots are incremental.
+            var firstSnapshot = true;
             commentsUnsubscribe = liveCommentsQuery.onSnapshot(function(snapshot) {
                 if (commentsListener !== id) return; // stale event after topic switch
+                if (firstSnapshot) {
+                    firstSnapshot = false;
+                    var fragment = document.createDocumentFragment();
+                    snapshot.docChanges().forEach(function(change) {
+                        if (change.type !== 'added') return;
+                        var doc = change.doc;
+                        var data = doc.data();
+                        data.id = doc.id;
+
+                        // Normalize Firestore Timestamp to ms
+                        if (data.timestamp && typeof data.timestamp.toMillis === 'function') {
+                            data.timestamp = data.timestamp.toMillis();
+                        }
+
+                        if (!data.timestamp) return; // skip pending server timestamp
+                        if (renderedCommentIds[doc.id]) return;
+                        renderedCommentIds[doc.id] = true;
+
+                        // Track range bounds for pagination
+                        if (typeof data.timestamp === 'number') {
+                            if (oldestRenderedTs === null || data.timestamp < oldestRenderedTs) {
+                                oldestRenderedTs = data.timestamp;
+                            }
+                        }
+
+                        appendMessage(data, false, fragment);
+                    });
+                    historyEl.appendChild(fragment);
+                    historyEl.scrollTop = historyEl.scrollHeight;
+                    return;
+                }
                 snapshot.docChanges().forEach(function(change) {
                     var doc = change.doc;
                     var data = doc.data();
@@ -1946,25 +1962,21 @@
             voteRef.set({
                 optionIndex: optionIndex,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(function() {
+                // No standing listener — refresh counts once after our own vote lands.
+                loadPollVotesOnce(topicId);
             }).catch(function(err) {
                 console.error('Error casting vote:', err);
                 showAlertModal('Unable to cast vote. Please try again.');
             });
         }
 
-        function setupPollVotesListener(topicId) {
-            if (pollVotesUnsubscribe) {
-                pollVotesUnsubscribe();
-                pollVotesUnsubscribe = null;
-            }
-            currentPollVotes = {};
-            currentUserPollVote = null;
-            if (!topicId) return;
-            var topic = allTopicsCache.find(function(t) { return t.id === topicId; });
-            if (!topic || !topic.poll) return;
-
-            pollVotesUnsubscribe = socialDb.collection('topics').doc(topicId).collection('pollVotes')
-                .onSnapshot(function(snapshot) {
+        // One-time fetch of all votes (no standing listener — that would download
+        // every vote ever cast, live, on every topic open). Counts update on topic
+        // open and after the current user votes.
+        function loadPollVotesOnce(topicId) {
+            socialDb.collection('topics').doc(topicId).collection('pollVotes').get()
+                .then(function(snapshot) {
                     if (currentTopicId !== topicId) return;
                     currentPollVotes = {};
                     snapshot.forEach(function(doc) {
@@ -1979,9 +1991,20 @@
                     }
                     var t = allTopicsCache.find(function(item) { return item.id === topicId; });
                     if (t) updatePollUI(t);
-                }, function(err) {
-                    console.error('Poll votes listener error:', err);
+                })
+                .catch(function(err) {
+                    console.error('Poll votes fetch error:', err);
                 });
+        }
+
+        function setupPollVotesListener(topicId) {
+            currentPollVotes = {};
+            currentUserPollVote = null;
+            if (!topicId) return;
+            var topic = allTopicsCache.find(function(t) { return t.id === topicId; });
+            if (!topic || !topic.poll) return;
+
+            loadPollVotesOnce(topicId);
         }
 
         function showCommentsLoadingIndicator() {
@@ -3321,10 +3344,6 @@
                 if (commentsUnsubscribe) {
                     commentsUnsubscribe();
                     commentsUnsubscribe = null;
-                }
-                if (pollVotesUnsubscribe) {
-                    pollVotesUnsubscribe();
-                    pollVotesUnsubscribe = null;
                 }
                 if (topicsListenerRef) {
                     topicsListenerRef(); // Firestore unsubscribe function

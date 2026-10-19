@@ -224,8 +224,8 @@ self.addEventListener('fetch', event => {
     // 2. JS/Images/Assets -> Stale-While-Revalidate
     // 2. Local Assets (JS/CSS/SVG) -> Stale-While-Revalidate
     if (ASSETS_TO_CACHE.some(asset => {
-        const path = asset.replace('./', '');
-        return path && url.pathname.endsWith(path);
+        const path = asset.split('?')[0].replace(/^\.\//, '');
+        return path && url.pathname.endsWith('/' + path);
     })) {
         event.respondWith(
             caches.open(CACHE_NAME).then(cache => {
@@ -233,6 +233,8 @@ self.addEventListener('fetch', event => {
                     const fetchPromise = fetch(event.request).then(networkResponse => {
                         cache.put(event.request, networkResponse.clone());
                         return networkResponse;
+                    }).catch(() => {
+                        return response || new Response('Offline', { status: 503 });
                     });
                     return response || fetchPromise;
                 });

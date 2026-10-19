@@ -788,12 +788,7 @@
         /* User Tag Styling */
         .user-tag {
             font-weight: bold;
-            cursor: pointer;
             color: #000;
-        }
-
-        .user-tag:hover {
-            text-decoration: underline;
         }
 
         /* FIX: White text for tags inside self bubbles (black background) */
@@ -3807,7 +3802,7 @@
                 if (settings.showTranslations && hasTranslation) {
                     textToDisplay = wrapAsciiEmojis(linkify(escapeHtml(translationText)));
                     // Tagify translation too? Maybe not purely necessary but consistent. Let's tagify it.
-                    textToDisplay = tagify(textToDisplay, msgId);
+                    textToDisplay = tagify(textToDisplay);
 
                     toggleBtnHtml = ' <span id="toggle-' + msgId + '" onclick="toggleTranslation(\'' + msgId + '\')" style="font-size:0.7rem; color:#666; text-decoration:underline; cursor:pointer; margin-left: 5px;">' + window.t('kindlechat.msg.show_original', 'Show Original') + '</span>';
 
@@ -3819,7 +3814,7 @@
                     // Store escaped original text
                     bubbleContent = '<div id="bubble-' + msgId + '" class="msg-bubble" data-state="translated" data-original="' + escapeHtml(messageText) + '" data-translated="' + escapeHtml(translationText) + '">' + textToDisplay + '</div>';
                 } else {
-                    bubbleContent = '<div class="msg-bubble">' + tagify(linkify(wrapAsciiEmojis(textToDisplay)), msgId) + '</div>';
+                    bubbleContent = '<div class="msg-bubble">' + tagify(linkify(wrapAsciiEmojis(textToDisplay))) + '</div>';
                 }
             }
 
@@ -3971,21 +3966,9 @@
             if (containsPromotedTerm(text)) { showModal('Promotional content is not allowed.'); return; }
 
             checkRules(function () {
-                // Timeout check
-                rtdb.ref('timeouts/' + currentUser.uid).once('value').then(function (snap) {
-                    var t = snap.val();
-                    console.log('[Timeout check] Data:', t);
-                    if (t && t.until > Date.now()) {
-                        var remaining = Math.ceil((t.until - Date.now()) / 60000);
-                        showModal('You are timed out. Please wait ' + remaining + ' minute(s) before posting.');
-                        resetSendState();
-                        return;
-                    }
-                    doSendMessage(inputEl, text);
-                }).catch(function (err) {
-                    console.error('[Timeout check] Error reading timeout:', err && err.code ? err.code : err);
-                    doSendMessage(inputEl, text);
-                });
+                // Timeout is enforced server-side by the moderation worker;
+                // its error response is shown via showModal(result.error) in doSendMessage.
+                doSendMessage(inputEl, text);
             });
         }
 
@@ -4692,68 +4675,28 @@
                 // Switch to Original
                 // Need to re-apply linkify AND tagify
                 var safeOriginal = escapeHtml(originalText);
-                bubble.innerHTML = tagify(linkify(safeOriginal), msgId);
+                bubble.innerHTML = tagify(linkify(safeOriginal));
                 bubble.setAttribute('data-state', 'original');
                 toggleBtn.textContent = window.t('kindlechat.msg.show_translated', 'Show Translated');
             } else {
                 // Switch back to Translated
                 var safeTranslated = escapeHtml(translatedText);
-                bubble.innerHTML = tagify(linkify(safeTranslated), msgId);
+                bubble.innerHTML = tagify(linkify(safeTranslated));
                 bubble.setAttribute('data-state', 'translated');
                 toggleBtn.textContent = window.t('kindlechat.msg.show_original', 'Show Original');
             }
         }
 
         // --- TAGGING FUNCTIONS ---
-        function tagify(htmlText, msgId) {
+        function tagify(htmlText) {
             // Regex to match @username. 
             // We use a negative lookbehind or simple boundary check.
             // Be careful not to break HTML attributes (like href from linkify).
             // A simple approach: match @username that is preceded by start-of-line or whitespace/tags
             // and followed by non-word char.
             return htmlText.replace(/(^|\s|>|&nbsp;)@([a-zA-Z0-9_]+)/g, function (match, prefix, username) {
-                return prefix + '<span class="user-tag" onclick="scrollToLastUserMessage(\'' + username + '\', \'' + msgId + '\')">@' + username + '</span>';
+                return prefix + '<span class="user-tag">@' + username + '</span>';
             });
-        }
-
-        function scrollToLastUserMessage(targetUser, currentMsgId) {
-            // Stop propagation not needed if we are careful, but good practice if bubble had click
-            if (window.event) window.event.stopPropagation();
-
-            var allMsgs = Array.from(document.querySelectorAll('.msg'));
-            // Find index of current message
-            var currentIdx = allMsgs.findIndex(function (m) { return m.dataset.msgId === currentMsgId; });
-
-            if (currentIdx <= 0) {
-                return;
-            }
-
-            // Search backwards
-            for (var i = currentIdx - 1; i >= 0; i--) {
-                if (allMsgs[i].dataset.user === targetUser) {
-                    var targetMsg = allMsgs[i];
-                    targetMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                    // Visual feedback (flash border)
-                    var bubble = targetMsg.querySelector('.msg-bubble');
-                    if (bubble) {
-                        var originalBorder = bubble.style.borderColor;
-                        var originalShadow = bubble.style.boxShadow;
-
-                        bubble.style.borderColor = 'black';
-                        bubble.style.boxShadow = '0 0 10px yellow'; // Highlight
-
-                        setTimeout(function () {
-                            bubble.style.borderColor = originalBorder;
-                            bubble.style.boxShadow = originalShadow;
-                        }, 1500);
-                    }
-                    return;
-                }
-            }
-            // If not found
-            // If not found
-            showModal("No previous messages found from @" + targetUser + " in loaded history.", false);
         }
 
         // LEGACY: Old translateMessage removed.
@@ -4765,7 +4708,6 @@
         function toggleGeneralReactionRTDB(msgId, reaction) {
             var userUID = currentUser.uid;
             var reactionRef = socialRtdb.ref('kindlechat/messages/' + msgId + '/reactions/' + userUID);
-            var msgRef = socialRtdb.ref('kindlechat/messages/' + msgId);
 
             // Get current reaction first
             reactionRef.once('value').then(function (snapshot) {
@@ -4774,21 +4716,32 @@
 
                 if (currentReaction === reaction) {
                     // REMOVE: User clicks same reaction
-                    return reactionRef.remove();
+                    return reactionRef.remove().then(function () {
+                        applyLocalReaction(msgId, userUID, null);
+                    });
                 } else {
                     // ADD/CHANGE
-                    return reactionRef.set({ reaction: reaction, username: currentUsername });
+                    return reactionRef.set({ reaction: reaction, username: currentUsername }).then(function () {
+                        applyLocalReaction(msgId, userUID, reaction);
+                    });
                 }
-            }).then(function () {
-                // RTDB listener will auto-update the UI, but let's re-fetch and render immediately for responsiveness
-                msgRef.once('value').then(function (snap) {
-                    if (snap.exists()) {
-                        renderMessage(snap.val(), msgId);
-                    }
-                });
             })['catch'](function (e) {
                 console.error("Error toggling general reaction:", e);
             });
+        }
+
+        // Optimistically mirror a reaction write in the local cache and re-render.
+        // The RTDB child_changed listener stays the source of truth.
+        function applyLocalReaction(msgId, userUID, reaction) {
+            var msg = generalMsgData[msgId];
+            if (!msg) return; // Not a rendered general message (e.g. DM room) - listener will handle it
+            if (!msg.reactions) msg.reactions = {};
+            if (reaction === null) {
+                delete msg.reactions[userUID];
+            } else {
+                msg.reactions[userUID] = { reaction: reaction, username: currentUsername };
+            }
+            renderMessage(msg, msgId);
         }
 
         // --- DMs: Toggle reaction in Firestore ---
@@ -4840,6 +4793,19 @@
 
         // --- SUPPORTER LOGIC ---
         function fetchSupporters() {
+            var CACHE_KEY = 'rekindle_supporters_cache';
+            var CACHE_TTL = 3600000; // 1h
+            try {
+                var raw = localStorage.getItem(CACHE_KEY);
+                if (raw) {
+                    var cached = JSON.parse(raw);
+                    if (cached && cached.ts && (Date.now() - cached.ts) < CACHE_TTL && cached.data) {
+                        supporterUsers = cached.data;
+                        reRenderRecentMessages();
+                        return Promise.resolve(cached.data);
+                    }
+                }
+            } catch (e) { }
             return db.collection('config').doc('supporters').get().then(function (doc) {
                 if (doc.exists) {
                     var data = doc.data();
@@ -4883,6 +4849,8 @@
                     // Trigger a re-render of recent messages now that we have the list
                     reRenderRecentMessages();
                 }
+                try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: supporterUsers })); } catch (e) { }
+                return supporterUsers;
             })['catch'](function (e) {
                 console.error("Error loading supporters:", e);
                 throw e;

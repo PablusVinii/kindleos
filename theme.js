@@ -704,36 +704,59 @@
         lastTouchEnd = now;
     }, false);
 
-    // --- AVATAR CACHING HELPER ---
-    window.rekindleAvatarCache = {};
-    window.rekindleFetchAvatarSeed = function (db, uid, callback) {
-        if (!uid) { callback('default'); return; }
-        if (uid in window.rekindleAvatarCache) {
-            callback(window.rekindleAvatarCache[uid]);
-            return;
-        }
-        if (!db) { callback(uid); return; }
-
-        db.ref('user_cards/' + uid).once('value').then(function (snap) {
-            var seed = uid;
-            if (snap.exists()) {
-                var card = snap.val();
-                seed = card.customAvatar || card.avatarSeed || uid;
-            }
-            window.rekindleAvatarCache[uid] = seed;
-            callback(seed);
-        }).catch(function () {
-            callback(uid);
-        });
-    };
-
     // --- USER CARD CACHING HELPER ---
-    // Cache stores { card, ts } entries; TTL is 15 minutes (900 000 ms).
+    // Two-tier cache: localStorage ("rekindle_ucard_" + uid, { ts, card }, 1 hour TTL)
+    // backed by an in-memory map ({ card, ts }, 15 minute TTL). Checking localStorage
+    // first means a fresh page load costs zero RTDB reads for cards fetched < 1h ago.
     window.rekindleCardCache = {};
     var _pendingCardFetches = {};
     var _CARD_TTL = 900000;
+    var _CARD_LS_TTL = 3600000;
+    var _CARD_LS_PREFIX = 'rekindle_ucard_';
+    var _CARD_CACHE_MAX = 500;
+
+    function _readStoredCard(uid) {
+        try {
+            var raw = localStorage.getItem(_CARD_LS_PREFIX + uid);
+            if (!raw) return null;
+            var parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed.ts !== 'number') return null;
+            if ((Date.now() - parsed.ts) >= _CARD_LS_TTL) return null;
+            return parsed;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function _writeStoredCard(uid, card) {
+        try {
+            localStorage.setItem(_CARD_LS_PREFIX + uid, JSON.stringify({ ts: Date.now(), card: card }));
+        } catch (e) { }
+    }
+
+    // Cheap guard against unbounded memory growth: drop the single oldest entry.
+    function _capCardCache() {
+        var keys = Object.keys(window.rekindleCardCache);
+        if (keys.length <= _CARD_CACHE_MAX) return;
+        var oldestKey = null;
+        var oldestTs = Infinity;
+        for (var i = 0; i < keys.length; i++) {
+            var entry = window.rekindleCardCache[keys[i]];
+            var ts = entry && typeof entry.ts === 'number' ? entry.ts : 0;
+            if (ts < oldestTs) { oldestTs = ts; oldestKey = keys[i]; }
+        }
+        if (oldestKey) delete window.rekindleCardCache[oldestKey];
+    }
+
     window.rekindleFetchUserCard = function (db, uid, callback) {
         if (!uid || !db) { callback(null); return; }
+        var stored = _readStoredCard(uid);
+        if (stored) {
+            window.rekindleCardCache[uid] = { card: stored.card, ts: Date.now() };
+            _capCardCache();
+            callback(stored.card);
+            return;
+        }
         var cached = window.rekindleCardCache[uid];
         if (cached && (Date.now() - cached.ts) < _CARD_TTL) {
             callback(cached.card);
@@ -747,6 +770,8 @@
         db.ref('user_cards/' + uid).once('value').then(function (snap) {
             var card = snap.exists() ? snap.val() : null;
             window.rekindleCardCache[uid] = { card: card, ts: Date.now() };
+            _capCardCache();
+            _writeStoredCard(uid, card);
             var cbs = _pendingCardFetches[uid];
             delete _pendingCardFetches[uid];
             cbs.forEach(function (cb) { cb(card); });
@@ -757,7 +782,22 @@
         });
     };
     window.rekindleInvalidateUserCard = function (uid) {
-        if (uid) delete window.rekindleCardCache[uid];
+        if (!uid) return;
+        delete window.rekindleCardCache[uid];
+        try { localStorage.removeItem(_CARD_LS_PREFIX + uid); } catch (e) { }
+    };
+
+    // --- AVATAR CACHING HELPER ---
+    // Delegates to rekindleFetchUserCard so avatar and card lookups share a single
+    // cache/read path (previously this read the same user_cards node through its
+    // own cache, doubling RTDB reads for one uid).
+    window.rekindleFetchAvatarSeed = function (db, uid, callback) {
+        if (!uid) { callback('default'); return; }
+        if (!db) { callback(uid); return; }
+        window.rekindleFetchUserCard(db, uid, function (card) {
+            var seed = (card && (card.customAvatar || card.avatarSeed)) || uid;
+            callback(seed);
+        });
     };
 
 })();

@@ -447,13 +447,15 @@
             }
 
             makeMove(move) {
-                // Save state for undo
-                this.history.push(JSON.parse(JSON.stringify({
-                    board: this.board,
+                // Save state for undo (manual copy; piece objects must be cloned
+                // because checkPromotion mutates p.king in place)
+                this.history.push({
+                    board: this.board.map(row => row.map(p => p ? { ...p } : null)),
                     turn: this.turn,
-                    mustJumpPos: this.mustJumpPos,
+                    mustJumpPos: this.mustJumpPos ? { ...this.mustJumpPos } : null,
                     winner: this.winner
-                })));
+                });
+                if (this.history.length > 50) this.history.shift();
 
                 const p = this.board[move.from.r][move.from.c];
                 this.board[move.to.r][move.to.c] = p;
@@ -523,7 +525,6 @@
                 const state = {
                     board: this.board,
                     turn: this.turn,
-                    history: this.history,
                     winner: this.winner,
                     mustJumpPos: this.mustJumpPos
                 };
@@ -537,7 +538,7 @@
                         const state = JSON.parse(saved);
                         this.board = state.board;
                         this.turn = state.turn;
-                        this.history = state.history || [];
+                        this.history = []; // Undo history is not persisted
                         this.winner = state.winner;
                         this.mustJumpPos = state.mustJumpPos;
                         return true;

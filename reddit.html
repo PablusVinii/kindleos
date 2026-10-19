@@ -738,15 +738,20 @@
             return t.replace(/^\/u\//, "").trim();
         }
 
+        var regexCache = {};
+        function getRegex(pattern) {
+            return regexCache[pattern] || (regexCache[pattern] = new RegExp(pattern, "i"));
+        }
+
         function extractTagText(xml, tagName) {
-            var regex = new RegExp("<(?:[a-zA-Z0-9-]+:)?" + tagName + "(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[a-zA-Z0-9-]+:)?" + tagName + ">", "i");
+            var regex = getRegex("<(?:[a-zA-Z0-9-]+:)?" + tagName + "(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[a-zA-Z0-9-]+:)?" + tagName + ">");
             var match = xml.match(regex);
             if (!match) return "";
             return decodeXmlEntities(stripCdata(match[1]).trim());
         }
 
         function extractTagAttr(xml, tagName, attrName) {
-            var regex = new RegExp("<(?:[a-zA-Z0-9-]+:)?" + tagName + "[^>]*\\s" + attrName + "=\"([^\"]*)\"", "i");
+            var regex = getRegex("<(?:[a-zA-Z0-9-]+:)?" + tagName + "[^>]*\\s" + attrName + "=\"([^\"]*)\"");
             var match = xml.match(regex);
             return match ? decodeXmlEntities(match[1]) : "";
         }

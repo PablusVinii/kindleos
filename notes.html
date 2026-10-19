@@ -564,6 +564,35 @@
             } catch (e) { console.error("Cache save error", e); }
         }
 
+        // Debounced cache write for per-keystroke saves (avoids serializing the
+        // entire notes array to localStorage on every keypress). In-memory state
+        // is already updated synchronously by the callers; only this write is deferred.
+        let cacheWriteTimer = null;
+
+        function scheduleCacheWrite() {
+            clearTimeout(cacheWriteTimer);
+            cacheWriteTimer = setTimeout(flushCacheWrite, 1000);
+        }
+
+        function flushCacheWrite() {
+            if (cacheWriteTimer) {
+                clearTimeout(cacheWriteTimer);
+                cacheWriteTimer = null;
+            }
+            if (currentUser) {
+                updateCache();
+            } else {
+                try {
+                    localStorage.setItem('rekindle_notes', JSON.stringify(notes));
+                } catch (e) { console.error("Local save error", e); }
+            }
+        }
+
+        // Flush any pending debounced write before the page goes away
+        window.addEventListener('pagehide', () => {
+            if (cacheWriteTimer) flushCacheWrite();
+        });
+
         function loadCloudNotes() {
             if (unsubscribe) unsubscribe();
 
@@ -595,12 +624,14 @@
         }
 
         function saveNoteData(note) {
-            if (!currentUser) {
-                localStorage.setItem('rekindle_notes', JSON.stringify(notes));
-            } else {
-                // Optimistic UI update already happened in array
-                updateCache();
+            // Runs on every keystroke (via saveCurrentNote's oninput), so the
+            // localStorage write is debounced - see scheduleCacheWrite. The
+            // in-memory `notes` array is already up to date. pagehide flushes
+            // any pending write.
+            scheduleCacheWrite();
 
+            if (currentUser) {
+                // Optimistic UI update already happened in array
                 clearTimeout(saveTimer);
                 saveTimer = setTimeout(() => {
                     document.getElementById('status-bar').innerText = window.t('notes.status.saving', "Saving...");

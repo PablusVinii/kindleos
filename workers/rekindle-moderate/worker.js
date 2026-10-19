@@ -422,6 +422,45 @@ async function checkTimeout(uid, env, userToken, accessToken) {
 /* ------------------------------------------------------------------ */
 /*  FIREBASE TOKEN VERIFICATION                                        */
 /* ------------------------------------------------------------------ */
+const GOOGLE_JWK_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+const GOOGLE_JWK_TTL_MS = 6 * 60 * 60 * 1000; // Google's Cache-Control max-age is ~6h
+
+async function fetchGoogleJwks() {
+    const cacheKey = new Request(GOOGLE_JWK_URL);
+    let cache = null;
+    try {
+        cache = caches.default;
+        const cached = await cache.match(cacheKey);
+        if (cached) {
+            const ts = Number(cached.headers.get("x-cache-ts") || 0);
+            if (ts > 0 && Date.now() - ts < GOOGLE_JWK_TTL_MS) {
+                try {
+                    return await cached.json();
+                } catch (e) {
+                    // Corrupt cached entry — fall through to network
+                }
+            }
+        }
+    } catch (e) {
+        cache = null; // Cache API unavailable — fall through to network
+    }
+
+    const keysRes = await fetch(GOOGLE_JWK_URL);
+    if (!keysRes.ok) throw new Error("Could not fetch Google public keys: " + keysRes.status);
+
+    if (cache) {
+        try {
+            const headers = new Headers(keysRes.headers);
+            headers.set("x-cache-ts", String(Date.now()));
+            headers.set("Cache-Control", "public, max-age=21600");
+            await cache.put(cacheKey, new Response(keysRes.clone().body, { status: keysRes.status, headers }));
+        } catch (e) {
+            // Cache write failures are non-fatal
+        }
+    }
+    return keysRes.json();
+}
+
 async function verifyFirebaseToken(token, env) {
     const parts = token.split(".");
     if (parts.length !== 3) throw new Error("Malformed token: expected 3 parts");
@@ -456,9 +495,7 @@ async function verifyFirebaseToken(token, env) {
         throw new Error(`Invalid issuer: token iss="${payload.iss}" not in allowed=[${validIss.join(", ")}]`);
     }
 
-    const keysRes = await fetch("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com");
-    if (!keysRes.ok) throw new Error("Could not fetch Google public keys: " + keysRes.status);
-    const keys = await keysRes.json();
+    const keys = await fetchGoogleJwks();
 
     const jwk = keys.keys.find(k => k.kid === header.kid);
     if (!jwk) throw new Error("Unknown signing key: kid=" + header.kid);

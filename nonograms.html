@@ -697,9 +697,11 @@
         let currentPuzzle = null;
         let currentCategory = 'easy';
         let currentGrid = []; // 0=Empty, 1=Filled, 2=Crossed
+        let cellGrid = []; // cellGrid[row][col] -> playable cell DOM refs (rebuilt with board)
         let currentTool = 'fill';
         let currentUser = null;
         let saveTimer = null;
+        let localSaveTimer = null;
 
         // --- INIT ---
         window.onload = () => {
@@ -749,8 +751,8 @@
             msg.innerText = window.t ? window.t('nonograms.status.fetching') : "Fetching puzzles...";
             msg.removeAttribute('data-i18n');
             try {
-                // Add timestamp to bypass cache
-                const res = await fetch('nonograms.json?v=' + new Date().getTime());
+                // Plain fetch: allow HTTP / service-worker caching of the large puzzle JSON
+                const res = await fetch('nonograms.json');
                 if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
 
                 const rawPuzzles = await res.json();
@@ -937,6 +939,7 @@
             const container = document.getElementById('game-grid');
             const wrapper = document.getElementById('puzzle-container');
             container.innerHTML = '';
+            cellGrid = [];
 
             const pWidth = parseInt(currentPuzzle.width);
             const pHeight = parseInt(currentPuzzle.height);
@@ -1024,6 +1027,10 @@
                         if (val === 1) cell.classList.add('filled');
                         if (val === 2) cell.classList.add('crossed');
 
+                        // Cache DOM ref for per-tap updates (avoids querySelectorAll per tap)
+                        if (!cellGrid[pr]) cellGrid[pr] = [];
+                        cellGrid[pr][pc] = cell;
+
                         // Use pointerdown for better touch response
                         cell.onpointerdown = (e) => handleInput(idx, e);
                         cell.oncontextmenu = (e) => e.preventDefault();
@@ -1060,10 +1067,12 @@
 
             currentGrid[idx] = newVal;
 
-            // Update DOM directly for performance
-            const playables = document.querySelectorAll('.cell.playable');
-            if (playables[idx]) {
-                const cell = playables[idx];
+            // Update DOM directly via cached cell refs (no per-tap querySelectorAll)
+            const width = parseInt(currentPuzzle.width);
+            const pr = Math.floor(idx / width);
+            const pc = idx % width;
+            const cell = cellGrid[pr] && cellGrid[pr][pc];
+            if (cell) {
                 cell.classList.remove('filled', 'crossed');
                 if (newVal === 1) cell.classList.add('filled');
                 if (newVal === 2) cell.classList.add('crossed');
@@ -1202,7 +1211,10 @@
                 progress[currentPuzzle.id].grid = currentGrid;
                 // Note: .solved is set in checkWin, we don't overwrite it to false here usually
             }
-            localStorage.setItem('rekindle_picross_progress', JSON.stringify(progress));
+
+            // Debounce the localStorage write (synchronous + expensive per tap)
+            clearTimeout(localSaveTimer);
+            localSaveTimer = setTimeout(flushLocalProgress, 1000);
 
             if (currentUser && db) {
                 clearTimeout(saveTimer);
@@ -1213,6 +1225,16 @@
                 }, 2000);
             }
         }
+
+        function flushLocalProgress() {
+            clearTimeout(localSaveTimer);
+            localSaveTimer = null;
+            localStorage.setItem('rekindle_picross_progress', JSON.stringify(progress));
+        }
+
+        window.addEventListener('pagehide', () => {
+            if (localSaveTimer) flushLocalProgress();
+        });
 
 
 

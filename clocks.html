@@ -773,10 +773,20 @@
                 var timeStr = displayHours + ':' + displayMins;
                 if (showSeconds) timeStr += ':' + displaySecs;
 
-                domCache.localTime.innerHTML = timeStr + '<span class="ampm">' + ampm + '</span>';
+                var localHtml = timeStr + '<span class="ampm">' + ampm + '</span>';
+                if (domCache.lastLocalHtml !== localHtml) {
+                    domCache.localTime.innerHTML = localHtml;
+                    domCache.lastLocalHtml = localHtml;
+                }
             }
 
             // --- 2. Update Cities ---
+            // Hoist home-city calculations out of the per-city loop
+            var homeT = getTimeInZone(now, homeCity.zone);
+            var homeH = homeT.hours + (homeT.dayDiff * 24);
+            var homeDate = window.rekindleGetDateInZone(now, homeCity.zone);
+            var homeMid = new Date(homeDate.getFullYear(), homeDate.getMonth(), homeDate.getDate());
+
             domCache.cities.forEach(function (cityCache) {
                 if (!cityCache.time) return;
 
@@ -790,18 +800,18 @@
                 var timeStr = displayHours + ':' + displayMins;
                 if (showSeconds) timeStr += ':' + displaySecs;
 
-                cityCache.time.innerHTML = timeStr + '<span class="ampm">' + ampm + '</span>';
+                var cityHtml = timeStr + '<span class="ampm">' + ampm + '</span>';
+                if (cityCache.lastHtml !== cityHtml) {
+                    cityCache.time.innerHTML = cityHtml;
+                    cityCache.lastHtml = cityHtml;
+                }
 
                 if (cityCache.offset) {
                     var tH = tData.hours + (tData.dayDiff * 24);
-                    const homeT = getTimeInZone(now, homeCity.zone);
-                    var homeH = homeT.hours + (homeT.dayDiff * 24);
                     var diffH = tH - homeH;
 
-                    var homeDate = window.rekindleGetDateInZone(now, homeCity.zone);
                     var targetDate = window.rekindleGetDateInZone(now, cityCache.zone);
 
-                    var homeMid = new Date(homeDate.getFullYear(), homeDate.getMonth(), homeDate.getDate());
                     var targetMid = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
                     var relDayDiff = Math.round((targetMid - homeMid) / (1000 * 60 * 60 * 24));
 
@@ -811,7 +821,11 @@
 
                     var sign = diffH >= 0 ? "+" : "";
 
-                    cityCache.offset.innerText = dayText + ', ' + sign + diffH + (window.t ? window.t('clocks.offset.hrs', 'HRS') : 'HRS');
+                    var offsetText = dayText + ', ' + sign + diffH + (window.t ? window.t('clocks.offset.hrs', 'HRS') : 'HRS');
+                    if (cityCache.lastOffset !== offsetText) {
+                        cityCache.offset.innerText = offsetText;
+                        cityCache.lastOffset = offsetText;
+                    }
                 }
             });
         }

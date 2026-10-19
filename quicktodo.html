@@ -811,10 +811,13 @@
             });
         }
 
+        var googleSyncInterval = null;
+
         async function startGoogleSync() {
             document.getElementById('auth-overlay').style.display = 'none';
             await fetchGoogleTasks();
-            setInterval(fetchGoogleTasks, 60000);
+            if (googleSyncInterval) clearInterval(googleSyncInterval);
+            googleSyncInterval = setInterval(fetchGoogleTasks, 60000);
         }
 
         function oauthSignIn() {
@@ -858,6 +861,7 @@
         }
 
         async function fetchGoogleTasks() {
+            if (document.hidden) return;
             try {
                 const listsResp = await gapi.client.tasks.tasklists.list({ maxResults: 1 });
                 if (listsResp.result.items && listsResp.result.items.length > 0) {

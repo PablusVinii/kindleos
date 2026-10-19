@@ -556,6 +556,7 @@
                         mustJumpPos: this.mustJumpPos,
                         winner: this.winner
                     }));
+                    if (this.history.length > 50) this.history.shift();
                 }
 
                 const p = this.board[move.from.r][move.from.c];
@@ -629,7 +630,6 @@
                 const state = {
                     board: this.board,
                     turn: this.turn,
-                    history: this.history,
                     winner: this.winner,
                     mustJumpPos: this.mustJumpPos
                 };
@@ -643,7 +643,7 @@
                         const state = JSON.parse(saved);
                         this.board = state.board;
                         this.turn = state.turn;
-                        this.history = state.history || [];
+                        this.history = []; // Undo history is not persisted
                         this.winner = state.winner;
                         this.mustJumpPos = state.mustJumpPos;
                         return true;
