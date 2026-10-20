@@ -226,6 +226,20 @@ async function rtdbPushWithAccessTokenAndReturnKey(path, data, accessToken) {
     return result.name;
 }
 
+async function rtdbPatchWithAccessToken(path, data, accessToken) {
+    const url = `https://rekindle-socials-default-rtdb.firebaseio.com/${path}.json?access_token=${encodeURIComponent(accessToken)}`;
+    const resp = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    });
+    if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`RTDB patch failed (${resp.status}): ${errText}`);
+    }
+    return await resp.json();
+}
+
 async function rtdbGetWithUserToken(path, env, userToken) {
     const projectId = env.FIREBASE_PROJECT_ID || "rekindle-dd1fa";
     const url = `https://${projectId}-default-rtdb.firebaseio.com/${path}.json?auth=${encodeURIComponent(userToken)}`;
@@ -288,6 +302,7 @@ async function getExistingPendingReport(contentType, contentId, accessToken) {
                 reporterId: value.reporterId || "",
                 reporterName: value.reporterName || "",
                 itemContentType: value.contentType || "",
+                contentPath: value.contentPath || "",
                 status: value.status || "",
                 createdAt: value.createdAt || 0
             }))
@@ -359,6 +374,19 @@ async function autoDeleteContent(contentType, contentId, contentPath, accessToke
             // contentPath is like "suggestions/{suggestionId}/comments/{commentKey}"
             await rtdbDeletePrimaryWithAccessToken(contentPath, accessToken);
             console.log(`[AUTO-DELETE] Deleted suggestion comment ${contentId}`);
+            return true;
+        }
+        if (contentType === "dm_message") {
+            // DM messages live in the SOCIAL RTDB. Only delete a path that
+            // matches the strict DM shape; never trust an arbitrary path from
+            // a report payload.
+            const parsed = parseDmMessagePath(contentPath);
+            if (!parsed || parsed.messageId !== contentId) {
+                console.error("[AUTO-DELETE] Refusing invalid DM message path:", contentPath);
+                return false;
+            }
+            await rtdbDeleteWithAccessToken(`kindlechat/dm_messages/${parsed.threadId}/${parsed.messageId}`, accessToken);
+            console.log(`[AUTO-DELETE] Deleted DM message ${parsed.messageId} in ${parsed.threadId}`);
             return true;
         }
         return false;
@@ -901,12 +929,15 @@ function moderationErrorMessage(mod) {
 /* ------------------------------------------------------------------ */
 /*  LOGGING                                                            */
 /* ------------------------------------------------------------------ */
-async function logAutomodRejection(uid, contentType, text, categories, accessToken) {
+async function logAutomodRejection(uid, contentType, text, categories, accessToken, options) {
     try {
+        const opts = options || {};
         const entry = {
             uid,
             contentType,
-            text: text.substring(0, 500),
+            // DM text is private: never copy it into the general automod log.
+            // Categories are enough to audit the decision.
+            text: opts.storeText === false ? "[redacted: private message]" : String(text || "").substring(0, 500),
             categories,
             timestamp: { ".sv": "timestamp" },
             source: "openai_moderation"
@@ -929,6 +960,10 @@ const RATE_LIMIT_CONFIG = {
     topic_comment: { capacity: 5, refillMs: 12000 },  // match kindlechat
     neighbourhood_post: { capacity: 5, refillMs: 300000 },
     neighbourhood_comment: { capacity: 10, refillMs: 30000 },
+    // Direct messages: replies are conversational but capped per user, and
+    // starting conversations is much rarer (Pro-only + acceptance gate).
+    dm: { capacity: 8, refillMs: 8000 },
+    dm_request: { capacity: 5, refillMs: 7200000 },   // 2 hours, plus a 3-pending cap
     report: { capacity: 60, refillMs: 3600000, refillAmount: 60 }  // 60 per hour, burst allowed
 };
 
@@ -1036,6 +1071,198 @@ async function consumeRateLimitToken(uid, contentType, accessToken, spamOpts) {
 
     // Too many conflicts. Be safe and reject.
     return { allowed: false, retryAfter: Math.ceil(config.refillMs / 1000) };
+}
+
+/* ------------------------------------------------------------------ */
+/*  DIRECT MESSAGES (social RTDB only)                                 */
+/* ------------------------------------------------------------------ */
+// EVERY path here lives in the rekindle-socials RTDB. DM content must never
+// be written to the primary (rekindle-dd1fa) database: the chat, its reports
+// and the moderation worker all operate against the social project.
+const DM_THREADS_PATH = "kindlechat/dm_threads";
+const DM_MESSAGES_PATH = "kindlechat/dm_messages";
+const DM_USER_THREADS_PATH = "kindlechat/dm_user_threads";
+const DM_PREFS_PATH = "kindlechat/dm_prefs";
+const DM_BLOCKS_PATH = "kindlechat/dm_blocks";
+const DM_CONFIG_PATH = "kindlechat/config";
+const DM_MAX_MESSAGE = 1000;
+const DM_MAX_REQUEST = 300;
+const DM_MAX_PENDING_OUTGOING = 3;
+const DM_FLAG_CACHE_MS = 60000;
+
+let dmFlagCache = { key: null, value: false, ts: 0 };
+
+// Deterministic thread id. UIDs are alphanumeric in Firebase, and sorting
+// makes the id identical no matter who initiates, so two people can never
+// create two parallel threads and a blocked pair can never restart.
+function dmThreadId(uidA, uidB) {
+    const a = String(uidA || "").trim();
+    const b = String(uidB || "").trim();
+    if (!a || !b || a === b) return "";
+    if (!/^[A-Za-z0-9]{6,128}$/.test(a) || !/^[A-Za-z0-9]{6,128}$/.test(b)) return "";
+    return "dm_" + [a, b].sort().join("_");
+}
+
+// Reports for DM messages must carry the thread id in their contentPath
+// (a message id alone cannot identify the thread). This parser is strict so
+// a forged path cannot reach an arbitrary RTDB location during auto-delete.
+function parseDmMessagePath(path) {
+    const parts = String(path || "").split("/");
+    if (parts.length !== 4) return null;
+    if (parts[0] !== "kindlechat" || parts[1] !== "dm_messages") return null;
+    const threadId = parts[2];
+    const messageId = parts[3];
+    if (!/^dm_[A-Za-z0-9]+_[A-Za-z0-9]+$/.test(threadId)) return null;
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(messageId)) return null;
+    return { threadId, messageId };
+}
+
+function dmFlagKeyForOrigin(origin) {
+    // Beta gets its own switch because beta and production share the same
+    // social project. Everything else (prod/lite/legacy/no-origin) uses the
+    // production switch.
+    return origin === "https://beta.rekindle.ink" ? "dm_beta_enabled" : "dm_enabled";
+}
+
+async function isDmEnabledForOrigin(origin, accessToken) {
+    const key = dmFlagKeyForOrigin(origin);
+    const now = Date.now();
+    if (dmFlagCache.key === key && (now - dmFlagCache.ts) < DM_FLAG_CACHE_MS) {
+        return dmFlagCache.value;
+    }
+    try {
+        const res = await rtdbSocialGet(DM_CONFIG_PATH, accessToken);
+        const value = !!(res.data && res.data[key] === true);
+        dmFlagCache = { key, value, ts: now };
+        return value;
+    } catch (e) {
+        // Fail closed: if the switch cannot be read, do not open new DMs.
+        console.error("[DM] config read failed:", e.message);
+        dmFlagCache = { key, value: false, ts: now };
+        return false;
+    }
+}
+
+async function rtdbSocialQuery(path, query, accessToken) {
+    const url = `https://rekindle-socials-default-rtdb.firebaseio.com/${path}.json?${query}&access_token=${encodeURIComponent(accessToken)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`RTDB query failed (${resp.status}): ${errText}`);
+    }
+    return await resp.json();
+}
+
+async function getDmThreadWithEtag(threadId, accessToken) {
+    const res = await rtdbSocialGet(`${DM_THREADS_PATH}/${threadId}`, accessToken);
+    return {
+        thread: res.data && typeof res.data === "object" ? res.data : null,
+        etag: res.etag || null
+    };
+}
+
+async function countPendingOutgoingDmRequests(uid, accessToken) {
+    try {
+        const data = await rtdbSocialQuery(
+            `${DM_USER_THREADS_PATH}/${uid}`,
+            'orderBy="status"&equalTo="pending"',
+            accessToken
+        );
+        if (!data || typeof data !== "object") return 0;
+        let count = 0;
+        Object.keys(data).forEach(function (threadId) {
+            const row = data[threadId];
+            if (row && row.requestedBy === uid) count++;
+        });
+        return count;
+    } catch (e) {
+        // A failed count must not silently disable the cap; treat as over cap.
+        console.error("[DM] pending count failed:", e.message);
+        return DM_MAX_PENDING_OUTGOING;
+    }
+}
+
+async function getDmAllowRequests(uid, accessToken) {
+    try {
+        const res = await rtdbSocialGet(`${DM_PREFS_PATH}/${uid}/allowRequests`, accessToken);
+        // Missing prefs (null) means the default: requests allowed.
+        return res.data !== false;
+    } catch (e) {
+        // Fail closed: if the preference cannot be read, do not create a new
+        // conversation. The acceptance gate is a second layer, not a reason
+        // to ignore an explicit opt-out.
+        console.error("[DM] preference read failed:", e.message);
+        return false;
+    }
+}
+
+async function hasDmBlock(uidA, uidB, accessToken) {
+    try {
+        const [forward, reverse] = await Promise.all([
+            rtdbSocialGet(`${DM_BLOCKS_PATH}/${uidA}/${uidB}`, accessToken),
+            rtdbSocialGet(`${DM_BLOCKS_PATH}/${uidB}/${uidA}`, accessToken)
+        ]);
+        return forward.data === true || reverse.data === true;
+    } catch (e) {
+        // Fail closed: if the block list cannot be read, do not create a new
+        // conversation (a missed request is safer than a missed block).
+        console.error("[DM] block check failed:", e.message);
+        return true;
+    }
+}
+
+function isValidDmText(text, maxLength) {
+    return typeof text === "string" && text.trim().length > 0 && text.length <= maxLength;
+}
+
+function dmIndexRow(otherUid, thread, lastMessageAt, lastMessageUid) {
+    const row = {
+        otherUid,
+        requestedBy: thread.requestedBy,
+        status: thread.status,
+        // Use the RTDB server timestamp so the inbox and the client's
+        // lastReadAt (also a server timestamp) share one clock.
+        lastMessageAt: typeof lastMessageAt === "number" ? lastMessageAt : { ".sv": "timestamp" },
+        lastMessageUid: lastMessageUid || thread.requestedBy || ""
+    };
+    if (thread.blockedBy) row.blockedBy = thread.blockedBy;
+    return row;
+}
+
+async function writeDmIndexRow(uid, threadId, row, accessToken) {
+    // PATCH (not PUT): lastReadAt is written by the client and must survive
+    // every new message. PATCH also creates the row on first contact.
+    await rtdbPatchWithAccessToken(`${DM_USER_THREADS_PATH}/${uid}/${threadId}`, row, accessToken);
+}
+
+function otherDmParticipant(thread, uid) {
+    const participants = (thread && thread.participants) || {};
+    const others = Object.keys(participants).filter(function (p) { return p !== uid; });
+    return others.length === 1 ? others[0] : "";
+}
+
+// Report-scoped context. Only called when a participant reports a message, so
+// moderators never get a blanket read rule on private conversations.
+async function getDmReportContext(threadId, accessToken) {
+    try {
+        const data = await rtdbSocialQuery(
+            `${DM_MESSAGES_PATH}/${threadId}`,
+            'orderBy="timestamp"&limitToLast=10',
+            accessToken
+        );
+        if (!data || typeof data !== "object") return [];
+        return Object.keys(data).map(function (key) {
+            const msg = data[key] || {};
+            return {
+                uid: msg.uid || "",
+                text: String(msg.text || "").substring(0, 500),
+                timestamp: typeof msg.timestamp === "number" ? msg.timestamp : 0
+            };
+        }).sort(function (a, b) { return a.timestamp - b.timestamp; });
+    } catch (e) {
+        console.error("[DM] report context fetch failed:", e.message);
+        return [];
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1304,6 +1531,16 @@ async function sendDiscordReportNotification(env, reportData) {
         { name: "Comment", value: reportData.comment || "None", inline: false },
         { name: "Content Preview", value: "```\n" + truncatedSnapshot + "\n```", inline: false }
     );
+
+    // Report-scoped DM context, so moderators can judge the exchange without
+    // blanket access to private conversations.
+    if (Array.isArray(reportData.dmContext) && reportData.dmContext.length) {
+        const contextText = reportData.dmContext.map(function (m) {
+            const who = m.uid ? m.uid.substring(0, 8) : "unknown";
+            return who + ": " + String(m.text || "").substring(0, 120);
+        }).join("\n").substring(0, 1000);
+        fields.push({ name: "DM Context (last 10)", value: "```\n" + contextText + "\n```", inline: false });
+    }
     
     const embed = {
         title,
@@ -1315,8 +1552,9 @@ async function sendDiscordReportNotification(env, reportData) {
     
     const payload = { embeds: [embed] };
     
-    // Add action buttons (only for non-auto-deleted content)
-    if (!isAutoDeleted) {
+    // Add action buttons for normal reports AND for failed auto-deletes, so
+    // moderators can still remove content the worker could not delete.
+    if (!isAutoDeleted || reportData.deleteSuccess === false) {
         const actionId = `${reportData.contentType}:${reportData.contentId}:${reportData.reportedUserId || ""}`;
         payload.components = [{
             type: 1,
@@ -1427,7 +1665,13 @@ async function handleDiscordInteraction(request, env) {
 
         try {
             if (action === "delete") {
-                const contentPath = getContentPath(contentType, contentId);
+                let contentPath = getContentPath(contentType, contentId);
+                // A DM message id alone cannot identify its thread; use the
+                // path stored on the pending report.
+                if (contentType === "dm_message") {
+                    const report = await getExistingPendingReport(contentType, contentId, accessToken);
+                    if (report && report.contentPath) contentPath = report.contentPath;
+                }
                 const deleted = await autoDeleteContent(contentType, contentId, contentPath, accessToken);
                 if (deleted) {
                     message = "Content deleted successfully.";
@@ -1479,6 +1723,9 @@ function getContentPath(contentType, contentId) {
     if (contentType === "neighbourhood_comment") return `neighbourhood_posts/${contentId}`;
     if (contentType === "suggestion") return `suggestions/${contentId}`;
     if (contentType === "suggestion_comment") return `suggestions/${contentId}`;
+    // DM message ids are only unique inside their thread, so the thread id
+    // must come from the stored report's contentPath (see handleDiscordInteraction).
+    if (contentType === "dm_message") return "";
     return "";
 }
 
@@ -1547,8 +1794,12 @@ export default {
 
             const accessToken = await getCachedAccessToken(env);
 
-            // --- TIMEOUT CHECK (skip for reports) ---
-            if (type !== "report") {
+            // --- TIMEOUT CHECK ---
+            // Reports and DM safety actions (accept/decline/block) must remain
+            // available even to a timed-out user; only content writes are
+            // blocked by a timeout.
+            const TIMEOUT_EXEMPT_TYPES = ["report", "dm_accept", "dm_decline", "dm_block"];
+            if (!TIMEOUT_EXEMPT_TYPES.includes(type)) {
                 const timeoutCheck = await checkTimeout(uid, env, token, accessToken);
                 if (timeoutCheck.timedOut) {
                     return new Response(JSON.stringify({
@@ -1653,6 +1904,331 @@ export default {
                 // rate-limit bucket by consumeRateLimitToken() above.
 
                 return new Response(JSON.stringify({ allowed: true, key: result.name }), { status: 200, headers });
+            }
+
+            // --- DIRECT MESSAGE REQUEST ---
+            // Pro members start the conversation; every first contact is a
+            // moderated request that the recipient must accept. All DM data is
+            // written by this worker into the SOCIAL RTDB.
+            if (type === "dm_request") {
+                const toUid = typeof body.toUid === "string" ? body.toUid.trim() : "";
+                const text = typeof body.text === "string" ? body.text : "";
+
+                if (!toUid || toUid === uid) {
+                    return new Response(JSON.stringify({
+                        error: toUid === uid ? "You can't message yourself." : "Choose a user to message."
+                    }), { status: 400, headers });
+                }
+                if (!/^[A-Za-z0-9]{6,128}$/.test(toUid)) {
+                    return new Response(JSON.stringify({ error: "Invalid recipient." }), { status: 400, headers });
+                }
+
+                const threadId = dmThreadId(uid, toUid);
+                if (!threadId) {
+                    return new Response(JSON.stringify({ error: "Invalid recipient." }), { status: 400, headers });
+                }
+
+                if (!(await isDmEnabledForOrigin(origin, accessToken))) {
+                    return new Response(JSON.stringify({
+                        error: "Direct messages are temporarily unavailable.",
+                        code: "dm_disabled"
+                    }), { status: 403, headers });
+                }
+
+                // Only ReKindle+ members may start new conversations. The
+                // recipient can be any age-verified user.
+                if (payload.pro !== true) {
+                    return new Response(JSON.stringify({
+                        error: "ReKindle+ is required to start new conversations.",
+                        code: "pro_required"
+                    }), { status: 403, headers });
+                }
+                if (payload.ageVerified !== true) {
+                    return new Response(JSON.stringify({
+                        error: "Age verification is required to send direct messages.",
+                        code: "age_required"
+                    }), { status: 403, headers });
+                }
+
+                if (!isValidDmText(text, DM_MAX_REQUEST)) {
+                    return new Response(JSON.stringify({
+                        error: `Message requests must be 1-${DM_MAX_REQUEST} characters.`
+                    }), { status: 400, headers });
+                }
+                if (containsUrl(text)) {
+                    return new Response(JSON.stringify({ error: "Links and URLs are not allowed." }), { status: 400, headers });
+                }
+                if (containsPromotedTerm(text)) {
+                    return new Response(JSON.stringify({ error: "Promotional content is not allowed." }), { status: 400, headers });
+                }
+                if (containsDih(text)) {
+                    return new Response(JSON.stringify({ error: "That word is not allowed." }), { status: 400, headers });
+                }
+
+                const rl = await consumeRateLimitToken(uid, "dm_request", accessToken);
+                if (!rl.allowed) {
+                    return new Response(JSON.stringify({
+                        allowed: false,
+                        error: `Too many message requests. Please wait ${rl.retryAfter} second(s).`,
+                        retryAfter: rl.retryAfter
+                    }), { status: 429, headers });
+                }
+
+                // If a thread already exists, the caller is a participant, so
+                // it is safe (and more useful) to report an accepted thread even
+                // if the recipient has since turned requests off.
+                const existing = await getDmThreadWithEtag(threadId, accessToken);
+                if (existing.thread) {
+                    if (existing.thread.status === "accepted") {
+                        return new Response(JSON.stringify({
+                            error: "You already have a conversation with this person.",
+                            code: "dm_exists",
+                            threadId
+                        }), { status: 409, headers });
+                    }
+                    return new Response(JSON.stringify({
+                        error: "This person can't receive message requests right now."
+                    }), { status: 409, headers });
+                }
+
+                const pendingOutgoing = await countPendingOutgoingDmRequests(uid, accessToken);
+                if (pendingOutgoing >= DM_MAX_PENDING_OUTGOING) {
+                    return new Response(JSON.stringify({
+                        error: `You can have at most ${DM_MAX_PENDING_OUTGOING} unanswered message requests. Wait for a reply or cancellation before starting another.`,
+                        code: "dm_pending_cap"
+                    }), { status: 429, headers });
+                }
+
+                if (!(await getDmAllowRequests(toUid, accessToken))) {
+                    return new Response(JSON.stringify({
+                        error: "This person can't receive message requests right now."
+                    }), { status: 403, headers });
+                }
+                if (await hasDmBlock(uid, toUid, accessToken)) {
+                    // Never reveal who blocked whom.
+                    return new Response(JSON.stringify({
+                        error: "This person can't receive message requests right now."
+                    }), { status: 403, headers });
+                }
+
+                const mod = await moderateContent(text, env.OPENAI_API_KEY);
+                if (mod.flagged) {
+                    await logAutomodRejection(uid, "dm_request", text, mod.categories, accessToken, { storeText: false });
+                    return new Response(JSON.stringify({ error: moderationErrorMessage(mod) }), { status: 400, headers });
+                }
+
+                const thread = {
+                    participants: { [uid]: true, [toUid]: true },
+                    requestedBy: uid,
+                    status: "pending",
+                    createdAt: { ".sv": "timestamp" }
+                };
+
+                try {
+                    await rtdbSetWithAccessToken(`${DM_THREADS_PATH}/${threadId}`, thread, accessToken);
+                    const messageResult = await rtdbPushWithAccessToken(`${DM_MESSAGES_PATH}/${threadId}`, {
+                        uid,
+                        text,
+                        timestamp: { ".sv": "timestamp" }
+                    }, accessToken);
+                    await Promise.all([
+                        writeDmIndexRow(uid, threadId, dmIndexRow(toUid, thread, null, uid), accessToken),
+                        writeDmIndexRow(toUid, threadId, dmIndexRow(uid, thread, null, uid), accessToken)
+                    ]);
+                    console.log("[DM] request created:", threadId);
+                    return new Response(JSON.stringify({
+                        success: true,
+                        threadId,
+                        messageId: messageResult.name
+                    }), { status: 200, headers });
+                } catch (e) {
+                    // Best-effort rollback so a partial write does not leave an
+                    // invisible half-thread behind.
+                    await rtdbDeleteWithAccessToken(`${DM_THREADS_PATH}/${threadId}`, accessToken).catch(function () { });
+                    await rtdbDeleteWithAccessToken(`${DM_MESSAGES_PATH}/${threadId}`, accessToken).catch(function () { });
+                    await rtdbDeleteWithAccessToken(`${DM_USER_THREADS_PATH}/${uid}/${threadId}`, accessToken).catch(function () { });
+                    await rtdbDeleteWithAccessToken(`${DM_USER_THREADS_PATH}/${toUid}/${threadId}`, accessToken).catch(function () { });
+                    throw e;
+                }
+            }
+
+            // --- DIRECT MESSAGE REPLY ---
+            if (type === "dm_message") {
+                const threadId = typeof body.threadId === "string" ? body.threadId : "";
+                const text = typeof body.text === "string" ? body.text : "";
+
+                if (!/^dm_[A-Za-z0-9]+_[A-Za-z0-9]+$/.test(threadId)) {
+                    return new Response(JSON.stringify({ error: "Invalid conversation." }), { status: 400, headers });
+                }
+                if (!(await isDmEnabledForOrigin(origin, accessToken))) {
+                    return new Response(JSON.stringify({
+                        error: "Direct messages are temporarily unavailable.",
+                        code: "dm_disabled"
+                    }), { status: 403, headers });
+                }
+                if (!isValidDmText(text, DM_MAX_MESSAGE)) {
+                    return new Response(JSON.stringify({
+                        error: `Messages must be 1-${DM_MAX_MESSAGE} characters.`
+                    }), { status: 400, headers });
+                }
+                if (containsUrl(text)) {
+                    return new Response(JSON.stringify({ error: "Links and URLs are not allowed." }), { status: 400, headers });
+                }
+                if (containsPromotedTerm(text)) {
+                    return new Response(JSON.stringify({ error: "Promotional content is not allowed." }), { status: 400, headers });
+                }
+                if (containsDih(text)) {
+                    return new Response(JSON.stringify({ error: "That word is not allowed." }), { status: 400, headers });
+                }
+
+                const { thread } = await getDmThreadWithEtag(threadId, accessToken);
+                if (!thread || !thread.participants || thread.participants[uid] !== true) {
+                    return new Response(JSON.stringify({ error: "Conversation not found." }), { status: 404, headers });
+                }
+                if (thread.status !== "accepted") {
+                    return new Response(JSON.stringify({
+                        error: "This conversation is not open.",
+                        code: "dm_not_open"
+                    }), { status: 403, headers });
+                }
+
+                const rl = await consumeRateLimitToken(uid, "dm", accessToken, { text, isArt: false });
+                if (!rl.allowed) {
+                    return new Response(JSON.stringify({
+                        allowed: false,
+                        error: rl.message || `Please wait ${rl.retryAfter} second(s) before sending another message.`,
+                        retryAfter: rl.retryAfter
+                    }), { status: 429, headers });
+                }
+
+                const mod = await moderateContent(text, env.OPENAI_API_KEY);
+                if (mod.flagged) {
+                    await logAutomodRejection(uid, "dm", text, mod.categories, accessToken, { storeText: false });
+                    return new Response(JSON.stringify({ error: moderationErrorMessage(mod) }), { status: 400, headers });
+                }
+
+                const result = await rtdbPushWithAccessToken(`${DM_MESSAGES_PATH}/${threadId}`, {
+                    uid,
+                    text,
+                    timestamp: { ".sv": "timestamp" }
+                }, accessToken);
+
+                const other = otherDmParticipant(thread, uid);
+                if (other) {
+                    // The message itself is the source of truth. If an inbox
+                    // index write fails, do NOT report failure to the sender
+                    // (they would resend and duplicate the message); log it for
+                    // a repair instead.
+                    await Promise.all([
+                        writeDmIndexRow(uid, threadId, dmIndexRow(other, thread, null, uid), accessToken),
+                        writeDmIndexRow(other, threadId, dmIndexRow(uid, thread, null, uid), accessToken)
+                    ]).catch(function (e) {
+                        console.error("[DM] index update failed after message write:", e.message);
+                    });
+                }
+
+                return new Response(JSON.stringify({ success: true, messageId: result.name }), { status: 200, headers });
+            }
+
+            // --- DM ACCEPT / DECLINE / BLOCK ---
+            // These are deliberately NOT behind the Pro check or the kill
+            // switch: a recipient must always be able to accept, decline or
+            // block, including while timed out.
+            if (type === "dm_accept" || type === "dm_decline" || type === "dm_block") {
+                const threadId = typeof body.threadId === "string" ? body.threadId : "";
+                if (!/^dm_[A-Za-z0-9]+_[A-Za-z0-9]+$/.test(threadId)) {
+                    return new Response(JSON.stringify({ error: "Invalid conversation." }), { status: 400, headers });
+                }
+
+                const { thread, etag } = await getDmThreadWithEtag(threadId, accessToken);
+                if (!thread || !thread.participants || thread.participants[uid] !== true) {
+                    return new Response(JSON.stringify({ error: "Conversation not found." }), { status: 404, headers });
+                }
+
+                const other = otherDmParticipant(thread, uid);
+                if (!other) {
+                    return new Response(JSON.stringify({ error: "Conversation not found." }), { status: 404, headers });
+                }
+
+                if (type === "dm_accept") {
+                    if (thread.status === "accepted") {
+                        return new Response(JSON.stringify({ success: true, status: "accepted" }), { status: 200, headers });
+                    }
+                    if (thread.status !== "pending") {
+                        return new Response(JSON.stringify({ error: "This message request is no longer available." }), { status: 409, headers });
+                    }
+                    if (thread.requestedBy === uid) {
+                        return new Response(JSON.stringify({ error: "Only the recipient can accept this request." }), { status: 403, headers });
+                    }
+                }
+
+                if (type === "dm_decline") {
+                    if (thread.status === "declined") {
+                        return new Response(JSON.stringify({ success: true, status: "declined" }), { status: 200, headers });
+                    }
+                    if (thread.status !== "pending") {
+                        return new Response(JSON.stringify({ error: "This message request is no longer available." }), { status: 409, headers });
+                    }
+                    if (thread.requestedBy === uid) {
+                        return new Response(JSON.stringify({ error: "Only the recipient can decline this request." }), { status: 403, headers });
+                    }
+                }
+
+                if (type === "dm_block" && thread.status === "blocked") {
+                    // Idempotent: make sure the block record exists too.
+                    await rtdbSetWithAccessToken(`${DM_BLOCKS_PATH}/${uid}/${other}`, true, accessToken).catch(function () { });
+                    return new Response(JSON.stringify({ success: true, status: "blocked" }), { status: 200, headers });
+                }
+
+                const updated = Object.assign({}, thread);
+                if (type === "dm_accept") {
+                    updated.status = "accepted";
+                    updated.acceptedAt = { ".sv": "timestamp" };
+                } else if (type === "dm_decline") {
+                    updated.status = "declined";
+                    updated.declinedAt = { ".sv": "timestamp" };
+                } else {
+                    updated.status = "blocked";
+                    updated.blockedBy = uid;
+                    updated.blockedAt = { ".sv": "timestamp" };
+                }
+
+                const putResult = await rtdbSocialPut(`${DM_THREADS_PATH}/${threadId}`, updated, etag, accessToken);
+                if (!putResult.ok) {
+                    return new Response(JSON.stringify({ error: "Conversation changed. Please try again." }), { status: 409, headers });
+                }
+
+                if (type === "dm_block") {
+                    await rtdbSetWithAccessToken(`${DM_BLOCKS_PATH}/${uid}/${other}`, true, accessToken);
+                }
+
+                // Preserve each side's last-message metadata while flipping the
+                // status. Two reads here are fine: transitions are rare, and a
+                // missing index row is rebuilt from the thread.
+                const myRowPath = `${DM_USER_THREADS_PATH}/${uid}/${threadId}`;
+                const otherRowPath = `${DM_USER_THREADS_PATH}/${other}/${threadId}`;
+                const [myRowRes, otherRowRes] = await Promise.all([
+                    rtdbSocialGet(myRowPath, accessToken).catch(function () { return { data: null }; }),
+                    rtdbSocialGet(otherRowPath, accessToken).catch(function () { return { data: null }; })
+                ]);
+                const myRow = (myRowRes.data && typeof myRowRes.data === "object")
+                    ? myRowRes.data
+                    : dmIndexRow(other, updated, null, thread.requestedBy);
+                const otherRow = (otherRowRes.data && typeof otherRowRes.data === "object")
+                    ? otherRowRes.data
+                    : dmIndexRow(uid, updated, null, thread.requestedBy);
+                myRow.status = updated.status;
+                otherRow.status = updated.status;
+                if (updated.blockedBy) {
+                    myRow.blockedBy = updated.blockedBy;
+                    otherRow.blockedBy = updated.blockedBy;
+                }
+                await Promise.all([
+                    rtdbSetWithAccessToken(myRowPath, myRow, accessToken),
+                    rtdbSetWithAccessToken(otherRowPath, otherRow, accessToken)
+                ]);
+
+                return new Response(JSON.stringify({ success: true, status: updated.status }), { status: 200, headers });
             }
 
             // --- TOPIC ---
@@ -1895,13 +2471,13 @@ export default {
                     return new Response(JSON.stringify({ error: "Missing required report fields." }), { status: 400, headers });
                 }
                 
-                const validContentTypes = ["kindlechat", "topic", "topic_comment", "neighbourhood_post", "neighbourhood_comment", "suggestion", "suggestion_comment"];
+                const validContentTypes = ["kindlechat", "topic", "topic_comment", "neighbourhood_post", "neighbourhood_comment", "suggestion", "suggestion_comment", "dm_message"];
                 if (!validContentTypes.includes(contentType)) {
                     return new Response(JSON.stringify({ error: "Invalid content type." }), { status: 400, headers });
                 }
                 
                 // Content removed on the first report
-                const IMMEDIATE_DELETE_TYPES = ["kindlechat", "topic_comment", "neighbourhood_comment", "suggestion_comment"];
+                const IMMEDIATE_DELETE_TYPES = ["kindlechat", "topic_comment", "neighbourhood_comment", "suggestion_comment", "dm_message"];
                 // Content that requires two reports from different users
                 const TWO_REPORT_DELETE_TYPES = ["topic", "neighbourhood_post", "suggestion"];
                 const shouldDeleteImmediately = IMMEDIATE_DELETE_TYPES.includes(contentType);
@@ -1912,6 +2488,34 @@ export default {
                 }
                 if (contentSnapshot && contentSnapshot.length > 2000) {
                     return new Response(JSON.stringify({ error: "Content snapshot is too long (max 2000 characters)." }), { status: 400, headers });
+                }
+
+                // DM reports: the client only supplies ids. Derive the content
+                // path, author and snapshot from the social RTDB after proving
+                // the reporter is a participant. This stops a forged report
+                // from auto-deleting someone else's message.
+                let reportContentPath = contentPath || "";
+                let reportReportedUserId = reportedUserId || "";
+                let reportContentSnapshot = (contentSnapshot || "").substring(0, 2000);
+                let dmContext = null;
+                if (contentType === "dm_message") {
+                    const parsed = parseDmMessagePath(contentPath);
+                    if (!parsed || parsed.messageId !== contentId) {
+                        return new Response(JSON.stringify({ error: "Invalid DM report path." }), { status: 400, headers });
+                    }
+                    const { thread } = await getDmThreadWithEtag(parsed.threadId, accessToken);
+                    if (!thread || !thread.participants || thread.participants[uid] !== true) {
+                        return new Response(JSON.stringify({ error: "Conversation not found." }), { status: 404, headers });
+                    }
+                    const msgRes = await rtdbSocialGet(`${DM_MESSAGES_PATH}/${parsed.threadId}/${parsed.messageId}`, accessToken);
+                    const msg = msgRes.data;
+                    if (!msg || typeof msg !== "object") {
+                        return new Response(JSON.stringify({ error: "This message is no longer available." }), { status: 404, headers });
+                    }
+                    reportContentPath = `kindlechat/dm_messages/${parsed.threadId}/${parsed.messageId}`;
+                    reportReportedUserId = msg.uid || "";
+                    reportContentSnapshot = String(msg.text || "").substring(0, 2000);
+                    dmContext = await getDmReportContext(parsed.threadId, accessToken);
                 }
                 
                 // Rate limit: token bucket (no bypass)
@@ -1928,17 +2532,18 @@ export default {
                 const reportData = {
                     reporterId: uid,
                     reporterName: username,
-                    reportedUserId: reportedUserId || "",
+                    reportedUserId: reportReportedUserId,
                     reportedUserName: "",
                     contentType,
                     contentId,
-                    contentPath: contentPath || "",
+                    contentPath: reportContentPath,
                     reason,
                     comment: (comment || "").substring(0, 500),
-                    contentSnapshot: (contentSnapshot || "").substring(0, 2000),
+                    contentSnapshot: reportContentSnapshot,
                     status: "pending",
                     createdAt: Date.now()
                 };
+                if (dmContext && dmContext.length) reportData.dmContext = dmContext;
                 
                 const reportId = await rtdbPushWithAccessToken(REPORTS_PATH, reportData, accessToken);
                 reportData.reportId = reportId;
@@ -1956,7 +2561,7 @@ export default {
                 
                 if (shouldAutoDelete) {
                     console.log(`[REPORT] ${shouldDeleteImmediately ? 'Immediate' : 'Second'} report on ${contentType}/${contentId}. Auto-deleting...`);
-                    const deleted = await autoDeleteContent(contentType, contentId, contentPath, accessToken);
+                    const deleted = await autoDeleteContent(contentType, contentId, reportContentPath, accessToken);
                     
                     if (deleted) {
                         // Mark reports as resolved only when deletion succeeds
@@ -2010,4 +2615,12 @@ export default {
 
 // Exported for scripts/test-chat-spam.js (unit tests). Wrangler only uses the
 // default export, so these are inert in production.
-export { chatTextShapes, chatTokenOverlap, evaluateChatRepetition };
+export {
+    chatTextShapes,
+    chatTokenOverlap,
+    evaluateChatRepetition,
+    dmThreadId,
+    parseDmMessagePath,
+    dmFlagKeyForOrigin,
+    isValidDmText
+};

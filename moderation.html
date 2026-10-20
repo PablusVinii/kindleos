@@ -1708,18 +1708,30 @@
                 else if (r.status === 'resolved') statusBadge = '<span class="badge" style="border-color:#080;background:#d4edda;">RESOLVED</span>';
                 else if (r.status === 'dismissed') statusBadge = '<span class="badge badge-undone">DISMISSED</span>';
 
+                // Report-scoped DM context (only attached by the worker when a
+                // participant reports a private message).
+                var dmContextHtml = '';
+                if (Array.isArray(r.dmContext) && r.dmContext.length) {
+                    dmContextHtml = '<br><strong>DM context:</strong><br>'
+                        + r.dmContext.map(function (m) {
+                            return escapeHtml(String(m.uid || '').substring(0, 8) + ': ' + String(m.text || ''));
+                        }).join('<br>');
+                }
+                var contentLabel = r.contentType === 'dm_message' ? 'DM Message' : r.contentType;
+
                 html += '<div class="mod-action-entry">'
                     + '<div class="mod-action-header">'
                     + '<span class="mod-action-time">' + date + '</span>'
                     + statusBadge
-                    + '<span class="badge">' + escapeHtml(r.contentType) + '</span>'
+                    + '<span class="badge">' + escapeHtml(contentLabel) + '</span>'
                     + '<span>Reason: <strong>' + escapeHtml(reasonLabel) + '</strong></span>'
                     + '<span>Reporter: <strong>' + escapeHtml(r.reporterName || r.reporterId) + '</strong></span>'
                     + '<span>-&gt; <strong>' + escapeHtml(r.reportedUserName || r.reportedUserId) + '</strong></span>'
                     + '</div>'
                     + '<div class="mod-action-preview">'
                     + '<strong>Comment:</strong> ' + escapeHtml(r.comment || 'None') + '<br>'
-                    + '<strong>Preview:</strong> ' + escapeHtml((r.contentSnapshot || '').substring(0, 200)) + '</div>';
+                    + '<strong>Preview:</strong> ' + escapeHtml((r.contentSnapshot || '').substring(0, 200))
+                    + dmContextHtml + '</div>';
 
                 if (r.status === 'pending') {
                     html += '<div style="margin-top:6px;">'
@@ -1786,6 +1798,12 @@
 
         // KindleChat messages live on social RTDB
         if (savedPath.startsWith('kindlechat/messages/')) {
+            await socialRtdb.ref(savedPath).set(savedData);
+            return;
+        }
+
+        // KindleChat direct messages live on social RTDB too
+        if (savedPath.startsWith('kindlechat/dm_messages/')) {
             await socialRtdb.ref(savedPath).set(savedData);
             return;
         }
@@ -2551,7 +2569,13 @@
                 }
                 log('');
 
-                // 2. KindleChat Firestore DMs — rooms still keyed by handle; messages use uid (new) or user (old)
+                // DM threads are intentionally not readable by moderators in
+                // the client rules (report-scoped context only). Purge them
+                // with the service-account script: node admin/cleanup_user.js.
+                log('Note: KindleChat DMs are purged by admin/cleanup_user.js (service account).');
+                log('');
+
+                // 2. Legacy KindleChat Firestore DMs — rooms still keyed by handle; messages use uid (new) or user (old)
                 if (u.emailHandle) {
                     log('Scanning KindleChat (Firestore DMs)...');
                     try {

@@ -1285,6 +1285,271 @@
             transform: translate(1px, 1px);
             box-shadow: none;
         }
+
+        /* DIRECT MESSAGES */
+        .dm-tab-label {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dm-unread-dot {
+            display: none;
+            width: 8px;
+            height: 8px;
+            background: black;
+            border: 1px solid black;
+            border-radius: 50%;
+            margin-left: 5px;
+        }
+
+        .room-tab.active .dm-unread-dot {
+            background: white;
+            border-color: white;
+        }
+
+        #messages-view {
+            flex-grow: 1;
+            display: none;
+            flex-direction: column;
+            background: white;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        #messages-view.active {
+            display: flex;
+        }
+
+        .dm-toolbar {
+            flex-shrink: 0;
+            border-bottom: 2px solid black;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #eee;
+        }
+
+        .dm-toolbar-title {
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        .dm-new-btn {
+            min-height: 40px;
+            padding: 4px 12px;
+            border: 2px solid black;
+            background: white;
+            box-shadow: 2px 2px 0 black;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        .dm-new-btn:active {
+            background: black;
+            color: white;
+            box-shadow: none;
+            transform: translate(2px, 2px);
+        }
+
+        .dm-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .dm-row {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #ccc;
+            cursor: pointer;
+            min-height: 48px;
+            box-sizing: border-box;
+        }
+
+        .dm-row:active {
+            background: #eee;
+        }
+
+        .dm-row-main {
+            flex-grow: 1;
+            min-width: 0;
+        }
+
+        .dm-row-name {
+            font-weight: bold;
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .dm-row-meta {
+            font-size: 0.72rem;
+            color: #555;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .dm-request-tag {
+            display: inline-block;
+            border: 1px solid black;
+            background: black;
+            color: white;
+            font-size: 0.6rem;
+            font-weight: bold;
+            padding: 1px 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        .dm-row-dot {
+            width: 10px;
+            height: 10px;
+            background: black;
+            border-radius: 50%;
+            margin-left: 8px;
+            flex-shrink: 0;
+        }
+
+        .dm-empty {
+            padding: 30px 20px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        #dm-thread-header {
+            display: none;
+            flex-shrink: 0;
+            border-bottom: 2px solid black;
+            padding: 6px 10px;
+            align-items: center;
+            background: #eee;
+            min-height: 40px;
+            box-sizing: border-box;
+        }
+
+        .dm-back-btn {
+            border: 2px solid black;
+            background: white;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            min-height: 32px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0 black;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+
+        .dm-back-btn:active {
+            background: black;
+            color: white;
+            box-shadow: none;
+            transform: translate(2px, 2px);
+        }
+
+        .dm-thread-name {
+            font-weight: bold;
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            flex-grow: 1;
+        }
+
+        #dm-request-banner {
+            display: none;
+            flex-shrink: 0;
+            border-bottom: 2px solid black;
+            background: #fffbe5;
+            padding: 10px;
+            font-size: 0.82rem;
+            line-height: 1.4;
+        }
+
+        .dm-banner-text {
+            margin-bottom: 8px;
+        }
+
+        .dm-banner-actions {
+            display: flex;
+            align-items: center;
+        }
+
+        .dm-banner-actions>*+* {
+            margin-left: 8px;
+        }
+
+        .dm-banner-btn {
+            border: 2px solid black;
+            background: white;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 0.78rem;
+            padding: 4px 10px;
+            min-height: 36px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0 black;
+        }
+
+        .dm-banner-btn.primary {
+            background: black;
+            color: white;
+        }
+
+        .dm-banner-btn:active {
+            box-shadow: none;
+            transform: translate(2px, 2px);
+        }
+
+        .dm-form-field {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            border: 2px solid black;
+            border-radius: 0;
+            padding: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            background: white;
+            margin-top: 4px;
+        }
+
+        .dm-form-label {
+            display: block;
+            text-align: left;
+            font-weight: bold;
+            font-size: 0.82rem;
+            margin-top: 12px;
+        }
+
+        .dm-form-note {
+            text-align: left;
+            font-size: 0.75rem;
+            color: #555;
+            line-height: 1.4;
+            margin-top: 10px;
+        }
+
+        .dm-form-error {
+            text-align: left;
+            color: #a00000;
+            font-size: 0.8rem;
+            min-height: 1em;
+            margin-top: 8px;
+        }
     </style>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -1302,6 +1567,7 @@
     <script src="theme.js?v=19"></script>
     <link rel="stylesheet" href="css/custom-select.css">
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=2"></script>
     <script src="js/custom-select.js?v=1"></script>
     <script src="js/age-verification.js?v=2"></script>
 
@@ -1351,9 +1617,26 @@
                     data-i18n="kindlechat.tab.chat">KindleChat</div>
                 <div id="gallery-tab" class="room-tab" onclick="switchKindlechatTab('gallery')"
                     data-i18n="kindlechat.tab.gallery">Gallery</div>
+                <div id="messages-tab" class="room-tab" onclick="switchKindlechatTab('messages')"
+                    style="display:none;"><span class="dm-tab-label"
+                        data-i18n="kindlechat.tab.messages">Messages</span><span id="dm-tab-dot"
+                        class="dm-unread-dot"></span></div>
             </div>
 
             <div id="chat-view">
+
+                <div id="dm-thread-header">
+                    <button type="button" class="dm-back-btn" onclick="switchKindlechatTab('messages')"
+                        data-i18n="kindlechat.dm.back">Back</button>
+                    <div id="dm-thread-name" class="dm-thread-name">Messages</div>
+                    <button type="button" id="dm-block-btn" class="dm-back-btn" style="margin-left:10px; margin-right:0;"
+                        onclick="dmAction('block')" data-i18n="kindlechat.dm.block">Block</button>
+                </div>
+
+                <div id="dm-request-banner">
+                    <div id="dm-banner-text" class="dm-banner-text"></div>
+                    <div class="dm-banner-actions" id="dm-banner-actions"></div>
+                </div>
 
                 <div id="chat-history">
                 </div>
@@ -1411,6 +1694,17 @@
                         <button id="gallery-load-more-btn" onclick="loadMoreGallery()"
                             data-i18n="kindlechat.gallery.load_more">Load Older</button>
                     </div>
+                </div>
+            </div>
+
+            <div id="messages-view">
+                <div class="dm-toolbar">
+                    <div class="dm-toolbar-title" data-i18n="kindlechat.dm.title">Messages</div>
+                    <button type="button" id="dm-new-btn" class="dm-new-btn" onclick="openNewDmModal()"
+                        data-i18n="kindlechat.dm.new">New Message</button>
+                </div>
+                <div id="dm-list" class="dm-list">
+                    <div class="dm-empty" data-i18n="kindlechat.dm.loading">Loading messages...</div>
                 </div>
             </div>
         </div>
@@ -1498,6 +1792,18 @@
                         Choose an alternative language for translations. "Auto" matches your system language.</div>
                 </div>
 
+                <div style="margin: 15px 0;" id="dm-requests-setting">
+                    <label style="display:flex; align-items:center; cursor:pointer;">
+                        <input type="checkbox" id="setting-dm-requests"
+                            style="width:20px; height:20px; margin-right:10px;">
+                        <span data-i18n="kindlechat.dm.allow_requests">Allow message requests</span>
+                    </label>
+                    <div style="margin-left:34px; font-size:0.8rem; color:#666;"
+                        data-i18n="kindlechat.dm.allow_requests_desc">
+                        ReKindle+ members can send you a request. You always decide whether to accept.
+                    </div>
+                </div>
+
                 <div id="admin-tools-setting" style="margin: 15px 0; display:none;">
                     <label style="display:flex; align-items:center; cursor:pointer;">
                         <input type="checkbox" id="setting-show-admin-tools"
@@ -1541,6 +1847,10 @@
                     <li style="margin-bottom: 10px;"><b data-i18n="kindlechat.rules.5.title">No Self-Promo:</b> <span
                             data-i18n="kindlechat.rules.5.text">Do not advertise your own
                             content.</span></li>
+                    <li style="margin-bottom: 10px;"><b data-i18n="kindlechat.rules.6.title">Private Messages:</b>
+                        <span data-i18n="kindlechat.rules.6.text">Only ReKindle+ members can start a conversation.
+                            Never share personal information, and report anything that makes you uncomfortable.</span>
+                    </li>
                 </ul>
                 <div style="margin-top:20px; display:flex; justify-content:center;">
                     <button id="btn-close-rules" class="sys-btn"
@@ -1548,6 +1858,75 @@
                         data-i18n="common.close">Close</button>
                     <button id="btn-accept-rules" class="sys-btn" onclick="acceptRules()" style="display:none;"
                         data-i18n="rules.btn.accept">I Accept</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW DM MODAL -->
+        <div class="modal-box" id="dm-new-modal-content" style="display:none; text-align:left; padding:0; overflow:hidden;">
+            <div class="title-bar" style="border-bottom:2px solid black; margin-bottom:10px;">
+                <div class="title-stripes"></div>
+                <div class="close-box" onclick="closeModal('dm-new-modal-content'); closeModal('modal-overlay');">X</div>
+                <span class="title-text" data-i18n="kindlechat.dm.new_title">Start a conversation</span>
+            </div>
+            <div style="padding: 0 15px 15px 15px;">
+                <label class="dm-form-label" for="dm-username" data-i18n="kindlechat.dm.username">Username</label>
+                <input type="text" id="dm-username" class="dm-form-field" autocomplete="off" autocapitalize="none"
+                    placeholder="Username" data-i18n-placeholder="kindlechat.dm.username">
+                <label class="dm-form-label" for="dm-message" data-i18n="kindlechat.dm.first_message">First message</label>
+                <textarea id="dm-message" class="dm-form-field" rows="3" maxlength="300"
+                    data-i18n-placeholder="kindlechat.dm.first_placeholder"
+                    placeholder="Say hello (max 300 characters)"></textarea>
+                <div class="dm-form-note" data-i18n="kindlechat.dm.request_note">
+                    The other person must accept before the conversation opens. Messages are moderated and links
+                    are not allowed.
+                </div>
+                <div id="dm-form-error" class="dm-form-error"></div>
+                <div style="margin-top:12px; display:flex; justify-content:center;">
+                    <button type="button" class="sys-btn" id="dm-request-send-btn" onclick="sendDmRequest()"
+                        data-i18n="kindlechat.dm.send_request">Send Request</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DM SAFETY MODAL -->
+        <div class="modal-box" id="dm-safety-modal-content" style="display:none; text-align:left; padding:0; overflow:hidden;">
+            <div class="title-bar" style="border-bottom:2px solid black; margin-bottom:10px;">
+                <div class="title-stripes"></div>
+                <div class="close-box" onclick="acknowledgeDmSafety()">X</div>
+                <span class="title-text" data-i18n="kindlechat.dm.safety_title">Private messages</span>
+            </div>
+            <div style="padding: 0 18px 18px 18px; font-size:0.85rem; line-height:1.5;">
+                <p style="margin-top:0;" data-i18n="kindlechat.dm.safety_body">
+                    Only ReKindle+ members can start a conversation, and you choose whether to accept each request.
+                    Messages are screened, but never share personal information such as your address, school or
+                    passwords. You can block or report anyone.
+                </p>
+                <div style="display:flex; justify-content:center; margin-top:12px;">
+                    <button type="button" class="sys-btn" onclick="acknowledgeDmSafety()"
+                        data-i18n="kindlechat.dm.safety_ok">I understand</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DM PRO UPSELL MODAL -->
+        <div class="modal-box" id="dm-upsell-modal-content" style="display:none; text-align:left; padding:0; overflow:hidden;">
+            <div class="title-bar" style="border-bottom:2px solid black; margin-bottom:10px;">
+                <div class="title-stripes"></div>
+                <div class="close-box" onclick="closeModal('dm-upsell-modal-content'); closeModal('modal-overlay');">X</div>
+                <span class="title-text" data-i18n="kindlechat.dm.upsell_title">ReKindle+</span>
+            </div>
+            <div style="padding: 0 18px 18px 18px; font-size:0.85rem; line-height:1.5; text-align:center;">
+                <p style="margin-top:0;" data-i18n="kindlechat.dm.upsell_body">
+                    Starting new conversations is a ReKindle+ feature. You can still receive requests and reply to
+                    conversations you accept.
+                </p>
+                <div style="display:flex; justify-content:center;">
+                    <button type="button" class="sys-btn" onclick="window.location.href='pay.html'"
+                        data-i18n="kindlechat.dm.upsell_btn">Learn about ReKindle+</button>
+                    <button type="button" class="sys-btn" style="margin-left:10px;"
+                        onclick="closeModal('dm-upsell-modal-content'); closeModal('modal-overlay');"
+                        data-i18n="common.close">Close</button>
                 </div>
             </div>
         </div>
@@ -1597,6 +1976,11 @@
             // Show generic content, hide Others
             document.getElementById('settings-modal-content').style.display = 'none';
             document.getElementById('rules-modal-content').style.display = 'none';
+            var dmModals = ['dm-new-modal-content', 'dm-safety-modal-content', 'dm-upsell-modal-content'];
+            for (var dmi = 0; dmi < dmModals.length; dmi++) {
+                var dmEl = document.getElementById(dmModals[dmi]);
+                if (dmEl) dmEl.style.display = 'none';
+            }
             generic.style.display = 'block';
             generic.style.padding = '';
             generic.style.width = '';
@@ -1685,6 +2069,40 @@
             batchSize: 20
         };
         var galleryRemovedHandler = null; // child_removed listener for art_index
+
+        // --- DIRECT MESSAGES (social RTDB only) ---
+        // All DM paths below are read from / written to socialRtdb, never the
+        // primary database. The client cannot write message/thread content;
+        // the moderation worker is the only writer.
+        var DM_THREADS_PATH = 'kindlechat/dm_threads';
+        var DM_MESSAGES_PATH = 'kindlechat/dm_messages';
+        var DM_USER_THREADS_PATH = 'kindlechat/dm_user_threads';
+        var DM_PREFS_PATH = 'kindlechat/dm_prefs';
+        var DM_SAFETY_ACK_KEY = 'rekindle_dm_safety_ack';
+        var DM_MAX_MESSAGE = 1000;
+        var DM_MAX_REQUEST = 300;
+
+        var dmEnabled = false;
+        var dmCanInitiate = false;
+        var dmInboxRef = null;
+        var dmThreadRef = null;
+        var dmThreadBaseRef = null;
+        var dmThreadAddedHandler = null;
+        var dmThreadRemovedHandler = null;
+        var dmThreads = {};              // threadId -> index row
+        var dmThreadState = null;        // index row for the open thread
+        var dmThreadPartner = '';        // partner uid for the open thread
+        var dmMessages = {};             // msgId -> message body (for de-dupe)
+        var dmMsgData = {};              // msgId -> message body (for report/delete actions)
+        var dmOldestTs = null;
+        var dmNoMore = false;
+        var dmLoadingMore = false;
+        var dmReadTimer = null;
+        var dmPrefsLoaded = false;
+        var dmAllowRequests = true;
+        var dmPartnerName = '';
+        var dmNameCache = {};
+        var generalNeedsReload = false;
 
         function markAllAsRead() {
             // No-op: only general chat remains, no sidebar/unread tracking needed.
@@ -1834,8 +2252,24 @@
                         return socialAuth.signInWithCustomToken(result.data.token);
                     });
                 }).then(function () {
+                    // The social token carries the server-computed ``pro``
+                    // claim. Use it (not the loose localStorage default) to
+                    // decide whether the "New Message" button is shown; the
+                    // worker re-checks it on every request.
+                    if (socialAuth.currentUser) {
+                        return socialAuth.currentUser.getIdTokenResult().then(function (res) {
+                            dmCanInitiate = !!(res && res.claims && res.claims.pro === true);
+                        })['catch'](function () {
+                            dmCanInitiate = false;
+                        });
+                    }
+                }).then(function () {
                     // Username/avatar cache is populated lazily as messages render
                     // via rekindleFetchUserCard (reads tiny /user_cards records).
+
+                    // DM inbox is independent of chat rendering; attach it if
+                    // the server-side switch is on.
+                    initDm();
 
                     // Wait for supporters to load BEFORE loading messages to avoid race condition on Pro styling
                     fetchSupporters().then(function () {
@@ -1875,6 +2309,19 @@
                     if (msgEl) msgEl.textContent = '';
                 }
                 if (socialAuth) socialAuth.signOut();
+                if (dmInboxRef) {
+                    dmInboxRef.off();
+                    dmInboxRef = null;
+                }
+                detachDmThreadListeners();
+                closeDmThread();
+                dmEnabled = false;
+                dmCanInitiate = false;
+                dmThreads = {};
+                dmNameCache = {};
+                currentRoomId = 'general';
+                var dmTab = document.getElementById('messages-tab');
+                if (dmTab) dmTab.style.display = 'none';
                 loadMessages();
             }
 
@@ -1906,6 +2353,9 @@
                     if (newIsPro !== isPro) {
                         isPro = newIsPro;
                         console.log("Pro Status Sync: ", isPro);
+                        // The worker re-checks the claim; this only keeps the
+                        // "New Message" affordance in sync after an upgrade.
+                        if (dmEnabled) dmCanInitiate = isPro;
                         // Re-render recent messages to update styling
                         reRenderRecentMessages();
                     }
@@ -1977,6 +2427,11 @@
             var overlay = document.getElementById('modal-overlay');
             document.getElementById('generic-modal-content').style.display = 'none';
             document.getElementById('rules-modal-content').style.display = 'none';
+            var dmModalIds = ['dm-new-modal-content', 'dm-safety-modal-content', 'dm-upsell-modal-content'];
+            for (var dmi = 0; dmi < dmModalIds.length; dmi++) {
+                var dmEl = document.getElementById(dmModalIds[dmi]);
+                if (dmEl) dmEl.style.display = 'none';
+            }
             document.getElementById('settings-modal-content').style.display = 'block';
 
             // Load settings
@@ -1984,6 +2439,11 @@
             document.getElementById('setting-show-translations').checked = settings.showTranslations;
             document.getElementById('setting-show-admin-tools').checked = settings.showAdminTools;
             document.getElementById('setting-translation-lang').value = settings.translationLang || 'auto';
+
+            var dmRequestsSetting = document.getElementById('dm-requests-setting');
+            var dmRequestsCheckbox = document.getElementById('setting-dm-requests');
+            if (dmRequestsSetting) dmRequestsSetting.style.display = dmEnabled ? 'block' : 'none';
+            if (dmRequestsCheckbox) dmRequestsCheckbox.checked = dmAllowRequests;
 
             // Admin check
             if (currentUser && currentUser.email === 'ukiyo@rekindle.ink') {
@@ -2002,6 +2462,11 @@
 
             document.getElementById('generic-modal-content').style.display = 'none';
             document.getElementById('settings-modal-content').style.display = 'none';
+            var dmModalIds = ['dm-new-modal-content', 'dm-safety-modal-content', 'dm-upsell-modal-content'];
+            for (var dmi = 0; dmi < dmModalIds.length; dmi++) {
+                var dmEl = document.getElementById(dmModalIds[dmi]);
+                if (dmEl) dmEl.style.display = 'none';
+            }
             document.getElementById('rules-modal-content').style.display = 'block';
 
             if (mode === 'accept') {
@@ -2522,6 +2987,34 @@
         }
 
         function loadMessages() {
+            // A non-general room id means a DM thread. Detach the general
+            // listeners first (one live room at a time keeps the Kindle lean)
+            // and render the thread with the lightweight DM renderer.
+            if (currentRoomId !== 'general') {
+                if (generalListener) {
+                    generalListener.off();
+                    generalListener = null;
+                }
+                if (generalTransRef) {
+                    generalTransRef.off();
+                    generalTransRef = null;
+                }
+                kcAddedHandler = null;
+                kcChangedHandler = null;
+                kcDeleteHandler = null;
+                kcTransAddedHandler = null;
+                kcTransChangedHandler = null;
+                renderedKindlechatIds = {};
+                generalMsgData = {};
+                langTranslations = {};
+                generalDomMsgCount = 0;
+                replyTarget = null;
+                loadDmThread(currentRoomId);
+                return;
+            }
+
+            generalNeedsReload = false;
+
             // Update Title to Loading
             var titleEl = document.querySelector('.title-text');
             if (titleEl) titleEl.innerText = 'Loading...';
@@ -2593,7 +3086,10 @@
                 history.innerHTML = '';
 
                 if (!snapshot.exists()) {
-                    history.innerHTML = '<div style="text-align:center; padding:20px; color:#666;">No messages yet.</div>';
+                    history.innerHTML = window.rekindleEmptyState(
+                        window.t('kindlechat.chat.empty', 'No messages yet. Say hello to the room.'),
+                        { icon: 'chat', compact: true }
+                    );
                 } else {
                     // Render the initial batch with the container hidden so the 50
                     // appends don't each force a synchronous layout; one reflow on show.
@@ -2758,25 +3254,79 @@
         }
 
         function switchKindlechatTab(tab) {
-            if (tab !== 'chat' && tab !== 'gallery') return;
-            if (tab === 'gallery' && !galleryState.open) {
+            if (tab === 'chat') {
+                openGeneralChat();
+            } else if (tab === 'gallery') {
                 openGalleryView();
-            } else if (tab === 'chat' && galleryState.open) {
-                closeGalleryView();
+            } else if (tab === 'messages') {
+                openMessagesView();
             }
+        }
+
+        function setActiveTab(tab) {
+            var ids = { chat: 'chat-tab', gallery: 'gallery-tab', messages: 'messages-tab' };
+            for (var key in ids) {
+                if (!ids.hasOwnProperty(key)) continue;
+                var el = document.getElementById(ids[key]);
+                if (!el) continue;
+                if (key === tab) el.classList.add('active');
+                else el.classList.remove('active');
+            }
+        }
+
+        function openGeneralChat() {
+            if (galleryState.open) closeGalleryView();
+            var messagesView = document.getElementById('messages-view');
+            var chatView = document.getElementById('chat-view');
+            if (messagesView) messagesView.classList.remove('active');
+            if (chatView) chatView.style.display = 'flex';
+            setActiveTab('chat');
+
+            // Leaving a DM thread for the general room: detach DM listeners and
+            // reload the last 50 general messages.
+            if (currentRoomId !== 'general' || dmThreadState || generalNeedsReload) {
+                closeDmThread();
+                currentRoomId = 'general';
+                loadMessages();
+            }
+        }
+
+        function openMessagesView() {
+            if (galleryState.open) closeGalleryView();
+            // Opening the inbox closes an open thread so its listener does not
+            // keep running behind the inbox.
+            if (currentRoomId !== 'general' || dmThreadState) {
+                closeDmThread();
+                currentRoomId = 'general';
+                generalNeedsReload = true;
+            }
+            var messagesView = document.getElementById('messages-view');
+            var chatView = document.getElementById('chat-view');
+            var galleryView = document.getElementById('gallery-view');
+            if (galleryView) galleryView.classList.remove('active');
+            if (chatView) chatView.style.display = 'none';
+            if (messagesView) messagesView.classList.add('active');
+            setActiveTab('messages');
+            openDmSafetyIfNeeded();
+            renderDmInbox();
         }
 
         function openGalleryView() {
             var galleryView = document.getElementById('gallery-view');
             var chatView = document.getElementById('chat-view');
-            var chatTab = document.getElementById('chat-tab');
-            var galleryTab = document.getElementById('gallery-tab');
+            var messagesView = document.getElementById('messages-view');
             if (!galleryView || !chatView) return;
 
+            // Gallery is a general-chat view; leave a DM thread first.
+            if (currentRoomId !== 'general' || dmThreadState) {
+                closeDmThread();
+                currentRoomId = 'general';
+                generalNeedsReload = true;
+            }
             galleryView.classList.add('active');
             chatView.style.display = 'none';
-            if (chatTab) chatTab.classList.remove('active');
-            if (galleryTab) galleryTab.classList.add('active');
+            if (messagesView) messagesView.classList.remove('active');
+            setActiveTab('gallery');
             galleryState.open = true;
             if (galleryState.items.length === 0) {
                 loadGallery(true);
@@ -2788,15 +3338,15 @@
         function closeGalleryView() {
             var galleryView = document.getElementById('gallery-view');
             var chatView = document.getElementById('chat-view');
-            var chatTab = document.getElementById('chat-tab');
-            var galleryTab = document.getElementById('gallery-tab');
             if (!galleryView || !chatView) return;
 
             galleryView.classList.remove('active');
             chatView.style.display = 'flex';
-            if (chatTab) chatTab.classList.add('active');
-            if (galleryTab) galleryTab.classList.remove('active');
+            setActiveTab(currentRoomId === 'general' ? 'chat' : 'messages');
             galleryState.open = false;
+            if (currentRoomId === 'general' && generalNeedsReload) {
+                loadMessages();
+            }
 
             // Fix: Detach from the scoped query
             if (galleryRemovedHandler && galleryLiveQuery) {
@@ -2804,6 +3354,942 @@
                 galleryRemovedHandler = null;
                 galleryLiveQuery = null;
             }
+        }
+
+        // ==================================================================
+        // DIRECT MESSAGES
+        // All content is read from socialRtdb (rekindle-socials). Clients can
+        // never write thread/message content: only the moderation worker does.
+        // ==================================================================
+        function dmT(key, fallback) {
+            return (typeof window.t === 'function') ? window.t(key, fallback) : fallback;
+        }
+
+        function isDmBetaHost() {
+            return window.location.hostname === 'beta.rekindle.ink';
+        }
+
+        function dmFlagKey() {
+            return isDmBetaHost() ? 'dm_beta_enabled' : 'dm_enabled';
+        }
+
+        function initDm() {
+            if (!currentUser || !socialRtdb) return;
+            var tab = document.getElementById('messages-tab');
+            socialRtdb.ref('kindlechat/config/' + dmFlagKey()).once('value').then(function (snap) {
+                dmEnabled = snap.val() === true;
+                if (!dmEnabled) {
+                    if (tab) tab.style.display = 'none';
+                    return;
+                }
+                if (tab) tab.style.display = '';
+                loadDmPrefs();
+                attachDmInbox();
+            })['catch'](function (e) {
+                console.warn('DM config read failed:', e && e.message);
+                dmEnabled = false;
+                if (tab) tab.style.display = 'none';
+            });
+        }
+
+        function attachDmInbox() {
+            if (!socialRtdb || !currentUser) return;
+            if (dmInboxRef) {
+                dmInboxRef.off();
+                dmInboxRef = null;
+            }
+            // Last 50 conversations only: the inbox payload stays tiny on the
+            // Kindle (no message previews are stored in the index).
+            dmInboxRef = socialRtdb.ref(DM_USER_THREADS_PATH + '/' + currentUser.uid)
+                .orderByChild('lastMessageAt')
+                .limitToLast(50);
+            dmInboxRef.on('value', function (snap) {
+                dmThreads = {};
+                snap.forEach(function (child) {
+                    var row = child.val();
+                    if (row && typeof row === 'object') dmThreads[child.key] = row;
+                });
+                updateDmUnreadDot();
+                if (document.getElementById('messages-view') &&
+                    document.getElementById('messages-view').classList.contains('active')) {
+                    renderDmInbox();
+                }
+                if (dmThreadState && dmThreads[currentRoomId]) {
+                    dmThreadState = dmThreads[currentRoomId];
+                    updateDmBanner();
+                    updateDmComposer();
+                }
+            }, function (e) {
+                console.warn('DM inbox listener failed:', e && e.message);
+            });
+        }
+
+        function dmRowUnread(row) {
+            if (!row || !currentUser) return false;
+            if (row.status === 'declined' || row.status === 'blocked') return false;
+            var last = typeof row.lastMessageAt === 'number' ? row.lastMessageAt : 0;
+            var read = typeof row.lastReadAt === 'number' ? row.lastReadAt : 0;
+            if (row.status === 'pending' && row.requestedBy !== currentUser.uid) {
+                return !(read && read >= last);
+            }
+            return !!(row.lastMessageUid && row.lastMessageUid !== currentUser.uid && last > read);
+        }
+
+        function updateDmUnreadDot() {
+            var dot = document.getElementById('dm-tab-dot');
+            if (!dot) return;
+            var unread = false;
+            for (var id in dmThreads) {
+                if (!dmThreads.hasOwnProperty(id)) continue;
+                if (dmRowUnread(dmThreads[id])) {
+                    unread = true;
+                    break;
+                }
+            }
+            dot.style.display = unread ? 'inline-block' : 'none';
+        }
+
+        function getDmDisplayName(uid, callback) {
+            if (!uid) {
+                callback(dmT('kindlechat.dm.someone', 'Someone'));
+                return;
+            }
+            if (currentUser && uid === currentUser.uid) {
+                callback(dmT('kindlechat.msg.you', 'You'));
+                return;
+            }
+            if (dmNameCache[uid]) {
+                callback(dmNameCache[uid]);
+                return;
+            }
+            var fallback = String(uid).substring(0, 8);
+            if (typeof window.rekindleFetchUserCard !== 'function') {
+                callback(fallback);
+                return;
+            }
+            window.rekindleFetchUserCard(rtdb, uid, function (card) {
+                var name = (card && card.username) ? card.username : fallback;
+                dmNameCache[uid] = censorUsername(name);
+                callback(dmNameCache[uid]);
+            });
+        }
+
+        function dmStatusLabel(row) {
+            var uid = currentUser ? currentUser.uid : '';
+            if (!row) return '';
+            if (row.status === 'pending') {
+                return row.requestedBy === uid
+                    ? dmT('kindlechat.dm.request_sent', 'Request sent')
+                    : dmT('kindlechat.dm.request_received', 'Message request');
+            }
+            if (row.status === 'declined') return dmT('kindlechat.dm.declined', 'Declined');
+            if (row.status === 'blocked') {
+                return row.blockedBy === uid
+                    ? dmT('kindlechat.dm.blocked', 'Blocked')
+                    : dmT('kindlechat.dm.closed', 'Conversation closed');
+            }
+            var ts = typeof row.lastMessageAt === 'number' ? row.lastMessageAt : 0;
+            return ts ? formatChatTime(ts) : dmT('kindlechat.dm.conversation', 'Conversation');
+        }
+
+        function renderDmInbox() {
+            var list = document.getElementById('dm-list');
+            if (!list || !currentUser) return;
+            list.innerHTML = '';
+
+            var ids = [];
+            for (var id in dmThreads) {
+                if (dmThreads.hasOwnProperty(id)) ids.push(id);
+            }
+            ids.sort(function (a, b) {
+                var at = dmThreads[a].lastMessageAt || 0;
+                var bt = dmThreads[b].lastMessageAt || 0;
+                return bt - at;
+            });
+
+            if (ids.length === 0) {
+                var empty = document.createElement('div');
+                empty.className = 'dm-empty';
+                empty.textContent = dmCanInitiate
+                    ? dmT('kindlechat.dm.empty_pro', 'No conversations yet. Tap New Message to start one.')
+                    : dmT('kindlechat.dm.empty', 'No conversations yet. ReKindle+ members can start a new message.');
+                list.appendChild(empty);
+                return;
+            }
+
+            var fragment = document.createDocumentFragment();
+            ids.forEach(function (threadId) {
+                var row = dmThreads[threadId];
+                var rowEl = document.createElement('div');
+                rowEl.className = 'dm-row';
+                rowEl.setAttribute('data-thread-id', threadId);
+                rowEl.onclick = function () { openDmThread(threadId); };
+
+                var main = document.createElement('div');
+                main.className = 'dm-row-main';
+
+                var nameEl = document.createElement('div');
+                nameEl.className = 'dm-row-name';
+                var nameTextEl = document.createElement('span');
+                nameTextEl.textContent = String(row.otherUid || '').substring(0, 8);
+                nameEl.appendChild(nameTextEl);
+
+                if (row.status === 'pending' && row.requestedBy !== currentUser.uid) {
+                    var tag = document.createElement('span');
+                    tag.className = 'dm-request-tag';
+                    tag.textContent = dmT('kindlechat.dm.request_short', 'Request');
+                    nameEl.appendChild(tag);
+                }
+
+                var metaEl = document.createElement('div');
+                metaEl.className = 'dm-row-meta';
+                metaEl.textContent = dmStatusLabel(row);
+
+                main.appendChild(nameEl);
+                main.appendChild(metaEl);
+                rowEl.appendChild(main);
+
+                if (dmRowUnread(row)) {
+                    var dot = document.createElement('div');
+                    dot.className = 'dm-row-dot';
+                    rowEl.appendChild(dot);
+                }
+
+                getDmDisplayName(row.otherUid, function (name) {
+                    if (nameTextEl.parentNode) nameTextEl.textContent = name;
+                });
+
+                fragment.appendChild(rowEl);
+            });
+            list.appendChild(fragment);
+        }
+
+        function openDmThread(threadId) {
+            var row = dmThreads[threadId];
+            if (!row) {
+                showModal(dmT('kindlechat.dm.unavailable', 'This conversation is no longer available.'), false);
+                return;
+            }
+            if (!dmEnabled) {
+                showModal(dmT('kindlechat.dm.disabled', 'Direct messages are temporarily unavailable.'), false);
+                return;
+            }
+            dmThreadState = row;
+            dmThreadPartner = row.otherUid || '';
+            dmPartnerName = dmNameCache[dmThreadPartner] || '';
+            currentRoomId = threadId;
+            generalNeedsReload = true;
+
+            var messagesView = document.getElementById('messages-view');
+            var chatView = document.getElementById('chat-view');
+            if (messagesView) messagesView.classList.remove('active');
+            if (chatView) chatView.style.display = 'flex';
+            setActiveTab('messages');
+            updateDmHeader();
+            updateDmBanner();
+            updateDmComposer();
+            loadMessages();
+        }
+
+        function detachDmThreadListeners() {
+            if (dmThreadRef) {
+                dmThreadRef.off();
+                dmThreadRef = null;
+            }
+            if (dmThreadBaseRef) {
+                dmThreadBaseRef.off();
+                dmThreadBaseRef = null;
+            }
+            dmThreadAddedHandler = null;
+            dmThreadRemovedHandler = null;
+        }
+
+        function closeDmThread() {
+            detachDmThreadListeners();
+            // Flush the read marker before leaving so a quick open/close does
+            // not leave an unread dot behind.
+            if (currentUser && currentRoomId && currentRoomId !== 'general') {
+                socialRtdb.ref(DM_USER_THREADS_PATH + '/' + currentUser.uid + '/' + currentRoomId + '/lastReadAt')
+                    .set(firebase.database.ServerValue.TIMESTAMP)['catch'](function () { });
+            }
+            if (dmReadTimer) {
+                clearTimeout(dmReadTimer);
+                dmReadTimer = null;
+            }
+            dmThreadState = null;
+            dmThreadPartner = '';
+            dmPartnerName = '';
+            dmMessages = {};
+            dmMsgData = {};
+            dmOldestTs = null;
+            dmNoMore = false;
+            dmLoadingMore = false;
+            setDmMediaButtons(false);
+            var header = document.getElementById('dm-thread-header');
+            if (header) header.style.display = 'none';
+            var banner = document.getElementById('dm-request-banner');
+            if (banner) banner.style.display = 'none';
+        }
+
+        function setDmMediaButtons(isDm) {
+            // DMs are text-only: pixel art / flipbooks would post to the public
+            // gallery, so hide those buttons while a private thread is open.
+            var ids = ['pixel-btn', 'flipbook-btn'];
+            for (var i = 0; i < ids.length; i++) {
+                var el = document.getElementById(ids[i]);
+                if (el) el.style.display = isDm ? 'none' : '';
+            }
+        }
+
+        function updateDmHeader() {
+            var header = document.getElementById('dm-thread-header');
+            if (!header) return;
+            if (!dmThreadState) {
+                header.style.display = 'none';
+                return;
+            }
+            header.style.display = 'flex';
+            var blockBtn = document.getElementById('dm-block-btn');
+            if (blockBtn) {
+                blockBtn.style.display = (dmThreadState.status === 'blocked' || dmThreadState.status === 'declined')
+                    ? 'none'
+                    : 'block';
+            }
+            var nameEl = document.getElementById('dm-thread-name');
+            if (!nameEl) return;
+            nameEl.textContent = dmPartnerName || String(dmThreadPartner || '').substring(0, 8);
+            if (dmThreadPartner && !dmPartnerName) {
+                getDmDisplayName(dmThreadPartner, function (name) {
+                    dmPartnerName = name;
+                    var el = document.getElementById('dm-thread-name');
+                    if (el && dmThreadState) el.textContent = name;
+                    updateDmBanner();
+                });
+            }
+        }
+
+        function clearDmBannerActions() {
+            var actions = document.getElementById('dm-banner-actions');
+            if (!actions) return null;
+            while (actions.firstChild) actions.removeChild(actions.firstChild);
+            return actions;
+        }
+
+        function makeDmBannerButton(label, primary, handler) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'dm-banner-btn' + (primary ? ' primary' : '');
+            btn.textContent = label;
+            btn.onclick = handler;
+            return btn;
+        }
+
+        function updateDmBanner() {
+            var banner = document.getElementById('dm-request-banner');
+            var textEl = document.getElementById('dm-banner-text');
+            if (!banner || !textEl) return;
+            if (!dmThreadState) {
+                banner.style.display = 'none';
+                return;
+            }
+            var uid = currentUser ? currentUser.uid : '';
+            var status = dmThreadState.status;
+            var who = dmPartnerName || dmT('kindlechat.dm.this_user', 'This user');
+            var actions = clearDmBannerActions();
+
+            if (status === 'accepted') {
+                banner.style.display = 'none';
+                return;
+            }
+
+            if (status === 'pending' && dmThreadState.requestedBy !== uid) {
+                textEl.textContent = dmT('kindlechat.dm.request_banner', '{name} wants to send you a message. Accept only if you want to talk to them.').replace('{name}', who);
+                banner.style.display = 'block';
+                if (actions) {
+                    actions.appendChild(makeDmBannerButton(dmT('kindlechat.dm.accept', 'Accept'), true, function () { dmAction('accept'); }));
+                    actions.appendChild(makeDmBannerButton(dmT('kindlechat.dm.decline', 'Decline'), false, function () { dmAction('decline'); }));
+                    actions.appendChild(makeDmBannerButton(dmT('kindlechat.dm.block', 'Block'), false, function () { dmAction('block'); }));
+                }
+                return;
+            }
+
+            if (status === 'pending') {
+                textEl.textContent = dmT('kindlechat.dm.waiting', 'Waiting for them to accept your message request.');
+                banner.style.display = 'block';
+                if (actions) {
+                    actions.appendChild(makeDmBannerButton(dmT('kindlechat.dm.block', 'Block'), false, function () { dmAction('block'); }));
+                }
+                return;
+            }
+
+            if (status === 'declined') {
+                textEl.textContent = dmT('kindlechat.dm.declined_banner', 'This message request was declined. This conversation cannot be restarted.');
+                banner.style.display = 'block';
+                return;
+            }
+
+            if (status === 'blocked') {
+                textEl.textContent = dmThreadState.blockedBy === uid
+                    ? dmT('kindlechat.dm.blocked_banner', 'You blocked this person. They cannot contact you again.')
+                    : dmT('kindlechat.dm.closed_banner', 'This conversation is closed.');
+                banner.style.display = 'block';
+            }
+        }
+
+        function updateDmComposer() {
+            var isDm = !!(currentRoomId && currentRoomId !== 'general' && dmThreadState);
+            setDmMediaButtons(isDm);
+            if (!isDm) return;
+
+            var accepted = dmThreadState.status === 'accepted';
+            setChatInputEnabled(accepted);
+
+            var input = document.getElementById('msg-input');
+            if (!input) return;
+            if (accepted) {
+                input.setAttribute('placeholder', dmT('kindlechat.dm.placeholder', 'Type a message...'));
+            } else if (dmThreadState.status === 'pending' && dmThreadState.requestedBy !== currentUser.uid) {
+                input.setAttribute('placeholder', dmT('kindlechat.dm.accept_to_reply', 'Accept the request to reply.'));
+            } else if (dmThreadState.status === 'pending') {
+                input.setAttribute('placeholder', dmT('kindlechat.dm.waiting_short', 'Waiting for them to accept...'));
+            } else {
+                input.setAttribute('placeholder', dmT('kindlechat.dm.closed_short', 'This conversation is closed.'));
+            }
+        }
+
+        function callDmWorker(payload) {
+            var tokenSource = (typeof socialAuth !== 'undefined' && socialAuth.currentUser)
+                ? socialAuth.currentUser
+                : currentUser;
+            if (!tokenSource) return Promise.reject(new Error('You need to sign in again.'));
+            return tokenSource.getIdToken(true).then(function (token) {
+                return fetch(MODERATION_WORKER_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify(payload)
+                });
+            }).then(function (resp) {
+                return resp.json().then(function (data) {
+                    data = data || {};
+                    data.__status = resp.status;
+                    return data;
+                });
+            });
+        }
+
+        function sendDmMessage() {
+            if (isSendingMessage) return;
+            if (!dmThreadState) return;
+            if (dmThreadState.status !== 'accepted') {
+                showModal(dmT('kindlechat.dm.not_open', 'This conversation is not open.'), false);
+                return;
+            }
+
+            var inputEl = document.getElementById('msg-input');
+            var text = getComposerText().trim();
+            if (!text) return;
+            text = text.replace(/(\n\s*){3,}/g, '\n\n').trim();
+            if (text.length > DM_MAX_MESSAGE) {
+                showModal(dmT('kindlechat.dm.too_long', 'Messages cannot exceed 1000 characters.'), false);
+                return;
+            }
+            if (containsUrl(text)) {
+                showModal(dmT('kindlechat.dm.no_links', 'Links and URLs are not allowed.'), false);
+                return;
+            }
+            if (containsPromotedTerm(text)) {
+                showModal(dmT('kindlechat.dm.no_promo', 'Promotional content is not allowed.'), false);
+                return;
+            }
+
+            checkRules(function () {
+                isSendingMessage = true;
+                markSendBusy();
+                setTimeout(function () { isSendingMessage = false; }, 4000);
+                var threadId = currentRoomId;
+                callDmWorker({ type: 'dm_message', threadId: threadId, text: text }).then(function (result) {
+                    resetSendState();
+                    if (result.error || result.allowed === false) {
+                        if (result.code === 'dm_disabled') {
+                            dmEnabled = false;
+                            var tab = document.getElementById('messages-tab');
+                            if (tab) tab.style.display = 'none';
+                        }
+                        showModal(result.error || dmT('kindlechat.dm.send_failed', 'Unable to send message.'), false);
+                        return;
+                    }
+                    inputEl.innerHTML = '';
+                })['catch'](function (e) {
+                    resetSendState();
+                    console.error('DM send failed:', e);
+                    showModal(dmT('kindlechat.dm.send_failed', 'Unable to send message.'), false);
+                });
+            });
+        }
+
+        function dmAction(action) {
+            if (!dmThreadState || !currentRoomId || currentRoomId === 'general') return;
+            var threadId = currentRoomId;
+            var run = function () {
+                callDmWorker({ type: 'dm_' + action, threadId: threadId }).then(function (result) {
+                    if (result.error) {
+                        showModal(result.error, false);
+                        return;
+                    }
+                    var row = dmThreads[threadId];
+                    if (row) {
+                        row.status = result.status || (action === 'accept' ? 'accepted' : (action === 'decline' ? 'declined' : 'blocked'));
+                        if (action === 'block' && currentUser) row.blockedBy = currentUser.uid;
+                    }
+                    dmThreadState = row || dmThreadState;
+                    updateDmBanner();
+                    updateDmComposer();
+                    updateDmUnreadDot();
+                    renderDmInbox();
+                    if (action === 'accept') {
+                        var input = document.getElementById('msg-input');
+                        if (input && input.focus) input.focus();
+                    }
+                    if (action === 'block') {
+                        setTimeout(function () { switchKindlechatTab('messages'); }, 400);
+                    }
+                })['catch'](function (e) {
+                    console.error('DM action failed:', e);
+                    showModal(dmT('kindlechat.dm.action_failed', 'That action failed. Please try again.'), false);
+                });
+            };
+
+            if (action === 'decline') {
+                showConfirmModal(dmT('kindlechat.dm.confirm_decline', 'Decline this message request? This cannot be undone.'), run);
+            } else if (action === 'block') {
+                showConfirmModal(dmT('kindlechat.dm.confirm_block', 'Block this person? They will not be able to message you again.'), run);
+            } else {
+                run();
+            }
+        }
+
+        function loadDmThread(threadId) {
+            var historyEl = document.getElementById('chat-history');
+            if (!historyEl) return;
+            detachDmThreadListeners();
+            dmMessages = {};
+            dmMsgData = {};
+            dmOldestTs = null;
+            dmNoMore = false;
+            dmLoadingMore = false;
+
+            if (!dmThreadState && dmThreads[threadId]) dmThreadState = dmThreads[threadId];
+            updateDmHeader();
+            updateDmBanner();
+            updateDmComposer();
+            setDmMediaButtons(true);
+
+            var titleEl = document.querySelector('.title-text');
+            if (titleEl) titleEl.innerText = dmT('kindlechat.dm.title', 'Messages');
+
+            historyEl.innerHTML = '<div style="text-align:center; padding:20px">' +
+                dmT('kindlechat.dm.loading', 'Loading messages...') + '</div>';
+
+            var query = socialRtdb.ref(DM_MESSAGES_PATH + '/' + threadId)
+                .orderByChild('timestamp')
+                .limitToLast(50);
+            dmThreadRef = query;
+
+            query.once('value').then(function (snap) {
+                if (currentRoomId !== threadId || !dmThreadState) return;
+                historyEl.innerHTML = '';
+                var count = 0;
+                var fragment = document.createDocumentFragment();
+                snap.forEach(function (child) {
+                    var msg = child.val();
+                    if (!msg || typeof msg !== 'object') return;
+                    dmMessages[child.key] = msg;
+                    dmMsgData[child.key] = msg;
+                    if (typeof msg.timestamp === 'number') {
+                        if (dmOldestTs === null || msg.timestamp < dmOldestTs) dmOldestTs = msg.timestamp;
+                    }
+                    fragment.appendChild(renderDmMessage(msg, child.key, true));
+                    count++;
+                });
+                historyEl.appendChild(fragment);
+                if (count === 0) {
+                    var empty = document.createElement('div');
+                    empty.className = 'dm-empty';
+                    empty.textContent = dmT('kindlechat.dm.no_messages', 'No messages yet.');
+                    historyEl.appendChild(empty);
+                } else {
+                    historyEl.scrollTop = historyEl.scrollHeight;
+                }
+                dmNoMore = count < 50;
+                addDmLoadOlderButton();
+
+                // Live arrivals for this thread only (last 50 query).
+                dmThreadAddedHandler = query.on('child_added', function (child) {
+                    if (currentRoomId !== threadId || !dmThreadState) return;
+                    var msg = child.val();
+                    if (!msg || typeof msg !== 'object' || dmMessages[child.key]) return;
+                    dmMessages[child.key] = msg;
+                    dmMsgData[child.key] = msg;
+                    if (typeof msg.timestamp === 'number') {
+                        if (dmOldestTs === null || msg.timestamp < dmOldestTs) dmOldestTs = msg.timestamp;
+                    }
+                    var el = renderDmMessage(msg, child.key, false);
+                    if (el) historyEl.appendChild(el);
+                    historyEl.scrollTop = historyEl.scrollHeight;
+                    markDmRead();
+                });
+
+                // Genuine deletes only: a bare-ref listener avoids the
+                // limitToLast window-slide removing paginated messages.
+                dmThreadBaseRef = socialRtdb.ref(DM_MESSAGES_PATH + '/' + threadId);
+                dmThreadRemovedHandler = dmThreadBaseRef.on('child_removed', function (child) {
+                    if (currentRoomId !== threadId) return;
+                    delete dmMessages[child.key];
+                    delete dmMsgData[child.key];
+                    var el = historyEl.querySelector('[data-msg-id="' + child.key + '"]');
+                    if (el && el.parentNode) el.parentNode.removeChild(el);
+                });
+
+                markDmRead();
+            })['catch'](function (e) {
+                if (currentRoomId !== threadId) return;
+                console.error('DM thread load failed:', e);
+                historyEl.innerHTML = '';
+                var errEl = document.createElement('div');
+                errEl.className = 'dm-empty';
+                errEl.textContent = dmT('kindlechat.dm.load_failed', 'Unable to load this conversation.');
+                historyEl.appendChild(errEl);
+            });
+        }
+
+        function addDmLoadOlderButton() {
+            var historyEl = document.getElementById('chat-history');
+            if (!historyEl) return;
+            var existing = document.getElementById('dm-load-older');
+            if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+            if (dmNoMore) return;
+            var wrap = document.createElement('div');
+            wrap.id = 'dm-load-older';
+            wrap.style.cssText = 'text-align:center; padding:10px;';
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'sys-btn';
+            btn.textContent = dmT('kindlechat.dm.load_older', 'Load Older');
+            btn.onclick = loadOlderDmMessages;
+            wrap.appendChild(btn);
+            historyEl.insertBefore(wrap, historyEl.firstChild);
+        }
+
+        function loadOlderDmMessages() {
+            if (dmLoadingMore || dmNoMore || dmOldestTs === null) return;
+            dmLoadingMore = true;
+            var historyEl = document.getElementById('chat-history');
+            var oldHeight = historyEl.scrollHeight;
+            var oldTop = historyEl.scrollTop;
+            var threadId = currentRoomId;
+
+            socialRtdb.ref(DM_MESSAGES_PATH + '/' + threadId)
+                .orderByChild('timestamp')
+                .endAt(dmOldestTs - 1)
+                .limitToLast(50)
+                .once('value').then(function (snap) {
+                    if (currentRoomId !== threadId || !dmThreadState) {
+                        dmLoadingMore = false;
+                        return;
+                    }
+                    var items = [];
+                    snap.forEach(function (child) {
+                        if (dmMessages[child.key]) return;
+                        var msg = child.val();
+                        if (!msg || typeof msg !== 'object') return;
+                        items.push({ key: child.key, msg: msg });
+                    });
+                    dmLoadingMore = false;
+                    if (items.length === 0) {
+                        dmNoMore = true;
+                        addDmLoadOlderButton();
+                        return;
+                    }
+                    var fragment = document.createDocumentFragment();
+                    items.forEach(function (item) {
+                        dmMessages[item.key] = item.msg;
+                        dmMsgData[item.key] = item.msg;
+                        if (typeof item.msg.timestamp === 'number') {
+                            if (dmOldestTs === null || item.msg.timestamp < dmOldestTs) dmOldestTs = item.msg.timestamp;
+                        }
+                        fragment.appendChild(renderDmMessage(item.msg, item.key, true));
+                    });
+                    var firstMsg = historyEl.querySelector('.msg');
+                    if (firstMsg) historyEl.insertBefore(fragment, firstMsg);
+                    else historyEl.appendChild(fragment);
+                    dmNoMore = items.length < 50;
+                    addDmLoadOlderButton();
+                    historyEl.scrollTop = historyEl.scrollHeight - oldHeight + oldTop;
+                })['catch'](function (e) {
+                    dmLoadingMore = false;
+                    console.error('DM pagination failed:', e);
+                });
+        }
+
+        function renderDmMessage(msg, msgId, returnOnly) {
+            var historyEl = document.getElementById('chat-history');
+            if (!historyEl || !msg) return null;
+            var isSelf = !!(currentUser && msg.uid === currentUser.uid);
+
+            var el = document.createElement('div');
+            el.className = 'msg ' + (isSelf ? 'self' : 'other');
+            el.setAttribute('data-msg-id', msgId);
+            el.setAttribute('data-uid', msg.uid || '');
+            if (typeof msg.timestamp === 'number') el.setAttribute('data-ts', String(msg.timestamp));
+
+            var meta = document.createElement('div');
+            meta.className = 'msg-meta';
+            var nameEl = document.createElement('span');
+            nameEl.style.fontWeight = 'bold';
+            if (isSelf) {
+                nameEl.textContent = dmT('kindlechat.msg.you', 'You');
+            } else {
+                nameEl.textContent = dmPartnerName ||
+                    (dmThreadPartner ? String(dmThreadPartner).substring(0, 8) : dmT('kindlechat.dm.someone', 'Someone'));
+            }
+            var timeEl = document.createElement('span');
+            timeEl.textContent = msg.timestamp ? formatChatTime(msg.timestamp) : '';
+            meta.appendChild(nameEl);
+            meta.appendChild(timeEl);
+            el.appendChild(meta);
+
+            var bubble = document.createElement('div');
+            bubble.className = 'msg-bubble';
+            bubble.textContent = censorText(msg.text || '');
+            el.appendChild(bubble);
+            if (typeof window.renderEmojis === 'function') {
+                try { window.renderEmojis(bubble); } catch (e) { }
+            }
+
+            if (!isSelf && msg.uid) {
+                var actions = document.createElement('div');
+                actions.className = 'msg-row';
+                var reportBtn = document.createElement('div');
+                reportBtn.className = 'report-btn';
+                reportBtn.title = dmT('kindlechat.btn.report', 'Report');
+                reportBtn.textContent = '!';
+                reportBtn.onclick = function () { openDmReport(msgId); };
+                actions.appendChild(reportBtn);
+                el.appendChild(actions);
+            }
+
+            if (!returnOnly) historyEl.appendChild(el);
+            return el;
+        }
+
+        function openDmReport(msgId) {
+            var msg = dmMsgData[msgId];
+            if (!msg || !dmThreadState) return;
+            if (typeof window.rekindleOpenReportModal !== 'function') return;
+            window.rekindleOpenReportModal({
+                contentType: 'dm_message',
+                contentId: msgId,
+                contentPath: DM_MESSAGES_PATH + '/' + currentRoomId + '/' + msgId,
+                reportedUserId: msg.uid || '',
+                contentSnapshot: msg.text || ''
+            });
+        }
+
+        function markDmRead() {
+            if (!currentUser || !currentRoomId || currentRoomId === 'general') return;
+            var threadId = currentRoomId;
+            if (dmReadTimer) clearTimeout(dmReadTimer);
+            dmReadTimer = setTimeout(function () {
+                socialRtdb.ref(DM_USER_THREADS_PATH + '/' + currentUser.uid + '/' + threadId + '/lastReadAt')
+                    .set(firebase.database.ServerValue.TIMESTAMP)
+                    .then(function () {
+                        if (dmThreads[threadId]) {
+                            dmThreads[threadId].lastReadAt = Date.now();
+                            updateDmUnreadDot();
+                        }
+                    })['catch'](function () { });
+            }, 1200);
+        }
+
+        function loadDmPrefs() {
+            if (!currentUser || !socialRtdb) return;
+            socialRtdb.ref(DM_PREFS_PATH + '/' + currentUser.uid + '/allowRequests').once('value').then(function (snap) {
+                dmAllowRequests = snap.val() !== false;
+                dmPrefsLoaded = true;
+                var cb = document.getElementById('setting-dm-requests');
+                if (cb) cb.checked = dmAllowRequests;
+            })['catch'](function () {
+                dmPrefsLoaded = true;
+            });
+        }
+
+        function saveDmPrefs() {
+            var cb = document.getElementById('setting-dm-requests');
+            if (!cb || !currentUser || !socialRtdb) return;
+            dmAllowRequests = cb.checked;
+            socialRtdb.ref(DM_PREFS_PATH + '/' + currentUser.uid + '/allowRequests')
+                .set(dmAllowRequests)
+                ['catch'](function (e) {
+                    console.warn('DM pref save failed:', e && e.message);
+                });
+        }
+
+        function showDmModal(id) {
+            var ids = ['generic-modal-content', 'settings-modal-content', 'rules-modal-content',
+                'dm-new-modal-content', 'dm-safety-modal-content', 'dm-upsell-modal-content'];
+            for (var i = 0; i < ids.length; i++) {
+                var el = document.getElementById(ids[i]);
+                if (el) el.style.display = 'none';
+            }
+            var target = document.getElementById(id);
+            if (target) target.style.display = 'block';
+            var overlay = document.getElementById('modal-overlay');
+            if (overlay) overlay.style.display = 'flex';
+        }
+
+        function openDmSafetyIfNeeded() {
+            if (!dmEnabled) return;
+            try {
+                if (localStorage.getItem(DM_SAFETY_ACK_KEY) === '1') return;
+            } catch (e) {
+                return;
+            }
+            showDmModal('dm-safety-modal-content');
+        }
+
+        function acknowledgeDmSafety() {
+            try { localStorage.setItem(DM_SAFETY_ACK_KEY, '1'); } catch (e) { }
+            closeModal('dm-safety-modal-content');
+            closeModal('modal-overlay');
+        }
+
+        function showDmUpsell() {
+            showDmModal('dm-upsell-modal-content');
+        }
+
+        function openNewDmModal() {
+            if (!dmEnabled) {
+                showModal(dmT('kindlechat.dm.disabled', 'Direct messages are temporarily unavailable.'), false);
+                return;
+            }
+            if (!dmCanInitiate) {
+                showDmUpsell();
+                return;
+            }
+            var usernameEl = document.getElementById('dm-username');
+            var messageEl = document.getElementById('dm-message');
+            var errorEl = document.getElementById('dm-form-error');
+            var btn = document.getElementById('dm-request-send-btn');
+            if (usernameEl) usernameEl.value = '';
+            if (messageEl) messageEl.value = '';
+            if (errorEl) errorEl.textContent = '';
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = dmT('kindlechat.dm.send_request', 'Send Request');
+            }
+            showDmModal('dm-new-modal-content');
+            if (usernameEl && usernameEl.focus) usernameEl.focus();
+        }
+
+        function sendDmRequest() {
+            if (!currentUser || !dmCanInitiate) return;
+            if (currentUserRulesVersion < RULES_VERSION) {
+                openRulesModal('accept');
+                return;
+            }
+            var usernameEl = document.getElementById('dm-username');
+            var messageEl = document.getElementById('dm-message');
+            var errorEl = document.getElementById('dm-form-error');
+            var btn = document.getElementById('dm-request-send-btn');
+            var username = usernameEl ? usernameEl.value.trim().replace(/^@/, '') : '';
+            var text = messageEl ? messageEl.value.trim() : '';
+
+            var fail = function (message) {
+                if (errorEl) errorEl.textContent = message;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = dmT('kindlechat.dm.send_request', 'Send Request');
+                }
+            };
+
+            if (!username) { fail(dmT('kindlechat.dm.username_required', 'Enter a username.')); return; }
+            if (!text) { fail(dmT('kindlechat.dm.message_required', 'Enter a message.')); return; }
+            if (text.length > DM_MAX_REQUEST) {
+                fail(dmT('kindlechat.dm.request_too_long', 'Message requests cannot exceed 300 characters.'));
+                return;
+            }
+            if (containsUrl(text)) { fail(dmT('kindlechat.dm.no_links', 'Links and URLs are not allowed.')); return; }
+            if (containsPromotedTerm(text)) { fail(dmT('kindlechat.dm.no_promo', 'Promotional content is not allowed.')); return; }
+
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = dmT('kindlechat.dm.sending', 'Sending...');
+            }
+
+            fetchProfileByUsername(username, function (profile) {
+                if (!profile || !profile.uid) {
+                    fail(dmT('kindlechat.dm.user_not_found', 'User not found.'));
+                    return;
+                }
+                if (profile.uid === currentUser.uid) {
+                    fail(dmT('kindlechat.dm.self', "You can't message yourself."));
+                    return;
+                }
+                callDmWorker({ type: 'dm_request', toUid: profile.uid, text: text }).then(function (result) {
+                    if (result.error) {
+                        if (result.code === 'dm_exists' && result.threadId) {
+                            closeModal('dm-new-modal-content');
+                            closeModal('modal-overlay');
+                            if (!dmThreads[result.threadId]) {
+                                dmThreads[result.threadId] = {
+                                    otherUid: profile.uid,
+                                    requestedBy: currentUser.uid,
+                                    status: 'accepted',
+                                    lastMessageAt: Date.now(),
+                                    lastMessageUid: ''
+                                };
+                            }
+                            openDmThread(result.threadId);
+                            return;
+                        }
+                        if (result.code === 'pro_required') {
+                            closeModal('dm-new-modal-content');
+                            closeModal('modal-overlay');
+                            showDmUpsell();
+                            return;
+                        }
+                        if (result.code === 'dm_disabled') {
+                            closeModal('dm-new-modal-content');
+                            closeModal('modal-overlay');
+                            dmEnabled = false;
+                            var tab = document.getElementById('messages-tab');
+                            if (tab) tab.style.display = 'none';
+                            showModal(result.error, false);
+                            return;
+                        }
+                        fail(result.error);
+                        return;
+                    }
+
+                    closeModal('dm-new-modal-content');
+                    closeModal('modal-overlay');
+                    dmThreads[result.threadId] = {
+                        otherUid: profile.uid,
+                        requestedBy: currentUser.uid,
+                        status: 'pending',
+                        lastMessageAt: Date.now(),
+                        lastMessageUid: currentUser.uid
+                    };
+                    updateDmUnreadDot();
+                    openDmThread(result.threadId);
+                })['catch'](function (e) {
+                    console.error('DM request failed:', e);
+                    fail(dmT('kindlechat.dm.network', 'Network error. Please try again.'));
+                });
+            });
         }
 
         // --- GALLERY LOGIC ---
@@ -3937,6 +5423,13 @@
             if (isSendingMessage) return;
             if (!currentUser) return;
 
+            // DMs have their own send path (acceptance state, text-only, no
+            // shared chat spam state - the worker's dm bucket owns that).
+            if (currentRoomId !== 'general') {
+                sendDmMessage();
+                return;
+            }
+
             var inputEl = document.getElementById('msg-input');
             var text = getComposerText().trim();
 
@@ -4048,6 +5541,10 @@
 
             localStorage.setItem('kindlechat_settings', JSON.stringify(settings));
             localStorage.setItem('rekindle_enter_to_send_chat', enterToSend);
+
+            // DM request preference is server-side (worker reads it before
+            // creating a request from a ReKindle+ member).
+            if (dmEnabled) saveDmPrefs();
 
             // Reload messages to apply changes
             loadMessages();
@@ -5036,6 +6533,10 @@
                 if (generalListener) { generalListener.off(); generalListener = null; }
                 if (generalTransRef) { generalTransRef.off(); generalTransRef = null; }
                 if (rulesListenerRef) { rulesListenerRef.off(); rulesListenerRef = null; }
+                if (dmInboxRef) { dmInboxRef.off(); dmInboxRef = null; }
+                if (dmThreadRef) { dmThreadRef.off(); dmThreadRef = null; }
+                if (dmThreadBaseRef) { dmThreadBaseRef.off(); dmThreadBaseRef = null; }
+                if (dmReadTimer) { clearTimeout(dmReadTimer); dmReadTimer = null; }
                 kcAddedHandler = null;
                 kcChangedHandler = null;
                 kcTransAddedHandler = null;

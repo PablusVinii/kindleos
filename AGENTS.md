@@ -528,6 +528,9 @@ Cleanup/heal writes are idempotent and guarded by per-session attempted-sets (`m
 
 Enforced client-side and in `workers/rekindle-moderate/worker.js` for every social app (KindleChat, Neighbourhood, Topics). Reporting UI and the `/reports` data model are in [moderation-reports.md](docs/agent/moderation-reports.md).
 
+### 0. KindleChat Direct Messages (2026-10-20)
+DMs live **only** in the social RTDB (`rekindle-socials`): `kindlechat/dm_threads`, `dm_messages`, `dm_user_threads`, `dm_prefs`, `dm_blocks`. Only ReKindle+ members may start a conversation; every first contact requires recipient acceptance; all content is written by the moderation worker (clients may write only `lastReadAt` and `allowRequests`). Messages are text-only, capped at 1,000 chars, moderated, and block/report are always available. Never re-enable the legacy Firestore `rooms` collection and never grant moderators a blanket read on `dm_messages` — reports carry a scoped context instead. Kill switch: `kindlechat/config/dm_enabled` / `dm_beta_enabled`. Full design: [kindlechat.md](docs/agent/kindlechat.md#kindlechat-direct-messages-2026-10-20).
+
 ### 1. URL / Link Blocking in Social Apps
 All social apps (KindleChat, Neighbourhood, Topics) block users from posting URLs and links. This is enforced **both client-side and server-side** (moderation worker).
 
@@ -611,6 +614,8 @@ The moderation worker enforces **global, per-user token-bucket rate limits** usi
 | `topic_comment` | 5 | 1 token / 12 s |
 | `neighbourhood_post` | 5 | 1 token / 5 min |
 | `neighbourhood_comment` | 10 | 1 token / 30 s |
+| `dm` | 8 | 1 token / 8 s |
+| `dm_request` | 5 | 1 token / 2 h (plus a 3-pending cap) |
 | `report` | 5 | 1 token / 12 min |
 
 #### Duplicate / repetitive-content detection
@@ -651,7 +656,7 @@ Fix: `evaluateChatRepetition()` in `workers/rekindle-moderate/worker.js` + the c
 *   **`functions/api/proxy.js` is not a general CORS proxy.** It now allows GET/HEAD only, rejects private/loopback/link-local/metadata hosts and embedded URL credentials, re-validates every redirect, forwards only `accept`/`accept-language`/`authorization`/`if-none-match`/`range`, enforces a 10 s timeout and 10 MB response cap, and sends no wildcard CORS header. Any new public API host should get a dedicated allowlisted function (see `gutenberg.js`/`reddit.js`) instead of widening the generic proxy. Do not add POST support without a concrete caller.
 *   **Mail callables require auth + an active ReKindle+ subscription.** `fetchEmails`, `moveEmail`, `modifyFlags`, `fetchEmailBody`, `sendEmail`, and `getFolders` must call `assertMailAccess(request, kind)` and `assertMailEndpoint(host, port, kind)` before opening an IMAP/SMTP connection. They rate-limit via `mail_rate_limits/{uid}/{kind}` (service-account only) and return generic errors — never the raw upstream message.
 *   **Custom auth claims must be merged, never replaced.** Identity Toolkit's `customAttributes` replaces the whole claims object. Use `mergeClaims()` (`workers/rekindle-stripe/claims.js`) or spread the existing claims before calling `setCustomUserClaims`; otherwise `ageVerified`/`moderator` are silently deleted when Pro is granted or revoked. `getSocialToken` lazily repairs a wiped `ageVerified` claim from `users/{uid}/ageVerification/latest`.
-*   **Quality gate:** `npm test` runs the i18n, compatibility, proxy-guard, claim-merge, chat-spam, and Oregon Trail checks. Both CI and the deploy workflow run it before building.
+*   **Quality gate:** `npm test` runs the i18n, compatibility, proxy-guard, claim-merge, chat-spam, direct-message, and Oregon Trail checks. Both CI and the deploy workflow run it before building.
 
 ## 📦 Dependency & CodeQL Security (2026-10-20)
 

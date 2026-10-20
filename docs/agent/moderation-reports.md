@@ -20,10 +20,19 @@ Each entry is keyed by a Firebase push ID and contains:
   reportedUserId, reportedUserName,
   contentType, contentId, contentPath,
   reason, comment, contentSnapshot,
+  dmContext?,                       // KindleChat DM reports only: last 10 messages
   status: "pending" | "resolved" | "dismissed",
   createdAt, resolvedAt, resolvedBy, resolutionNote
 }
 ```
+
+### KindleChat direct-message reports (`dm_message`)
+DM reports are special because message IDs are only unique inside a thread:
+- The client sends `contentType: 'dm_message'`, `contentId: '<messageId>'` and `contentPath: 'kindlechat/dm_messages/<threadId>/<messageId>'`.
+- The worker **ignores** the client's author/snapshot/path: it verifies the reporter is a thread participant, reads the message from the social RTDB, derives the path/author/snapshot, and attaches `dmContext` (last 10 messages). A forged path cannot auto-delete another thread.
+- `dm_message` is in `IMMEDIATE_DELETE_TYPES` (first report deletes) and `autoDeleteContent` only accepts the strict DM path shape.
+- Moderators deliberately have **no blanket read rule** on `dm_threads`/`dm_messages`; the report's `dmContext` is the only context they see. Discord's delete action looks up the report to recover the thread path.
+- Cleanup of a deleted user's DM data is done by `admin/cleanup_user.js` / `admin/nuke_user.js` (service account), not the moderation console.
 
 ### RTDB Rules
 Reports live under `/reports` in `rtdb-social-rules.json`:
@@ -48,7 +57,7 @@ Add this index in the Firebase Console under the social RTDB for the `/reports` 
 ### Files Modified
 - `js/reports.js` (new)
 - `workers/rekindle-moderate/worker.js` — added report handler + Discord notification
-- `kindlechat.html` — report buttons on messages
+- `kindlechat.html` — report buttons on general messages and DM messages
 - `neighbourhood.html` — report buttons on posts and comments
 - `topics.html` — report buttons on topics and comments
 - `moderation.html` — added "User Reports" panel with pending/resolved/dismissed filters

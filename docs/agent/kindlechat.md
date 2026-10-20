@@ -154,6 +154,89 @@ Blocked attempts are still recorded (the evaluation runs before the POST is reje
 
 **`kindlechat/user_recent` is retired (2026-10-20).** Nothing reads or writes it any more: the chat guard uses the rate-limit bucket, and the old per-type duplicate checks for topics / topic comments / neighbourhood posts & comments were deleted along with `checkUserRecentContent()`, `recordUserRecentContent()`, `cleanupUserRecentContent()` and `rtdbSocialPutSimple()` — they spent one RTDB read per post and could never match (nothing had recorded since 2026-09-21). Do not bring the pattern back unless the writer is awaited (`ctx.waitUntil()` when it runs after the response); a fire-and-forget writer is exactly what killed it. The stale RTDB node (111 users, ~175 entries) and its `rtdb-social-rules.json` block are still there and harmless; delete the node if you want the storage back.
 
+## KindleChat Direct Messages (2026-10-20)
+
+DMs are back, but on a new, server-written design. **Everything lives in the `rekindle-socials` RTDB** (`socialRtdb` in `kindlechat.html`); never the primary `rekindle-dd1fa` database.
+
+### Why the old DMs were not brought back
+
+The previous implementation used a Firestore `rooms` collection. `room` create/update was `allow create, update: if request.auth != null`, so any signed-in user could add themselves to another conversation and read it, and messages were written directly from the browser (no moderation). That collection is empty today and must stay denied; do not re-add `rooms` rules or migrate it.
+
+### Product rules
+
+- Only ReKindle+ accounts (`payload.pro === true` from the server-computed social token) may **start** a conversation; `payload.ageVerified === true` is also required.
+- Any age-verified user can receive a request. Recipients (including non-Pro) may accept/decline/block and reply once accepted.
+- First contact is one moderated request message (≤300 chars). The recipient must accept before the thread opens.
+- Text only, no links, no pixel art/flipbooks, no translations. Messages ≤1,000 chars.
+- A declined or blocked pair can never restart (deterministic thread ID + permanent state).
+- Safety actions (accept/decline/block) are exempt from the timeout check and the kill switch.
+
+### Data model (social RTDB)
+
+```text
+kindlechat/dm_threads/{threadId}
+  participants: {uidA: true, uidB: true}
+  requestedBy, status: pending|accepted|declined|blocked
+  createdAt, acceptedAt?, declinedAt?, blockedAt?, blockedBy?
+
+kindlechat/dm_messages/{threadId}/{messageId}
+  uid, text, timestamp
+
+kindlechat/dm_user_threads/{uid}/{threadId}
+  otherUid, requestedBy, status, blockedBy?
+  lastMessageAt, lastMessageUid, lastReadAt   # no preview text (privacy)
+
+kindlechat/dm_prefs/{uid}/allowRequests       # owner-writable boolean
+kindlechat/dm_blocks/{uid}/{blockedUid}: true  # worker-written
+
+kindlechat/config/dm_enabled         # production kill switch (default false)
+kindlechat/config/dm_beta_enabled    # beta.rekindle.ink only (default false)
+```
+
+`threadId = 'dm_' + [uidA, uidB].sort().join('_')`. The client never supplies a thread ID for a new conversation, and every action re-checks membership server-side.
+
+### Worker API (`workers/rekindle-moderate/worker.js`)
+
+| Type | Who | Notes |
+| :--- | :--- | :--- |
+| `dm_request` | Pro + age-verified | kill switch, 300-char limit, URL/promo/`dih`, OpenAI moderation, `dm_request` bucket, max 3 pending outgoing, block and `allowRequests` checks, `dm_exists` handling |
+| `dm_message` | participant | kill switch, accepted status only, 1,000-char limit, URL/promo/`dih`, OpenAI moderation, `dm` bucket + repetition guard |
+| `dm_accept` | recipient | `pending → accepted`, ETag write |
+| `dm_decline` | recipient | `pending → declined`, permanent |
+| `dm_block` | participant | `blocked` + `dm_blocks/{caller}/{other}`, both index rows updated |
+
+Rate limits: `dm` = 8 tokens / 8 s; `dm_request` = 5 tokens / 2 h plus the hard 3-pending cap. DM text is never written to `automod_log` (`storeText:false`); categories only.
+
+Reports: `contentType: 'dm_message'` is immediately auto-deleted on the first report. The worker **derives** the path/author/snapshot from the social RTDB after proving the reporter is a participant, and attaches a report-scoped `dmContext` (last 10 messages) for moderators. There is deliberately **no** moderator read rule on `dm_messages`; the context is stored only on the report. Discord delete resolves the thread from the report’s `contentPath`.
+
+### Client (`kindlechat.html`)
+
+- Third `Messages` tab, hidden until `dm_enabled`/`dm_beta_enabled` is true. Unread dot only; inbox shows the 50 most recent threads (no previews).
+- Thread view reuses the existing composer (emoji picker works), but hides the Pixel Art/Flipbook buttons to keep DMs text-only.
+- Separate `renderDmMessage()` — no reactions, replies, translations, art gallery or admin reprocess hooks.
+- The client only writes `dm_user_threads/{uid}/{threadId}/lastReadAt` and `dm_prefs/{uid}/allowRequests`. All thread/message content is written by the worker.
+- One-time safety modal (localStorage `rekindle_dm_safety_ack`), plus a per-request banner. Settings has “Allow message requests”.
+- Listener pattern: inbox `limitToLast(50)` on `dm_user_threads/{uid}`; thread `limitToLast(50)` on messages with `child_added`, plus **`child_removed` on the bare thread ref** so window-slide events do not remove paginated messages. Older messages paginate with `endAt`.
+
+### Cost / performance
+
+Sending a DM costs roughly 6 RTDB ops (thread GET, rate-limit GET+PUT, message POST, two index PUTs) plus the moderation call. A request costs ~10 ops (plus the pending query). Inbox/thread payloads are small and preview-free; keep it that way.
+
+### Kill switch and rollout
+
+```bash
+node scripts/set-dm-flag.js --status
+node scripts/set-dm-flag.js --env=beta --enabled=true
+node scripts/set-dm-flag.js --env=prod --enabled=true
+```
+
+Deploy order: worker → `npm run deploy:rules:social:rtdb` → Pages → enable beta → two-account beta test → enable prod. The client hides the tab on the next load; the worker rejects new sends within 60 s (isolate cache). Existing data and rules are untouched, but the UI stays hidden until the switch is re-enabled (the kill switch is for stopping new contact, not for granting emergency data access).
+
+### Tests / admin
+
+- `node scripts/test-dm.js` (also in `npm test`) covers thread IDs, report-path parsing, rule invariants (no client content writes), and asserts client DM reads/writes use `socialRtdb`.
+- `admin/cleanup_user.js` and `admin/nuke_user.js` purge DM threads/messages/inbox rows/blocks with the service account. The moderation console intentionally cannot read DM threads; it shows only report-scoped context.
+
 ---
 
 New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).
