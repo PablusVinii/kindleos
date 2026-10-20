@@ -667,6 +667,23 @@ Example pattern: `functions/api/reddit.js`.
 *   `build-automation.js` has `FORBIDDEN_IN_DEPLOY` + `assertNoSecretsInDeploy()`: the build aborts if any credential file survives the copy. Keep that list in sync with `ignoreList` when adding new secret files.
 *   Pages caches non-HTML assets on the edge (`s-maxage=604800`). A file removed from a deployment can still be served from the custom-domain cache for up to 7 days — purge the cache (or rotate the credential) after any accidental publish.
 
+### 🧊 Cache busting a changed shared asset (required)
+
+Pages serves non-HTML assets from the edge for up to 7 days, and installed service workers keep their own copy. **A deploy that changes a shared JS/CSS file without changing its URL is only half-shipped**: the new bytes sit on the origin while users keep receiving the cached old file.
+
+| What changed | What to do |
+| :--- | :--- |
+| A versioned shared script (`theme.js`, `icons.js`, `bad_words.js`, `js/gamerules.js`, `js/promo-ban.js`, …) | Bump `?v=N` **in every HTML file that includes it**, and in `sw.js` `ASSETS_TO_CACHE` if listed there. |
+| A shared script with no `?v=` yet | Add `?v=1` (or `?v=2` if it already shipped unversioned) on the deploy that first changes it. |
+| `sw.js` `ASSETS_TO_CACHE` / cached HTML | Bump `CACHE_NAME` (`rekindle-cache-v24`, …). The `activate` handler deletes every cache whose name differs, so installed clients re-precache. |
+| A deleted file | Nothing works except a Cloudflare cache purge — a removed URL can keep serving for 7 days. |
+
+Do **not** rely on the service worker's stale-while-revalidate branch to roll a change out: it returns the cached copy on the first load, and the background revalidation can itself be answered by the edge cache. Only a new URL is guaranteed to miss both caches.
+
+The manual bump is also why `_deploy/` must be rebuilt (`npm run build`) before deploying — the deploy copies `_deploy/main`, so a stale build publishes old files even when the source is current.
+
+**2026-10-20 incident:** `theme.js` changed in `c5631c5` but every page still loaded `theme.js?v=18` (the v18 bump predated the change). Edge/SW caches kept serving the old theme.js to up to 7 days of traffic. Fixed by bumping all 136 pages to `?v=19`, `js/gamerules.js` to `?v=2` (its Oregon Trail rules text changed in `8ab5b20`), `icons.js` v2 → v3 on the three pages still on v2, and `sw.js` `CACHE_NAME` to `rekindle-cache-v24`.
+
 ## Local Testing Gotcha: Service Worker Forces Extensionless URLs
 
 `js/i18n.js` registers a service worker that reloads the page to the extensionless URL (`/jumpy.html` → `/jumpy`) on first load. `python3 -m http.server` then 404s, showing an "Error response" page with no `.title-text` — looks like a broken page, but isn't. Test locally with a static server that falls back to `.html` (try file, then file + '.html'), or use query params (`?lang=de`) which also bypass the reload. Production (Cloudflare Pages) serves extensionless URLs natively.
