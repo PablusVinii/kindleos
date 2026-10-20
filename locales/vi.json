@@ -2372,7 +2372,7 @@
   "reader.modal.delete.desc": "Xóa sách này khỏi thư viện của bạn?",
   "reader.modal.delete.title": "Xóa sách?",
   "reader.msg.loading": "Đang tải thư viện...",
-  "reader.msg.nobooks": "Không có sách.<br>Tải xuống từ Cửa hàng trực tuyến.",
+  "reader.msg.nobooks": "Không có sách.<br>Tải từ Gutenberg hoặc Standard Ebooks.",
   "reader.placeholder.search": "Tìm kiếm tiêu đề, tác giả...",
   "reader.tab.local": "Sách của tôi",
   "reader.tab.online": "Cửa hàng trực tuyến",

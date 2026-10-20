@@ -312,14 +312,6 @@ const APPS = [
         icon: '<path d="M6 4 h18 v24 h-18 z M6 4 l-2 2 v24 l2 -2 M24 4 l2 2 v24 l-2 -2" fill="none" stroke="black" stroke-width="2"/><path d="M15 12 v8 M11 16 h8" stroke="black" stroke-width="2" fill="none"/>'
     },
     {
-        id: 'standardebooks',
-        name: 'Standard eBooks',
-        cat: 'lifestyle',
-        beta: true,
-        desc: 'Free, high quality ebooks',
-        icon: '<rect x="8" y="4" width="18" height="24" rx="1" stroke="black" stroke-width="2" fill="none"/><line x1="12" y1="4" x2="12" y2="28" stroke="black" stroke-width="2"/><rect x="14" y="8" width="10" height="4" fill="black"/>'
-    },
-    {
         id: 'comics',
         name: 'Comics',
         cat: 'lifestyle',
@@ -940,14 +932,6 @@ const APPS = [
         new: true,
         desc: 'Ten games for the car, one Kindle.',
         icon: '<path d="M3 22 H29 M6 22 V17 L10 11 H22 L26 17 V22" fill="none" stroke="black" stroke-width="2"/><circle cx="10" cy="24" r="3" fill="white" stroke="black" stroke-width="2"/><circle cx="22" cy="24" r="3" fill="white" stroke="black" stroke-width="2"/><line x1="10" y1="11" x2="10" y2="17" stroke="black" stroke-width="1.5"/><line x1="22" y1="11" x2="22" y2="17" stroke="black" stroke-width="1.5"/>'
-    },
-    {
-        id: 'gutenberg',
-        name: 'Gutenberg',
-        cat: 'lifestyle',
-        new: true,
-        desc: '70,000 free books, read here.',
-        icon: '<path d="M16 10 C12 7 6 7 3 9 V26 C6 24 12 24 16 27 C20 24 26 24 29 26 V9 C26 7 20 7 16 10 Z" fill="none" stroke="black" stroke-width="2"/><line x1="16" y1="10" x2="16" y2="27" stroke="black" stroke-width="2"/><line x1="7" y1="13" x2="12" y2="13" stroke="black" stroke-width="1.5"/><line x1="7" y1="17" x2="12" y2="17" stroke="black" stroke-width="1.5"/><line x1="20" y1="13" x2="25" y2="13" stroke="black" stroke-width="1.5"/><line x1="20" y1="17" x2="25" y2="17" stroke="black" stroke-width="1.5"/>'
     }
 ];
 

@@ -1,8 +1,8 @@
-const CACHE_NAME = 'rekindle-cache-v22'; // Bumped version to force update
+const CACHE_NAME = 'rekindle-cache-v23'; // Bumped 2026-10-20: reader.html merge + icons.js/sw-offline.js changes
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
-    './icons.js?v=2',
+    './icons.js?v=3',
     './theme.js?v=18',
     './logo.svg',
     './discord.svg',

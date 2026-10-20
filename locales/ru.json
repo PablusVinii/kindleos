@@ -2372,7 +2372,7 @@
   "reader.modal.delete.desc": "Удалить эту книгу из вашей библиотеки?",
   "reader.modal.delete.title": "Удалить книгу?",
   "reader.msg.loading": "Загрузка библиотеки...",
-  "reader.msg.nobooks": "Нет книг.<br>Загрузите из онлайн-магазина.",
+  "reader.msg.nobooks": "Нет книг.<br>Скачайте с Gutenberg или Standard Ebooks.",
   "reader.placeholder.search": "Поиск названия, автора...",
   "reader.tab.local": "Мои книги",
   "reader.tab.online": "Онлайн-магазин",

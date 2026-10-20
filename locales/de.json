@@ -2372,7 +2372,7 @@
   "reader.modal.delete.desc": "Dieses Buch aus der Bibliothek entfernen?",
   "reader.modal.delete.title": "Buch löschen?",
   "reader.msg.loading": "Lade Bibliothek...",
-  "reader.msg.nobooks": "Keine Bücher.<br>Im Online Store laden.",
+  "reader.msg.nobooks": "Keine Bücher.<br>Lade Bücher von Gutenberg oder Standard Ebooks herunter.",
   "reader.placeholder.search": "Suche Titel, Autor...",
   "reader.tab.local": "Meine Bücher",
   "reader.tab.online": "Online Store",

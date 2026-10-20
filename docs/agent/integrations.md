@@ -94,10 +94,47 @@ Errors: `{error:'session_expired'|'bad_request'|'upstream_blocked'|'upstream_tim
 
 ---
 
-## 📚 Project Gutenberg (gutenberg.html + functions/api/gutenberg.js, 2026-10-20)
+## 📚 Project Gutenberg + Standard Ebooks (reader.html, 2026-10-20)
 
 In-app search and reader for Project Gutenberg's ~70,000 books, added as the
 in-app counterpart to `epub.html` (which only links out to gutenberg.org).
+
+### Merged into the Reader app (2026-10-20)
+The standalone `gutenberg.html` and `standardebooks.html` apps were removed; both
+now live in `reader.html` as tabs in the library overlay: **My Books**,
+**Gutenberg**, and **Standard Ebooks** (`app.standardebooks.name` supplies the
+third tab label so it stays translated in every locale).
+
+- **Gutenberg tab**: OPDS search + subject chips, a "Continue reading" shelf
+  (`rekindle_gb_recent`), a "Popular Now" browse list, and per-result **Read**
+  (the plain-text pane, unchanged) and **Get** (downloads `ebooks/{id}.epub3.images`
+  into the shared library). The old reader "Online Store" tab searched gutendex
+  and was removed; its categories became the OPDS chips and its "Popular Now"
+  now uses Gutenberg's own `sort_order=downloads` feed. `gutendex.com` is no
+  longer called anywhere in the app.
+- **Standard Ebooks tab**: the new-releases grid, blank-page-cleaned EPUB
+  download, and the same `localforage` `library_index`/Firestore `library`
+  writes as before. The feed is fetched lazily the first time the tab opens.
+- **Standard Ebooks feed shape (2026-10-20)**: `/feeds/rss/new-releases` now
+  301s to `/feeds/atom/new-releases`. The parser accepts both: RSS `<item>`
+  (an `<enclosure>` plus `"Title, by Author"`) and Atom `<entry>` (an
+  `<author><name>` and `<link rel="enclosure" type="application/epub+zip">`).
+  The old `standardebooks.html` only looked for `<item>`, so against today's
+  Atom feed it found zero entries and rendered "No items found in XML".
+  Verified against the live feed (15 entries, first card title/author correct).
+  Pick the first `rel="enclosure"` EPUB link (the "Recommended compatible
+  epub") when several formats are listed.
+- **Storage keys are unchanged** (`rekindle_gb_recent`, `rekindle_gb_pos_<id>`,
+  `rekindle_gb_font`), as is the `rekindle-gutenberg-v1` Cache API bucket, so
+  shelves/positions saved by the old app survive the merge.
+- The text reader is a full overlay under the title bar (`#gb-reader`), so it
+  does not disturb the EPUB.js toolbar; **Back** returns to the Gutenberg tab.
+- Both download paths (`fetchAndSaveBook` in reader.html) pick `/api/gutenberg`
+  for `gutenberg.org` URLs and `/api/proxy` for everything else, and dedupe the
+  Firestore document with a `where('url','==',...)` query so a download that
+  races the auth listener cannot create duplicates.
+- Kindle constraint: the subject chips are a single horizontally scrollable row
+  (`overflow-x:auto`, no flex `gap`) to keep the search header shallow.
 
 ### Gutendex is dead — use Gutenberg's own OPDS
 The obvious API, `gutendex.com`, was unreachable when this was built (connection
@@ -109,6 +146,8 @@ Use the official catalogue instead:
 | Need | URL |
 | :--- | :--- |
 | Search | `https://www.gutenberg.org/ebooks/search.opds/?query=<q>` |
+| Popular browse | `https://www.gutenberg.org/ebooks/search.opds/?sort_order=downloads` |
+| EPUB download | `https://www.gutenberg.org/ebooks/{id}.epub3.images` (302 → `cache/epub/{id}/pg{id}-images-3.epub`) |
 | Next page | follow the feed's own `<link rel="next" href="...&start_index=26">` |
 | Book text (primary) | `https://www.gutenberg.org/cache/epub/{id}/pg{id}.txt` |
 | Text fallbacks | `/files/{id}/{id}-0.txt`, `/ebooks/{id}.txt.utf-8` (302 → follow) |
@@ -153,11 +192,13 @@ last resort. The proxy mirrors `functions/api/reddit.js`: exact allowlist
 ### Testing
 Local static servers cannot exercise Pages Functions, and direct gutenberg.org
 fetches fail CORS locally, so expect the network-error state outside
-`wrangler pages dev`/Pages. The page itself can be driven headlessly with `jsdom`
-and a stubbed `window.fetch` returning a saved OPDS feed + a text excerpt (verified:
-25 Dickens results, correct first title, contents modal, paragraph render, error
-state, shelf). The proxy was tested in Node against the live site (allowlist,
-403/405/OPTIONS/HEAD, redirect-follow, cache headers all correct).
+`wrangler pages dev`/Pages. The tab can be driven headlessly with `jsdom` and a
+stubbed `window.fetch` returning a saved OPDS feed + a text excerpt (verified
+2026-10-20: 25 Dickens results, correct first title, contents modal, paragraph
+render, error state, shelf). The proxy was tested in Node against the live site
+(allowlist, 403/405/OPTIONS/HEAD, redirect-follow, cache headers all correct).
+Standard Ebooks still uses the generic `/api/proxy`; its feed parsing and EPUB
+cleaner were carried over unchanged.
 
 ---
 

@@ -29,7 +29,7 @@ Only this file is injected automatically. The docs below are **not** in the agen
 | [games.md](docs/agent/games.md) | Any game page: single-player catalog, Cube Dash, Jumpy, Surfer, Oregon Trail, Flipbook, `js/gamerules.js`, canvas sizing |
 | [performance.md](docs/agent/performance.md) | Slow-device / e-ink optimisation: containment, dirty-flag rendering, feed pagination, rect caching |
 | [moderation-reports.md](docs/agent/moderation-reports.md) | `js/reports.js`, report buttons, `/reports` data model, Discord notifications |
-| [integrations.md](docs/agent/integrations.md) | Akinator, NRL scores, comics / Internet Archive |
+| [integrations.md](docs/agent/integrations.md) | Akinator, NRL scores, comics / Internet Archive, Gutenberg / Standard Ebooks (Reader tabs) |
 | [avatars.md](docs/agent/avatars.md) | `drawAvatar()`, `user_cards`, pixel-art avatars, grayscale values, ReKindle+ gradient gate |
 
 ## 🚫 Restrictions (Target: Chromium 75)

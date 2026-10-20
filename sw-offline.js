@@ -51,7 +51,6 @@ const ASSETS_TO_CACHE = [
     './einksites',
     './napkin',
     './kindlechat',
-    './standardebooks',
     './libby',
     './sheetmusic',
     // Games

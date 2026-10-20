@@ -2372,7 +2372,7 @@
   "reader.modal.delete.desc": "从您的图书馆中移除这本书？",
   "reader.modal.delete.title": "删除书籍？",
   "reader.msg.loading": "正在加载图书馆...",
-  "reader.msg.nobooks": "没有书。<br>从在线商店下载。",
+  "reader.msg.nobooks": "暂无书籍。<br>请从 Gutenberg 或 Standard Ebooks 下载。",
   "reader.placeholder.search": "搜索标题、作者...",
   "reader.tab.local": "我的书籍",
   "reader.tab.online": "在线商店",
