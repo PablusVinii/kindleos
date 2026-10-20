@@ -7,8 +7,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="theme.js?v=20"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/gamerules.js?v=2"></script>
     <script src="bad_words.js?v=4"></script>
     <style>
@@ -789,6 +789,14 @@ function listenToMatch() {
         }
         const prev = gameState;
         gameState = data;
+
+        // Host can change mid-match (leaveMatch promotes another player). Every
+        // client must re-derive isHost from the node it just received, otherwise
+        // the promoted host keeps isHost=false and never runs advanceTurn's
+        // timer, freezing the round-end screen forever.
+        isHost = !!(currentUser && data.host === currentUser.uid);
+        const hostControls = document.getElementById('host-controls');
+        if (hostControls) hostControls.style.display = isHost ? 'block' : 'none';
 
         // Lobby
         if (data.status === 'lobby') {

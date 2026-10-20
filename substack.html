@@ -11,7 +11,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
     <script src="js/ip-ban.js?v=1"></script>
 
@@ -541,10 +540,10 @@
             }
         }
     </style>
-    <script src="theme.js?v=19"></script>
-    <script src="time.js?v=2"></script>
+    <script src="theme.js?v=20"></script>
+    <script src="time.js?v=3"></script>
     <script src="pro-gate.js?v=2"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/emoji-render.js?v=1"></script>
 </head>
 
@@ -806,6 +805,10 @@
             maxDomItems: 100 // Maximum items to render at once
         };
 
+        // Page size for the aggregated feed. The offset must advance by exactly
+        // this much or posts between pages become unreachable.
+        const AGG_PAGE_SIZE = 15;
+
         let auth, db;
 
         // --- INIT ---
@@ -977,7 +980,6 @@
                     state.sid = sid;
                     closeModal('settings-modal');
                     refreshData();
-                    console.log("Substack SID saved (encrypted).");
                 } catch (e) {
                     console.error("Failed to save SID (Pro required):", e);
                     document.getElementById('pro-required-modal').style.display = 'flex';
@@ -1093,19 +1095,16 @@
                                 state.fullInbox = state.fullInbox.concat(uniqueNew);
                                 // Re-sort after merge
                                 state.fullInbox.sort((a, b) => new Date(b.post_date) - new Date(a.post_date));
-                                console.log(`Added ${uniqueNew.length} new posts. Total: ${state.fullInbox.length}`);
                             } else {
                                 state.fullInbox = morePosts;
                             }
-                            state.subOffset += 50; // Increment for next fetch
+                            state.subOffset += AGG_PAGE_SIZE; // must match the ?limit= below
                         } else {
-                            console.log("No more posts available from subscriptions.");
                         }
                     }
 
                     // Paginate from the full local list
                     if (state.fullInbox) {
-                        console.log(`Slicing fullInbox: total=${state.fullInbox.length}, offset=${state.offset}, limit=${state.limit}`);
                         newPosts = state.fullInbox.slice(state.offset, state.offset + state.limit);
                     }
                 } else {
@@ -1134,9 +1133,8 @@
                     const allPosts = [];
                     // REDUCED FOR KINDLE STABILITY
                     const batchSize = 2;
-                    const subLimit = 15;
+                    const subLimit = AGG_PAGE_SIZE;
 
-                    console.log(`Fetching ${subLimit} posts from ${state.subs.length} subs (offset: ${offset})...`);
 
                     for (let i = 0; i < state.subs.length; i += batchSize) {
                         const batch = state.subs.slice(i, i + batchSize);
@@ -1174,19 +1172,16 @@
                     // Deduplicate by ID and Sort
                     const unique = Array.from(new Map(allPosts.map(p => [p.id, p])).values());
                     const sorted = unique.sort((a, b) => new Date(b.post_date) - new Date(a.post_date));
-                    console.log(`Fetched: ${sorted.length} posts`);
                     return sorted;
                 }
 
                 // Pagination analysis
                 const rawLength = data ? ((data.posts || data || []).length) : newPosts.length;
-                console.log(`Feed analysis: fetched=${rawLength}, currentOffset=${state.offset}, limit=${state.limit}`);
 
                 // Filter out duplicates
                 if (state.offset > 0) {
                     const existingIds = new Set(state.inbox.map(p => p.id));
                     newPosts = newPosts.filter(p => !existingIds.has(p.id));
-                    console.log(`After filtering duplicates: ${newPosts.length} new unique posts`);
                 }
 
                 if (state.offset === 0) {
@@ -1205,7 +1200,6 @@
 
                 // Proactive hasMore check
                 if (rawLength < state.limit || rawLength === 0) {
-                    console.log("Reached end of feed (fetched less than limit). setting hasMore=false");
                     state.hasMore = false;
                 } else {
                     state.hasMore = true; // explicitly keep true if we got a full batch
@@ -1400,7 +1394,6 @@
                     } catch (e) { }
                 }
 
-                console.log("Target Domain:", targetDomain);
 
                 let data;
                 try {
@@ -1535,12 +1528,10 @@
 
         async function loadMorePosts() {
             if (state.isLoading || !state.hasMore) {
-                console.log("Skipping loadMore: isLoading=" + state.isLoading + ", hasMore=" + state.hasMore);
                 return;
             }
             state.isLoading = true;
             state.offset += state.limit;
-            console.log("Loading more posts... New Offset:", state.offset, "Feed:", state.activeFeed);
 
             try {
                 await refreshData();

@@ -1166,8 +1166,8 @@
             }
         }
     </style>
-    <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="theme.js?v=20"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/ui-kit.js?v=2"></script>
 </head>
 
@@ -1519,7 +1519,6 @@
             if (ops > 0) {
                 try {
                     await batch.commit();
-                    console.log(`Synced ${ops} books to cloud.`);
                 } catch (e) {
                     console.error("Sync error", e);
                 }

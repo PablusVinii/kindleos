@@ -821,25 +821,21 @@
         </div>
     </div>
 
-    <script src="time.js?v=2"></script>
-    <script src="theme.js?v=19"></script> <!-- Inject Theme Script -->
-    <script src="js/i18n.js?v=2"></script>
-    <script src="js/custom-select.js?v=1"></script>
+    <script src="time.js?v=3"></script>
+    <script src="theme.js?v=20"></script> <!-- Inject Theme Script -->
+    <script src="js/i18n.js?v=3"></script>
+    <script src="js/custom-select.js?v=2"></script>
 
     <!-- Hidden Canvas for generating Pattern (32x32px) -->
     <canvas id="tile-gen" width="32" height="32" style="display:none;"></canvas>
 
     <script>
-        function obfuscate(str) {
-            if (!str) return str;
-            var key = 'rek';
-            var res = '';
-            for (var i = 0; i < str.length; i++) {
-                res += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-            }
-            return btoa(res);
-        }
-        function deobfuscate(str) {
+        // rekindle_location_manual is read as plain JSON by time.js, theme.js,
+        // js/i18n.js and the dashboard. It used to be stored base64-XOR'd here,
+        // which none of those readers can parse, so timezone/DST, the unit
+        // system and auto-language all silently fell back to defaults. Store it
+        // plain, and migrate any value written by the old code.
+        function deobfuscateLegacy(str) {
             if (!str) return str;
             try {
                 var key = 'rek';
@@ -851,8 +847,22 @@
                 return res;
             } catch (e) { return str; }
         }
-        function setSecureItem(key, value) { localStorage.setItem(key, obfuscate(value)); }
-        function getSecureItem(key) { return deobfuscate(localStorage.getItem(key)); }
+
+        function readStoredLocation() {
+            var raw = localStorage.getItem('rekindle_location_manual');
+            if (!raw) return null;
+            try { return JSON.parse(raw); } catch (e) { }
+            var decoded = deobfuscateLegacy(raw);
+            try {
+                var loc = JSON.parse(decoded);
+                localStorage.setItem('rekindle_location_manual', decoded);
+                return loc;
+            } catch (e2) { return null; }
+        }
+
+        function writeStoredLocation(loc) {
+            localStorage.setItem('rekindle_location_manual', JSON.stringify(loc));
+        }
         // Updated showModal to support callbacks for simple alerts too
         function showModal(msg, isConfirm = false, callback = null) {
             // Check signatures
@@ -1750,7 +1760,7 @@
                 country_code: city.country_code || null,
                 utc_offset: offset
             };
-            setSecureItem('rekindle_location_manual', JSON.stringify(locData));
+            writeStoredLocation(locData);
 
             function finish() {
                 updateLocationDisplay();
@@ -1781,7 +1791,7 @@
 
 
         function updateLocationDisplay() {
-            const saved = JSON.parse(getSecureItem('rekindle_location_manual'));
+            const saved = readStoredLocation();
             const el = document.getElementById('location-display-desc');
             if (saved) {
                 el.innerText = `Manual: ${saved.name}`;
@@ -1845,7 +1855,7 @@
                     // 2. If 'auto', we can re-calculate to be sure (in case i18n hasn't finished)
                     if (lang === 'auto') {
                         try {
-                            const manualLoc = JSON.parse(getSecureItem('rekindle_location_manual'));
+                            const manualLoc = readStoredLocation();
                             if (manualLoc && manualLoc.country_code) {
                                 const cc = manualLoc.country_code.toUpperCase();
                                 const esCountries = ['ES', 'MX', 'AR', 'CL', 'CO', 'PE', 'VE', 'CU', 'DO', 'PR', 'GT', 'HN', 'SV', 'NI', 'CR', 'PA', 'EC', 'BO', 'PY', 'UY'];
@@ -1912,7 +1922,7 @@
                     // 2. If 'auto', we can re-calculate to be sure (in case i18n hasn't finished)
                     if (lang === 'auto') {
                         try {
-                            const manualLoc = JSON.parse(getSecureItem('rekindle_location_manual'));
+                            const manualLoc = readStoredLocation();
                             if (manualLoc && manualLoc.country_code) {
                                 const cc = manualLoc.country_code.toUpperCase();
                                 const esCountries = ['ES', 'MX', 'AR', 'CL', 'CO', 'PE', 'VE', 'CU', 'DO', 'PR', 'GT', 'HN', 'SV', 'NI', 'CR', 'PA', 'EC', 'BO', 'PY', 'UY'];
@@ -1961,6 +1971,11 @@
                     autoUnitOption.innerText = `Auto (${label})`;
                 }
             }
+
+            // Values above were assigned after js/custom-select.js painted, and
+            // setting .value does not fire 'change', so the widget kept showing
+            // the pre-save label. Resync every widget once the page is loaded.
+            if (window.rekindleRefreshCustomSelect) window.rekindleRefreshCustomSelect();
         }
 
         function loadCloudSettings() {
@@ -1986,7 +2001,7 @@
                     }
 
                     if (data.manualLocation) {
-                        setSecureItem('rekindle_location_manual', JSON.stringify(data.manualLocation));
+                        writeStoredLocation(data.manualLocation);
                         updateLocationDisplay();
                     }
 
@@ -2075,6 +2090,12 @@
                     }
                 }
             });
+
+            // Those .then() handlers assign native select values asynchronously;
+            // repaint the custom-select widgets once they have landed.
+            setTimeout(function () {
+                if (window.rekindleRefreshCustomSelect) window.rekindleRefreshCustomSelect();
+            }, 1200);
         }
     </script>
 

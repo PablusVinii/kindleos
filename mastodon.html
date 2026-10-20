@@ -575,11 +575,11 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    <script src="time.js?v=2"></script>
-    <script src="theme.js?v=19"></script>
+    <script src="time.js?v=3"></script>
+    <script src="theme.js?v=20"></script>
     <script src="pro-gate.js?v=2"></script>
-    <script src="js/i18n.js?v=2"></script>
-    <script src="js/custom-select.js?v=1"></script>
+    <script src="js/i18n.js?v=3"></script>
+    <script src="js/custom-select.js?v=2"></script>
 </head>
 
 <body>
@@ -1117,7 +1117,7 @@
             el.className = 'toot';
 
             const displayToot = toot.reblog ? toot.reblog : toot;
-            const reblogPrefix = toot.reblog ? `<div style="font-size:0.75rem; color:#666; margin-bottom:5px; margin-left:52px;">🔁 ${toot.account.display_name} boosted</div>` : '';
+            const reblogPrefix = toot.reblog ? `<div style="font-size:0.75rem; color:#666; margin-bottom:5px; margin-left:52px;">RT ${toot.account.display_name} boosted</div>` : '';
 
             let mediaHtml = '';
             if (displayToot.media_attachments && displayToot.media_attachments.length > 0) {
@@ -1147,10 +1147,10 @@
                         ${isFaved ? '★' : '☆'} <span>${displayToot.favourites_count}</span>
                     </button>
                     <button class="action-btn ${isBoosted ? 'boosted' : ''}" onclick="toggleAction('${displayToot.id}', 'reblog', this)">
-                        ${isBoosted ? '🔁' : '⇄'} <span>${displayToot.reblogs_count}</span>
+                        ${isBoosted ? 'RT' : '⇄'} <span>${displayToot.reblogs_count}</span>
                     </button>
                     <button class="action-btn" onclick="replyTo('${displayToot.id}', '${displayToot.account.acct}')">
-                        💬 <span>Reply</span>
+                        <span>Reply</span>
                     </button>
                 </div>
             `;
@@ -1167,12 +1167,12 @@
             notes.forEach(note => {
                 const el = document.createElement('div');
                 el.className = 'notification';
-                let icon = '🔔'; let text = '';
+                let icon = '!'; let text = '';
 
-                if (note.type === 'mention') { icon = '💬'; text = `<strong>${note.account.display_name}</strong> mentioned you`; }
-                else if (note.type === 'reblog') { icon = '🔁'; text = `<strong>${note.account.display_name}</strong> boosted`; }
+                if (note.type === 'mention') { icon = '@'; text = `<strong>${note.account.display_name}</strong> mentioned you`; }
+                else if (note.type === 'reblog') { icon = 'RT'; text = `<strong>${note.account.display_name}</strong> boosted`; }
                 else if (note.type === 'favourite') { icon = '★'; text = `<strong>${note.account.display_name}</strong> favourited`; }
-                else if (note.type === 'follow') { icon = '👤'; text = `<strong>${note.account.display_name}</strong> followed you`; }
+                else if (note.type === 'follow') { icon = '+'; text = `<strong>${note.account.display_name}</strong> followed you`; }
 
                 let contentHtml = '';
                 if (note.status) contentHtml = `<div style="font-size:0.9rem; color:#555; margin-top:5px; border-left:2px solid #ccc; padding-left:8px;">${note.status.content}</div>`;
@@ -1201,7 +1201,7 @@
                         btn.innerHTML = (btn.classList.contains('faved') ? '★' : '☆') + ' <span>' + data.favourites_count + '</span>';
                     } else {
                         btn.classList.toggle('boosted');
-                        btn.innerHTML = (btn.classList.contains('boosted') ? '🔁' : '⇄') + ' <span>' + data.reblogs_count + '</span>';
+                        btn.innerHTML = (btn.classList.contains('boosted') ? 'RT' : '⇄') + ' <span>' + data.reblogs_count + '</span>';
                     }
                 }
             } catch (e) { }

@@ -12,6 +12,7 @@
     var AUTO_START_HOUR = 18; // 6 PM
     var AUTO_END_HOUR = 6;    // 6 AM
     var ROTATION_KEY = 'rekindle_rotation'; // '0', '90', '180', '270'
+    var FONT_KEY = 'rekindle_font_opendyslexic'; // 'true', 'false'
 
     // Temporarily force light mode while dark mode is disabled.
     var storedMode = localStorage.getItem(THEME_KEY);
@@ -92,9 +93,6 @@
         var style = document.getElementById('rekindle-dark-theme');
         if (style) style.remove();
     }
-
-    // Run immediately
-    applyTheme();
 
     // Export for Settings App to call
     // --- DISPLAY MODE ---
@@ -231,20 +229,11 @@
         applyFont();
     }
 
-    // Run as soon as possible
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-
-    // Still run theme/scale immediately in case it's in the head (prevents flash)
-    applyTheme();
-    applyScale();
-    applyRotation();
-    applyViewport();
-    injectEInkStyles();
-    applyFont();
+    // Run once, immediately. Every apply* helper lazily creates its own <style>
+    // in <head>, which already exists while the page is parsing, so the old
+    // "run now AND again on DOMContentLoaded" pair only doubled the work
+    // (two stylesheet rewrites + recalcs per page) for no benefit.
+    init();
 
     // --- VIEWPORT ---
     function applyViewport() {
@@ -384,8 +373,6 @@
 
 
     // --- FONT LOGIC ---
-    var FONT_KEY = 'rekindle_font_opendyslexic'; // 'true', 'false'
-
     function applyFont() {
         var enabled = localStorage.getItem(FONT_KEY) === 'true';
         var doc = document.documentElement;
@@ -455,9 +442,6 @@
         applyFont();
     }
     window.rekindleApplyFont = applyFont;
-
-    // Run Immediately (Global Scope) like applyTheme
-    applyFont();
 
     // Export for Apps to call
     window.rekindleApplyTheme = applyTheme;

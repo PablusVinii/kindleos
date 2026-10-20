@@ -660,9 +660,9 @@
             margin-bottom: 10px;
         }
     </style>
-    <script src="time.js?v=2"></script>
-    <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="time.js?v=3"></script>
+    <script src="theme.js?v=20"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/ui-kit.js?v=2"></script>
 </head>
 
@@ -1744,6 +1744,20 @@
             }
         }
 
+        function updateArticleReadState(url) {
+            var cards = document.querySelectorAll('#articles-container .article[data-link]');
+            var remaining = cards.length;
+            for (var i = 0; i < cards.length; i++) {
+                var card = cards[i];
+                if (card.getAttribute('data-link') !== url) continue;
+                if (filterMode === 'unread') { card.remove(); remaining--; }
+                else card.classList.add('read');
+                break;
+            }
+            // The unread list may now be empty; let renderArticles draw "All caught up!".
+            if (filterMode === 'unread' && remaining === 0) renderArticles();
+        }
+
         function renderArticles() {
             const container = document.getElementById('articles-container');
             container.innerHTML = '';
@@ -1790,6 +1804,7 @@
 
                 const div = document.createElement('div');
                 div.className = `article ${isRead ? 'read' : ''}`;
+                div.dataset.link = article.link;
                 div.onclick = () => openArticle(article);
 
                 let imgHtml = '';
@@ -1855,15 +1870,18 @@
         }
 
         // --- MODAL READER ---
+        var currentArticleBlobUrl = null;
+
         async function openArticle(articleOrUrl) {
             let url = typeof articleOrUrl === 'string' ? articleOrUrl : articleOrUrl.link;
             let article = typeof articleOrUrl === 'object' ? articleOrUrl : null;
 
             currentArticleUrl = url;
 
-            // Mark as Read
+            // Mark as Read. Only that one card changes, so don't rebuild the
+            // whole list (which re-created every <img> and re-decoded it).
             markAsRead(url);
-            renderArticles(); // Update UI in background
+            updateArticleReadState(url);
 
             const modal = document.getElementById('article-modal');
             const frame = document.getElementById('article-frame');
@@ -2016,10 +2034,17 @@
                 </html>`;
 
                 const blob = new Blob([html], { type: 'text/html' });
-                const blobUrl = URL.createObjectURL(blob);
+                // Each article leaves a blob (the whole rendered page) alive
+                // unless the previous one is revoked; 20-30 reads was enough
+                // RAM growth to get the tab killed on a Kindle.
+                if (currentArticleBlobUrl) {
+                    URL.revokeObjectURL(currentArticleBlobUrl);
+                    currentArticleBlobUrl = null;
+                }
+                currentArticleBlobUrl = URL.createObjectURL(blob);
 
                 frame.removeAttribute('srcdoc');
-                frame.src = blobUrl;
+                frame.src = currentArticleBlobUrl;
 
                 // Init Pagination
                 frame.onload = () => {
@@ -2085,6 +2110,10 @@
             modal.style.display = 'none';
             frame.removeAttribute('srcdoc');
             frame.src = '';
+            if (currentArticleBlobUrl) {
+                URL.revokeObjectURL(currentArticleBlobUrl);
+                currentArticleBlobUrl = null;
+            }
             currentArticleUrl = "";
         }
 

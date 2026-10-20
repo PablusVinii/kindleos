@@ -14,9 +14,9 @@
 
     <!-- OpenSheetMusicDisplay for rendering MusicXML -->
     <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.3/build/opensheetmusicdisplay.min.js"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/ui-kit.js?v=2"></script>
-    <script src="js/custom-select.js?v=1"></script>
+    <script src="js/custom-select.js?v=2"></script>
 
     <!-- Tone.js MIDI for conversion -->
     <script src="https://unpkg.com/@tonejs/midi"></script>
@@ -558,7 +558,7 @@
         }
     </style>
     <link rel="stylesheet" href="css/custom-select.css">
-    <script src="theme.js?v=19"></script>
+    <script src="theme.js?v=20"></script>
 </head>
 
 <body>
@@ -589,7 +589,7 @@
                         data-i18n="sheetmusic.btn.upload"> Upload Sheet Music </button>
                     <span style="flex-grow:1"></span>
                     <span id="search-label" data-i18n="sheetmusic.label.search">Search:</span>
-                    <input type="text" id="store-search" placeholder="Type here..." onkeyup="filterScores()"
+                    <input type="text" id="store-search" placeholder="Type here..." onkeyup="debouncedFilterScores()"
                         data-i18n-placeholder="sheetmusic.ph.search" style="border: 2px solid black; padding: 4px;">
                 </div>
 
@@ -1141,6 +1141,14 @@
                 if (el) el.classList.add('active');
             }
             filterScores();
+        }
+
+        // Rebuilding ~69 cards (and their composer images) on every keyup was
+        // far too much work for an e-ink keyboard; coalesce the input.
+        var filterScoresTimer = null;
+        function debouncedFilterScores() {
+            clearTimeout(filterScoresTimer);
+            filterScoresTimer = setTimeout(filterScores, 250);
         }
 
         function filterScores() {

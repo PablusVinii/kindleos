@@ -475,8 +475,8 @@
             box-shadow: none;
         }
     </style>
-    <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="theme.js?v=20"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/ui-kit.js?v=2"></script>
 </head>
 
@@ -737,7 +737,6 @@
                     const { ids, ts } = JSON.parse(cached);
                     if (Date.now() - ts < BLACKLIST_CACHE_TTL) {
                         ids.forEach(id => blacklistedTuids.add(id));
-                        console.log(`Loaded ${blacklistedTuids.size} blacklisted games (cached)`);
                         return;
                     }
                 }
@@ -745,7 +744,6 @@
                 const ids = [];
                 snapshot.forEach(doc => { blacklistedTuids.add(doc.id); ids.push(doc.id); });
                 sessionStorage.setItem(BLACKLIST_CACHE_KEY, JSON.stringify({ ids, ts: Date.now() }));
-                console.log(`Loaded ${blacklistedTuids.size} blacklisted games`);
             } catch (e) {
                 console.error('Failed to load blacklist:', e);
             }
@@ -789,7 +787,6 @@
                     snapshot.forEach(doc => {
                         cloudLibrary.push({ ...doc.data(), docId: doc.id });
                     });
-                    console.log("Interactive: Loaded " + cloudLibrary.length + " cloud games");
                     renderMergedLibrary();
                 });
         }
@@ -940,7 +937,6 @@
             const ratingData = await fetchIFDBRating(game.title);
 
             if (ratingData) {
-                console.log("Backfilling rating for:", game.title, ratingData);
 
                 if (game.source === 'local') {
                     // Update LocalForage
@@ -1312,7 +1308,6 @@
                                     if (data && data.url) {
                                         storyFileUrl = data.url;
                                         storyFormat = 'z-code';
-                                        console.log("Found Itch Z-code URL:", storyFileUrl);
                                     }
                                 }
                             } else {
@@ -1929,7 +1924,6 @@
                     const metadata = await fetchUploadMetadata(title);
 
                     if (metadata && metadata.coverArtLink) {
-                        console.log("Found cover art:", metadata.coverArtLink);
                         coverUrl = metadata.coverArtLink;
                         // Proceed with upload using this URL automatically
                     } else {

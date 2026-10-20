@@ -1563,12 +1563,12 @@
     <script src="bad_words.js?v=4"></script>
     <script src="js/promo-ban.js?v=1"></script>
     <script src="js/spam-guard.js?v=1"></script>
-    <script src="time.js?v=2"></script>
-    <script src="theme.js?v=19"></script>
+    <script src="time.js?v=3"></script>
+    <script src="theme.js?v=20"></script>
     <link rel="stylesheet" href="css/custom-select.css">
-    <script src="js/i18n.js?v=2"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/ui-kit.js?v=2"></script>
-    <script src="js/custom-select.js?v=1"></script>
+    <script src="js/custom-select.js?v=2"></script>
     <script src="js/age-verification.js?v=2"></script>
 
 </head>
@@ -2352,7 +2352,6 @@
                     var newIsPro = (e.newValue !== 'false');
                     if (newIsPro !== isPro) {
                         isPro = newIsPro;
-                        console.log("Pro Status Sync: ", isPro);
                         // The worker re-checks the claim; this only keeps the
                         // "New Message" affordance in sync after an upgrade.
                         if (dmEnabled) dmCanInitiate = isPro;
@@ -2941,9 +2940,10 @@
                                     var transText = transSnap.val();
                                     if (!transText || currentRoomId !== 'general') return;
                                     langTranslations[id] = transText;
-                                    generalChatRef.child(id).once('value').then(function (msgSnap) {
-                                        if (msgSnap.val()) renderMessage(msgSnap.val(), id);
-                                    });
+                                    // The body is already cached above; this used to re-read
+                                    // the same node from RTDB (up to 25 extra GETs per page).
+                                    var cachedMsg = generalMsgData[id];
+                                    if (cachedMsg) renderMessage(cachedMsg, id);
                                 });
                         })(batch[j].id);
                     }
@@ -5474,11 +5474,13 @@
             if (isSendingMessage) return;
             isSendingMessage = true;
             markSendBusy();
-            setTimeout(function () { isSendingMessage = false; }, 3000); // failsafe unlock
+            // Escape hatch only for a genuinely stuck request: every settle path
+            // calls resetSendState(). At 3s this fired while a slow moderation
+            // POST was still in flight and let the same text be sent twice.
+            setTimeout(function () { isSendingMessage = false; }, 30000);
 
             // SPAM PROTECTION + MODERATION: Enforced via Cloudflare Worker
             var tokenSource = socialAuth.currentUser || currentUser;
-            console.log('[KindleChat] Post token source:', tokenSource === socialAuth.currentUser ? 'social' : 'main', 'socialAuth.currentUser:', !!socialAuth.currentUser, 'currentUser:', !!currentUser);
             tokenSource.getIdToken(true).then(function (token) {
                 var bodyObj = { type: 'kindlechat', text: text };
                 if (replyTarget) {
@@ -5586,7 +5588,6 @@
             if (!currentUser) return;
 
             // Visual feedback?
-            console.log("Reprocessing message:", msgId);
 
             var tokenSource = socialAuth.currentUser || currentUser;
             tokenSource.getIdToken(true).then(function (token) {
@@ -5606,7 +5607,6 @@
                     .then(function (resp) { return resp.json(); })
                     .then(function (data) {
                         if (data.success) {
-                            console.log("Reprocess success:", data);
                             // No need to reload, RTDB listener will update the translation
                         } else {
                             console.error("Reprocess error:", data);
@@ -5926,65 +5926,10 @@
             });
         }
 
-        // --- GENERAL CHANNEL: Send via Worker ---
-        function sendGeneralMessageViaWorker(text) {
-            if (!currentUser) {
-                console.error("Cannot send message: Not authenticated");
-                sendGeneralMessageToRTDB(text);
-                return;
-            }
-            if (containsUrl(text)) { showModal('Links and URLs are not allowed.'); return; }
-            if (containsPromotedTerm(text)) { showModal('Promotional content is not allowed.'); return; }
-
-            // Write message immediately so it appears at once, then translate in background
-            var messageData = {
-                uid: currentUser.uid,
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
-                text: text
-            };
-
-            generalChatRef.push(messageData).then(function (ref) {
-                var msgId = ref.key;
-
-                resetSendState();
-
-                // Fire translation in background with retry — child_changed will update the bubble when done
-                fireTranslationRequest(currentUser.uid, text, msgId, 1);
-            })['catch'](function (e) {
-                resetSendState();
-                console.error("Error sending general message:", e);
-                if (e && e.code === 'PERMISSION_DENIED') {
-                    showModal('Unable to post. This may be due to a missing age-verification or account restriction. Please sign out and back in, or contact support.', false);
-                } else {
-                    showModal('Unable to post: ' + (e && e.message ? e.message : 'Unknown error') + '. Please try again.', false);
-                }
-            });
-        }
-
-        // --- GENERAL CHANNEL: Send to Realtime Database (Direct/Fallback) ---
-        function sendGeneralMessageToRTDB(text) {
-            // This path writes straight to RTDB (no moderation worker), so the
-            // content checks must run here too.
-            if (containsUrl(text)) { showModal('Links and URLs are not allowed.'); return; }
-            if (containsPromotedTerm(text)) { showModal('Promotional content is not allowed.'); return; }
-            var messageData = {
-                uid: currentUser.uid,
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
-                text: text
-            };
-
-            generalChatRef.push(messageData).then(function () {
-                resetSendState();
-            })['catch'](function (e) {
-                resetSendState();
-                console.error("Error sending general message:", e);
-                if (e && e.code === 'PERMISSION_DENIED') {
-                    showModal('Unable to post. This may be due to a missing age-verification or account restriction. Please sign out and back in, or contact support.', false);
-                } else {
-                    showModal('Unable to post: ' + (e && e.message ? e.message : 'Unknown error') + '. Please try again.', false);
-                }
-            });
-        }
+        // The old sendGeneralMessageViaWorker()/sendGeneralMessageToRTDB() pair
+        // was removed: nothing called it, and it wrote straight to
+        // kindlechat/messages, bypassing the moderation worker, the rate limit
+        // and the repetition guard. doSendMessage() is the only send path.
 
         // --- DMs: Send to Firestore ---
         // --- PIXEL ART SAVING ---
@@ -6261,6 +6206,29 @@
         }
 
         // --- FLIPNOTE PLAYER ---
+        // Only one thumbnail animates at a time. Every rendered flipnote used to
+        // start its own 6 fps timer that never stopped, and every reaction or
+        // translation re-render re-armed it, so a feed with three flipbooks kept
+        // three permanent timers alive writing base64 frames into <img src>.
+        var activeFlipnoteId = null;
+
+        function stopFlipnote(msgId) {
+            if (!msgId) return;
+            var img = document.getElementById('flipnote-img-' + msgId);
+            if (img) {
+                img.dataset.playing = "false";
+                if (img.playTimer) { clearTimeout(img.playTimer); img.playTimer = null; }
+            }
+            var overlay = document.getElementById('flipnote-overlay-' + msgId);
+            if (overlay) overlay.style.display = "flex";
+            if (activeFlipnoteId === msgId) activeFlipnoteId = null;
+        }
+
+        window.addEventListener('pagehide', function () { stopFlipnote(activeFlipnoteId); });
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) stopFlipnote(activeFlipnoteId);
+        });
+
         function playFlipnote(msgId) {
             if (!window.flipnoteData || !window.flipnoteData[msgId]) return;
 
@@ -6284,6 +6252,8 @@
             }
 
             // Start
+            if (activeFlipnoteId && activeFlipnoteId !== msgId) stopFlipnote(activeFlipnoteId);
+            activeFlipnoteId = msgId;
             imgEl.dataset.playing = "true";
             overlay.style.display = "none";
 
@@ -6291,7 +6261,7 @@
 
             function loop() {
                 if (imgEl.dataset.playing !== "true") return;
-                if (!imgEl.isConnected) { imgEl.dataset.playing = "false"; return; }
+                if (!imgEl.isConnected) { imgEl.dataset.playing = "false"; if (activeFlipnoteId === msgId) activeFlipnoteId = null; return; }
                 frameIdx = (frameIdx + 1) % frames.length;
                 imgEl.src = frames[frameIdx];
                 imgEl.playTimer = setTimeout(loop, 1000 / fps);

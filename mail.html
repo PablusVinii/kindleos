@@ -591,12 +591,12 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="time.js?v=2"></script>
-    <script src="theme.js?v=19"></script>
+    <script src="time.js?v=3"></script>
+    <script src="theme.js?v=20"></script>
     <script src="pro-gate.js?v=2"></script>
     
-    <script src="js/i18n.js?v=2"></script>
-    <script src="js/custom-select.js?v=1"></script>
+    <script src="js/i18n.js?v=3"></script>
+    <script src="js/custom-select.js?v=2"></script>
     <style>
         .login-input {
             width: 100%;
@@ -1229,6 +1229,7 @@
             emails.forEach(email => {
                 const div = document.createElement('div');
                 div.className = `email-item ${!email.flags.includes('\\Seen') ? 'unread' : ''}`;
+                div.dataset.uid = String(email.uid);
                 div.onclick = () => openEmail(email);
 
                 const date = new Date(email.envelope.date || email.internalDate);
@@ -1294,7 +1295,10 @@
             // Mark as read locally and remotely
             if (!email.flags.includes('\\Seen')) {
                 email.flags.push('\\Seen');
-                renderEmailList(); // Update UI
+                // Only this row changed; re-rendering the whole list rebuilt
+                // every row and threw away the scroll position.
+                const row = document.querySelector('#list-container .email-item[data-uid="' + String(email.uid) + '"]');
+                if (row) row.classList.remove('unread');
                 // Call modifyFlags backend
                 functions.httpsCallable('modifyFlags')({
                     imap: imapConfig,
@@ -1720,7 +1724,6 @@
                             localStorage.setItem('rekindle_imap_port', data.imapPort);
                             localStorage.setItem('rekindle_smtp_host', data.smtpHost);
                             localStorage.setItem('rekindle_smtp_port', data.smtpPort);
-                            console.log("Mail settings synced from cloud (encrypted in localStorage).");
                         } else {
                             console.error("Failed to encrypt password for localStorage");
                         }
@@ -1754,7 +1757,6 @@
                     smtpPort: smtpPort,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
-                console.log("Mail settings saved to cloud (encrypted).");
             } catch (e) {
                 console.error("Error saving mail settings to cloud:", e);
             }
@@ -1779,7 +1781,6 @@
                 textEl.innerText = text;
                 overlay.style.display = 'flex';
             } else {
-                console.log("Modal fallback (elements missing):", text);
             }
         }
 

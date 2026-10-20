@@ -508,9 +508,9 @@
             box-shadow: none;
         }
     </style>
-    <script src="time.js?v=2"></script>
-    <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="time.js?v=3"></script>
+    <script src="theme.js?v=20"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/ui-kit.js?v=2"></script>
 </head>
 
@@ -814,12 +814,20 @@
 
                     if (showDetails.seasons) {
                         const episodes = [];
-                        // 2. Fetch each season
-                        for (const season of showDetails.seasons) {
-                            if (season.season_number === 0) continue; // Skip specials usually? Or keep them. Let's skip specials for main calendar clutter.
-
-                            const seasonData = await fetchTMDB(`/tv/${itemData.tmdbId}/season/${season.season_number}`);
-                            if (seasonData.episodes) {
+                        // 2. Fetch seasons in small parallel batches. This used to
+                        // await one request per season in series: a 10-season show
+                        // was 11 round trips behind a dead "Saving..." button.
+                        const seasonNumbers = showDetails.seasons
+                            .filter(season => season.season_number !== 0) // skip specials
+                            .map(season => season.season_number);
+                        const BATCH = 3;
+                        for (let i = 0; i < seasonNumbers.length; i += BATCH) {
+                            const chunk = seasonNumbers.slice(i, i + BATCH);
+                            const results = await Promise.all(chunk.map(seasonNumber =>
+                                fetchTMDB(`/tv/${itemData.tmdbId}/season/${seasonNumber}`)['catch'](() => null)
+                            ));
+                            results.forEach(seasonData => {
+                                if (!seasonData || !seasonData.episodes) return;
                                 seasonData.episodes.forEach(ep => {
                                     if (ep.air_date) {
                                         episodes.push({
@@ -831,7 +839,7 @@
                                         });
                                     }
                                 });
-                            }
+                            });
                         }
                         docData.episodes = episodes;
                     }

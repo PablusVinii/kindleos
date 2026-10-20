@@ -11,7 +11,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
     <script src="js/score-submit.js?v=1" data-game="dino"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="js/i18n.js?v=3"></script>
     <style>
         /* SYSTEM 7 AESTHETICS - Copied from snake.html */
         :root {
@@ -245,7 +245,7 @@
             color: white;
         }
     </style>
-    <script src="theme.js?v=19"></script>
+    <script src="theme.js?v=20"></script>
 </head>
 
 <body>
@@ -369,10 +369,8 @@
                     if (user && !user.isAnonymous) {
                         uid = user.uid;
                         username = user.email ? user.email.split('@')[0] : ("User_" + uid.substring(0, 5));
-                        console.log("Auth State: Logged in as", username);
                     } else {
                         uid = null;
-                        console.log("Auth State: Not logged in (or anonymous)");
                     }
                     resolve();
                 });
@@ -388,7 +386,6 @@
             // 1. Try LocalStorage first
             const localHigh = localStorage.getItem('dino_highscore_v1');
             if (localHigh) personalHighScore = parseInt(localHigh);
-            console.log("Loaded HS:", personalHighScore, "UID:", uid);
 
             // 2. Try Firebase if logged in
             if (uid) {
@@ -421,11 +418,9 @@
         }
 
         async function saveHighScore(newScore) {
-            console.log("Attempting save:", newScore, "Current HS:", personalHighScore, "UID:", uid);
             if (newScore > personalHighScore) {
                 personalHighScore = newScore;
                 localStorage.setItem('dino_highscore_v1', personalHighScore);
-                console.log("Updated local HS to:", personalHighScore);
 
                 // Update Runner display
                 if (Runner.instance_) {
@@ -442,14 +437,11 @@
 
                 // Save to Cloud
                 if (uid) {
-                    console.log("Saving to Firestore...");
                     window.RekindleScores.submit('leaderboard_dino_v1', { score: newScore }).then(() => console.log("Score saved to Firebase successfully!"))
                         .catch(e => console.error("Firebase save failed:", e));
                 } else {
-                    console.log("User not logged in, skipping cloud save.");
                 }
             } else {
-                console.log("Score", newScore, "is not higher than", personalHighScore, "- skipping save.");
             }
         }
 

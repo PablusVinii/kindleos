@@ -32,6 +32,7 @@ Only this file is injected automatically. The docs below are **not** in the agen
 | [integrations.md](docs/agent/integrations.md) | Akinator, NRL scores, comics / Internet Archive, Gutenberg / Standard Ebooks (Reader tabs) |
 | [avatars.md](docs/agent/avatars.md) | `drawAvatar()`, `user_cards`, pixel-art avatars, grayscale values, ReKindle+ gradient gate |
 | [visual-audit.md](docs/agent/visual-audit.md) | No-focus WebKit screenshot harness, full-app visual review, System 7 visual checklist |
+| [backlog.md](docs/agent/backlog.md) | Deferred optimisation/QoL work from the 2026-10 audit: deliberately skipped fixes, partial fixes and their verification steps |
 
 ## 🚫 Restrictions (Target: Chromium 75)
 
@@ -360,6 +361,7 @@ functions/api/foo/[[path]].js   → handles /api/foo and /api/foo/*
 *   **Persistence:** `localStorage` is available but **volatile**.
 *   **Limit:** **64MB** Global Cache Limit. If exceeded, the OS performs `rm -rf` on the entire cache directory at launch.
 *   **Sync:** Rely on Firebase Firestore for critical data; do not trust `localStorage` for long-term storage.
+*   **`rekindle_location_manual` must stay plain JSON (2026-10-20):** `time.js`, `theme.js`, `js/i18n.js`, `index.html`, `weather.html` and `maps.html` all read it with `JSON.parse(localStorage.getItem(...))`. `settings.html` used to store it base64-XOR'd via `setSecureItem`, so every reader threw and silently lost the timezone/DST zone, the unit preference and the auto-language country. Write it with `writeStoredLocation()`; `readStoredLocation()` migrates the old obfuscated value on first read.
 
 ### 5. Timezone & Date Quirks
 *   **Constraint:** The Kindle browser (`Intl` API) often defaults to **UTC** or ignores the system timezone configuration.
@@ -374,6 +376,7 @@ functions/api/foo/[[path]].js   → handles /api/foo and /api/foo/*
     *   It triggers **only** when local-time helpers are actually called (`rekindleGetZonedDate()`, `rekindleFormatTime()`, `getDateInZone()` without an explicit zone) — it does **not** run automatically on every page load.
     *   The modal searches the Open-Meteo geocoding API, fetches the UTC offset, saves it to `localStorage` (`rekindle_location_manual` + `rekindle_timezone_offset`), and **reloads the page** on success.
     *   It has **no dismiss button** — the user must set their timezone or leave the popup open.
+    *   Its "Sign in instead" button goes to `index?login=true` (the canonical index login popup); the prompt is suppressed on that URL so it cannot cover the modal, and signing in restores the account's saved timezone. See section 12.
     *   Because this modal is injected into arbitrary host pages, it is subject to the class-name leakage warning in section 6 above.
 
 ### 6. Canvas / Touch Coordinate Bug with CSS `zoom`
@@ -524,6 +527,20 @@ Cleanup/heal writes are idempotent and guarded by per-session attempted-sets (`m
 
 **Invariants for future live games:** the game node must live at `games/{gameType}/{matchId}` with `status: 'lobby'` while joinable and a `players` map of `{name, joinedAt, isBot?}` — the validator relies on all three. If a game's flow cancels the matchmaking `onDisconnect` before the listing is removed, expect the validator to eventually delete or heal the listing instead.
 
+### 12. Authentication Entry Points (`index.html` modal vs `login.html`)
+
+**Users sign in only through the login popup on the index page.** The canonical login/registration UI is `#login-modal` on `index.html` (`openLogin()`, the `LOG IN / REGISTER` menu item and the mobile About-sheet button). `index?login=true` opens the modal directly, so any page that needs a "log in" affordance should either open its own modal or link to `index?login=true`.
+
+**`login.html` is a diagnostics page, not a login page.** It exists for troubleshooting: auth state, network state, `Run Diagnostics`, the raw log, Logout. It still renders working Login/Register buttons (and its own `restoreTimezone()` for direct visits with a `return`), which makes it look canonical, but users should not be sent there to sign in — and it must not be the destination of a generic auth redirect. Nothing in the app links to it any more.
+
+**Timezone popup routing (changed 2026-10-20):** the timezone prompt's "Sign in instead" button (`#tz-signin-btn` in `time.js`) used to send users to `login?return=…`. It now sets `window.location.href = 'index?login=true'`. Three pieces keep that flow working — do not break them independently:
+
+1. `checkTimezoneOffset()` in `time.js` returns early when the URL has `login=true` (in addition to the existing `/login…` guard). The prompt overlay is `z-index: 99999` and the index login modal is `z-index: 10000`, so without this the prompt would cover the login modal.
+2. `doLogin()` in `index.html` calls `window.rekindleRestoreTimezoneFromProfile(auth.currentUser)` after the IP-ban check passes. That helper lives in `time.js` (exported at the bottom): it reads `users/{uid}/settings/general`, copies `manualLocation` / `timezoneOffset` into `rekindle_location_manual` / `rekindle_timezone_offset`, and removes an open prompt. It is what makes the popup's "Your saved timezone will be restored" hint true, and it also works for users whose localStorage was wiped by the Kindle cache cleanup.
+3. `login.html` keeps its own `restoreTimezone()` (same Firestore read) for the `return` flow on direct troubleshooting visits. Keep the two implementations in sync if the `settings/general` schema changes.
+
+The button no longer carries a `return` param, so a user who signs in from a page that showed the prompt lands on the dashboard instead of returning to that page.
+
 ## 🛡 Social & Moderation Rules
 
 Enforced client-side and in `workers/rekindle-moderate/worker.js` for every social app (KindleChat, Neighbourhood, Topics). Reporting UI and the `/reports` data model are in [moderation-reports.md](docs/agent/moderation-reports.md).
@@ -548,7 +565,7 @@ function containsUrl(text) {
 ```
 
 **Where to block:**
-*   **KindleChat:** `sendMessage()` and `sendGeneralMessageViaWorker()` in `kindlechat.html`
+*   **KindleChat:** `sendMessage()` in `kindlechat.html` (`doSendMessage()` is the only send path; the old unmoderated `sendGeneralMessageViaWorker()` was deleted 2026-10-20)
 *   **Neighbourhood:** `submitPost()` and `submitComment()` in `neighbourhood.html`
 *   **Topics:** `submitTopic()` (title, subheading, poll options) and `postComment()` in `topics.html`
 *   **Moderation Worker:** `workers/rekindle-moderate/worker.js` — checks for each `type` handler (`kindlechat`, `topic`, `topic_comment`, `neighbourhood_post`, `neighbourhood_comment`)
@@ -578,7 +595,7 @@ The local `containsPromotedTerm(text)` in each social page must stay as a thin w
 **Server-side mirror:** `workers/rekindle-moderate/worker.js` `containsPromotedTerm()` carries the same folding logic (comments say KEEP IN SYNC with `js/promo-ban.js`). It is applied to every content type: `kindlechat`, `topic` (title/subheading/poll), `topic_comment`, `neighbourhood_post`, `neighbourhood_comment`.
 
 **Where to block (client):**
-* KindleChat: `sendMessage()` and `sendGeneralMessageViaWorker()`.
+* KindleChat: `sendMessage()`.
 * Neighbourhood: `submitPost()`, `submitComment()`, **`editPost()`** (edits write straight to Firestore, bypassing the worker), and `saveProfile()` (all bio/profile fields).
 * Topics: `submitTopic()` (title, subheading, poll question/options) and the comment send path.
 

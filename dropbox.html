@@ -40,8 +40,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <!-- Shared Theme & Scaling Logic -->
-    <script src="js/i18n.js?v=2"></script>
-    <script src="theme.js?v=19"></script>
+    <script src="js/i18n.js?v=3"></script>
+    <script src="theme.js?v=20"></script>
 
     <style>
         /* SYSTEM 7 AESTHETICS */
@@ -1304,12 +1304,35 @@
 
             try {
                 const response = await dbx.filesListFolder({ path: path || '' });
-                const entries = response.result.entries;
+                // filesListFolder caps at 500 entries and returns a cursor; the
+                // old code ignored it, so anything past the 500th file was
+                // invisible with no message.
+                let entries = response.result.entries.slice();
+                let cursor = response.result.cursor;
+                let hasMore = response.result.has_more;
 
-                if (entries.length === 0) {
+                if (entries.length === 0 && !hasMore) {
                     showEmpty();
                 } else {
                     renderFileList(entries);
+                    if (hasMore) {
+                        // Follow the cursor in the background, then redraw once.
+                        (async function () {
+                            try {
+                                let guard = 0;
+                                while (hasMore && guard < 20) {
+                                    const next = await dbx.filesListFolderContinue({ cursor: cursor });
+                                    hasMore = next.result.has_more;
+                                    cursor = next.result.cursor;
+                                    entries = entries.concat(next.result.entries);
+                                    guard++;
+                                }
+                                renderFileList(entries);
+                            } catch (e) {
+                                console.warn('Folder pagination stopped early:', e);
+                            }
+                        })();
+                    }
                 }
 
                 updateBackButton();

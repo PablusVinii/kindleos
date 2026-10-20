@@ -68,12 +68,12 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js" defer></script>
 
-    <script src="time.js?v=2" defer></script>
+    <script src="time.js?v=3" defer></script>
     <script src="icons.js?v=3" defer></script>
     <script src="icons-beta.js?v=1" defer></script>
-    <script src="theme.js?v=19" defer></script>
+    <script src="theme.js?v=20" defer></script>
     <script src="bad_words.js?v=4" defer></script>
-    <script src="js/i18n.js?v=2" defer></script>
+    <script src="js/i18n.js?v=3" defer></script>
     <script src="js/ip-ban.js?v=1" defer></script>
 
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -2393,6 +2393,11 @@
                 if (ipResult.banned) {
                     await auth.signOut();
                     document.getElementById('login-msg').innerText = "Error: Your IP address has been banned from this network.";
+                } else if (typeof window.rekindleRestoreTimezoneFromProfile === 'function') {
+                    // The timezone popup's "Sign in instead" button sends users
+                    // here. Now that we have a session, pull the account's saved
+                    // timezone back into localStorage and drop the prompt.
+                    window.rekindleRestoreTimezoneFromProfile(auth.currentUser);
                 }
             } catch (e) {
                 const msg = (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found')
@@ -2877,7 +2882,11 @@
                         }
                     }
                 } else {
-                    if (window.currentUser && window.db) {
+                    // currentUser is a `let` in this IIFE, never exposed on
+                    // window, so `window.currentUser` was always undefined and
+                    // this branch never ran: dashboard events written by
+                    // calendar.html to users/{uid}/events were invisible.
+                    if (currentUser && db) {
                         try {
                             const snap = await db.collection('users').doc(currentUser.uid).collection('events').get();
                             snap.forEach(doc => {

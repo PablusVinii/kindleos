@@ -13,7 +13,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
     <script src="js/score-submit.js?v=1" data-game="crossy"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="js/i18n.js?v=3"></script>
 
     <style>
         :root {
@@ -317,7 +317,7 @@
             color: white;
         }
     </style>
-    <script src="theme.js?v=19"></script>
+    <script src="theme.js?v=20"></script>
 </head>
 
 <body>
@@ -612,8 +612,6 @@
             img.onload = function () {
                 spriteSheet = img;
                 spriteLoaded = true;
-                console.log('crossysprites.png loaded:', img.width + 'x' + img.height);
-                console.log('Layout:', SPRITE_SHEET_LAYOUT);
                 drawDebugInfo();
                 updateStartButton();
             };
@@ -663,8 +661,6 @@
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('debug') !== '1') return;
 
-            console.log('Sprite sheet size:', spriteSheet.width + 'x' + spriteSheet.height);
-            console.log('Layout:', SPRITE_SHEET_LAYOUT);
 
             // Draw a tiny preview of each sprite across the top of the canvas
             ctx.fillStyle = 'white';

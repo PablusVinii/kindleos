@@ -188,9 +188,14 @@
     // --- TIMEZONE OFFSET WARNING ---
     // Displays a modal if the user has not configured their timezone offset.
     function checkTimezoneOffset() {
-        // Never cover the sign-in page with the timezone prompt; signing in
-        // is how the user restores a saved timezone.
+        // Never cover a sign-in screen with the timezone prompt; signing in
+        // is how the user restores a saved timezone. The index login popup
+        // opens via ?login=true, and this overlay (z-index 99999) would sit
+        // on top of the modal (z-index 10000).
         if (/\/(login)(\.html)?\/?$/.test(window.location.pathname || '')) return;
+        try {
+            if (new URLSearchParams(window.location.search).get('login') === 'true') return;
+        } catch (e) { /* no URLSearchParams: fall through */ }
 
         // Check for offset in rekindle_location_manual (primary) or rekindle_timezone_offset (legacy)
         const manualLocStr = localStorage.getItem('rekindle_location_manual');
@@ -467,12 +472,69 @@
         var tzSignInBtn = document.getElementById('tz-signin-btn');
         if (tzSignInBtn) {
             tzSignInBtn.addEventListener('click', function () {
-                var returnTo = window.location.pathname + window.location.search;
-                window.location.href = 'login?return=' + encodeURIComponent(returnTo);
+                // Canonical sign-in is the popup on the index page; login.html
+                // is a diagnostics page and must not be a login destination.
+                window.location.href = 'index?login=true';
             });
         }
 
         // Dismiss button removed — the user can set a timezone or sign in.
+    }
+
+    // --- TIMEZONE PROFILE RESTORE ---
+    // After sign-in, pull the account's saved settings/general.manualLocation
+    // into localStorage so the timezone prompt does not reappear on the next
+    // page. Mirrors login.html's restoreTimezone() — keep the two in sync.
+    function dismissTimezonePrompt() {
+        var overlay = document.getElementById('tz-warning-overlay');
+        if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        var style = document.getElementById('tz-modal-style');
+        if (style && style.parentNode) style.parentNode.removeChild(style);
+    }
+
+    function restoreTimezoneFromProfile(user, done) {
+        var finished = false;
+        function finish() {
+            if (finished) return;
+            finished = true;
+            if (done) done();
+        }
+        setTimeout(finish, 2500);
+        try {
+            if (!user) { finish(); return; }
+            if (typeof firebase === 'undefined' || !firebase.firestore) { finish(); return; }
+            if (!firebase.apps || !firebase.apps.length) { finish(); return; }
+            var app = firebase.app();
+            if (!app || !app.options || app.options.projectId !== 'rekindle-dd1fa') { finish(); return; }
+            firebase.firestore().collection('users').doc(user.uid)
+                .collection('settings').doc('general').get()
+                .then(function (doc) {
+                    var applied = false;
+                    if (doc.exists) {
+                        var data = doc.data();
+                        if (data.manualLocation) {
+                            localStorage.setItem('rekindle_location_manual', JSON.stringify(data.manualLocation));
+                            if (typeof data.manualLocation.utc_offset === 'number') {
+                                localStorage.setItem('rekindle_timezone_offset', data.manualLocation.utc_offset);
+                                applied = true;
+                            }
+                        }
+                        if (typeof data.timezoneOffset === 'number') {
+                            localStorage.setItem('rekindle_timezone_offset', data.timezoneOffset);
+                            applied = true;
+                        }
+                    }
+                    if (applied) dismissTimezonePrompt();
+                    finish();
+                })
+                .catch(function (e) {
+                    console.warn('Timezone restore failed', e);
+                    finish();
+                });
+        } catch (e) {
+            console.warn('Timezone restore unavailable', e);
+            finish();
+        }
     }
 
     // NOTE: checkTimezoneOffset() is no longer auto-run.
@@ -517,6 +579,7 @@
     window.rekindleFormatWallDate = formatWallDate;
     window.rekindleGetUserLocale = getUserLocale;
     window.rekindleCheckTimezoneOffset = checkTimezoneOffset;
+    window.rekindleRestoreTimezoneFromProfile = restoreTimezoneFromProfile;
     window.rekindleRenderDSTToggle = renderDSTToggle;
 
 })();

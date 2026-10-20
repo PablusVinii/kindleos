@@ -8,8 +8,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
     <script src="js/score-submit.js?v=1" data-game="pet"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js?v=2"></script>
-    <script src="theme.js?v=19"></script>
+    <script src="js/i18n.js?v=3"></script>
+    <script src="theme.js?v=20"></script>
     <style>
         @font-face {
             font-family: 'PixelFont';
@@ -563,7 +563,6 @@
 
                 return window.RekindleScores.submit('leaderboard_pet_v1', { score: newAge });
             }).then(function () {
-                console.log("Age synced to Firebase:", newAge);
             }).catch(function (e) {
                 console.error("Firebase sync error:", e);
             });
@@ -700,7 +699,6 @@
         // Direct Icon Click
         function handleIconClick(idx) {
             if (idx === 5) return; // ATTN icon is not interactive
-            console.log("Icon Clicked:", idx);
             // Allow selection even if Egg, just don't execute
             ui.menuIndex = idx;
 
@@ -1018,7 +1016,6 @@
 
                         loaded++;
                         if (loaded === total) {
-                            console.log("All Assets Pre-rendered");
                             if (typeof buildSpriteGallery === 'function') buildSpriteGallery();
                         }
                     };
@@ -1089,7 +1086,6 @@
         var secretClicks = 0;
         var secretTimeout = null;
         function handleSecretReset() {
-            console.log("Secret reset click:", secretClicks + 1);
             secretClicks++;
             clearTimeout(secretTimeout);
             if (secretClicks >= 5) {

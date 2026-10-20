@@ -240,3 +240,18 @@ Deploy order: worker → `npm run deploy:rules:social:rtdb` → Pages → enable
 ---
 
 New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).
+
+## 2026-10-20: chat audit fixes (`docs/audit-2026-10-20.md`)
+
+- **Pagination uses the cache it already fills.** `loadOlderMessages` stored each message in
+  `generalMsgData[id]` and then did `generalChatRef.child(id).once('value')` to render it - up to
+  25 redundant RTDB GETs per page. It now renders from `generalMsgData[id]`.
+- **Flipnotes animate one at a time.** Every rendered flipnote started a 6 fps `setTimeout` chain
+  that never stopped, and each reaction/translation re-render re-armed it. `activeFlipnoteId` +
+  `stopFlipnote()` cap it to one, and `pagehide`/`visibilitychange` stop it.
+- **Send guard:** the 3 s "failsafe unlock" (`isSendingMessage = false`) fired while a slow
+  moderation POST was still in flight and allowed a duplicate post; it is now 30 s. Every settle
+  path still calls `resetSendState()`.
+- **Deleted the dead send path.** `sendGeneralMessageViaWorker()` / `sendGeneralMessageToRTDB()`
+  had no callers and wrote straight to `kindlechat/messages`, bypassing the moderation worker,
+  the rate limit and the repetition guard. `doSendMessage()` is the only send path.

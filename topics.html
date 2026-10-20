@@ -326,8 +326,12 @@
 
         /* Report button - matches kindlechat circular style */
         .report-btn {
-            width: 20px;
-            height: 20px;
+            /* 32px hit area with a negative margin so the header row keeps its
+               original 20px footprint. Still short of the 48px guideline, but
+               a full 48 would overlap the timestamp / Edit button next to it. */
+            width: 32px;
+            height: 32px;
+            margin: -6px;
             border: 1px solid black;
             border-radius: 50%;
             background: white;
@@ -816,13 +820,13 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="time.js?v=2"></script>
-    <script src="theme.js?v=19"></script>
+    <script src="time.js?v=3"></script>
+    <script src="theme.js?v=20"></script>
     <script src="bad_words.js?v=4"></script>
     <script src="js/promo-ban.js?v=1"></script>
     <link rel="stylesheet" href="css/custom-select.css">
-    <script src="js/i18n.js?v=2"></script>
-    <script src="js/custom-select.js?v=1"></script>
+    <script src="js/i18n.js?v=3"></script>
+    <script src="js/custom-select.js?v=2"></script>
     <script src="js/age-verification.js?v=2"></script>
     <script src="js/emoji-render.js?v=1"></script>
     <link rel="stylesheet" href="js/system-dialog.css?v=2">
@@ -2643,7 +2647,8 @@
         function doPostComment(input, text) {
             if (isPostingComment) return;
             isPostingComment = true;
-            setTimeout(function() { isPostingComment = false; }, 3000); // failsafe unlock
+            // 3s fired while a slow moderation POST was still in flight.
+            setTimeout(function() { isPostingComment = false; }, 30000); // stuck-request escape hatch
 
             var btnSend = document.getElementById('btn-send');
             if (btnSend) {
@@ -2651,9 +2656,8 @@
                 btnSend.style.opacity = '0.5';
             }
 
-            // Clear immediately to prevent UI-bound double submissions
-            input.value = '';
-
+            // Keep the draft until the worker confirms: clearing here lost up to
+            // 1000 characters on any rate-limit / moderation / offline error.
             var postingTopicId = currentTopicId;
             var tokenSource = socialAuth.currentUser || currentUser;
             tokenSource.getIdToken(true).then(function (token) {
@@ -2675,6 +2679,8 @@
                         showAlertModal(result.error);
                         return;
                     }
+                    // Only clear if the user has not started typing something new.
+                    if (input.value.trim() === text.trim()) input.value = '';
                     var newCount = result.commentCount;
                     if (newCount != null) {
                         if (postingTopicId === '__proto__' || postingTopicId === 'constructor' || postingTopicId === 'prototype') return;

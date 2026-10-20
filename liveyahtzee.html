@@ -8,7 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="theme.js?v=19"></script>
+    <script src="theme.js?v=20"></script>
 
     <style>
         /* SYSTEM 7 AESTHETICS */
@@ -454,7 +454,7 @@
     </div>
 
     
-    <script src="js/i18n.js?v=2"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/gamerules.js?v=2"></script>
 
     <script>
@@ -575,7 +575,9 @@
             const initialGame = { status: 'lobby', host: currentUser.uid, players: {}, countdown: 0 };
             initialGame.players[currentUser.uid] = { name: currentUser.name, joinedAt: Date.now(), scores: {}, total: 0 };
             mmRef.onDisconnect().remove();
-            matchRef.onDisconnect().remove();
+            // Do NOT remove matchRef on disconnect: a brief host network hiccup
+            // would destroy the match and kick every remaining player.
+            // Host migration in listenToMatch() keeps the game alive.
             await matchRef.set(initialGame);
             listenToMatch();
             showScreen('lobby');
@@ -670,6 +672,23 @@
                 const data = snap.val();
                 if (!data) { showAlert("Game Closed", "The match has ended."); goHome(); return; }
                 gameState = data;
+
+                // Host migration (AGENTS §10): a host that leaves or drops must not
+                // kill the match. Promote the oldest remaining human, and let every
+                // client re-derive isHost from the node it just received.
+                if (gameState.players && gameState.host && !gameState.players[gameState.host]) {
+                    var _humans = Object.keys(gameState.players)
+                        .filter(function (uid) { return !gameState.players[uid].isBot; })
+                        .sort(function (a, b) { return (gameState.players[a].joinedAt || 0) - (gameState.players[b].joinedAt || 0); });
+                    if (_humans.length > 0 && currentUser && _humans[0] === currentUser.uid) {
+                        matchRef.update({ host: _humans[0] });
+                        rtdb.ref('matchmaking/yahtzee/' + matchId).update({
+                            hostUid: _humans[0],
+                            hostName: gameState.players[_humans[0]].name
+                        });
+                    }
+                }
+                isHost = !!(currentUser && gameState.host === currentUser.uid);
                 if (gameState.status === 'lobby') {
                     if (document.getElementById('screen-lobby').style.display === 'none') showScreen('lobby');
                     updateLobbyUI();

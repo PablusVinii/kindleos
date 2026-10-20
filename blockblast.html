@@ -8,7 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
     <script src="js/score-submit.js?v=1" data-game="blockblast"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/gamerules.js?v=2"></script>
     <style>
         /* SYSTEM 7 AESTHETICS */
@@ -365,7 +365,7 @@
             }
         }
     </style>
-    <script src="theme.js?v=19"></script>
+    <script src="theme.js?v=20"></script>
 </head>
 
 <body>
@@ -496,7 +496,6 @@
         let canvas, ctx;
 
         async function exitGame() {
-            console.log("Exit clicked. Current score:", score, "Best:", bestScore);
             // If they have a new high score, show saving modal and sync
             if (score > bestScore) {
                 document.getElementById('saving-modal').style.display = 'block';
@@ -504,7 +503,6 @@
                     // Small delay for UI to render on e-ink before heavy firestore op
                     await new Promise(r => setTimeout(r, 500));
                     await saveHighScore(score);
-                    console.log("Exit sync complete");
                     // Another small delay so user sees the "Saving..." finished state before redirect
                     await new Promise(r => setTimeout(r, 500));
                 } catch (e) {
@@ -534,12 +532,10 @@
                 if (user) {
                     uid = user.uid;
                     username = user.email ? user.email.split('@')[0] : ("User_" + uid.substring(0, 5));
-                    console.log("Auth Status: Logged in as", username);
                     loadPersonalHighScore();
                 } else {
                     uid = null;
                     username = "Guest";
-                    console.log("Auth Status: Not logged in");
                 }
                 initGame();
             });
@@ -561,7 +557,6 @@
         }
 
         async function saveHighScore(newScore) {
-            console.log("Attempting to save score:", newScore, "Best so far:", bestScore);
             if (newScore > bestScore) {
                 bestScore = newScore;
                 document.getElementById('best').innerText = bestScore;
@@ -569,10 +564,8 @@
 
                 // Save to Cloud
                 if (uid) {
-                    console.log("Saving to Cloud for UID:", uid);
                     try {
                         await window.RekindleScores.submit('leaderboard_blockblast', { score: newScore });
-                        console.log("Cloud save successful");
                     } catch (e) { console.error("Error saving score to Cloud:", e); }
                 }
             }

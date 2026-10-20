@@ -334,8 +334,12 @@
 
         /* Report button - matches kindlechat circular style */
         .report-btn {
-            width: 20px;
-            height: 20px;
+            /* 32px hit area with a negative margin so the header row keeps its
+               original 20px footprint. Still short of the 48px guideline, but
+               a full 48 would overlap the timestamp / Edit button next to it. */
+            width: 32px;
+            height: 32px;
+            margin: -6px;
             border: 1px solid black;
             border-radius: 50%;
             background: white;
@@ -763,14 +767,14 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="time.js?v=2"></script>
-    <script src="theme.js?v=19"></script>
+    <script src="time.js?v=3"></script>
+    <script src="theme.js?v=20"></script>
     <script src="bad_words.js?v=4"></script>
     <script src="js/promo-ban.js?v=1"></script>
     <link rel="stylesheet" href="css/custom-select.css">
-    <script src="js/i18n.js?v=2"></script>
+    <script src="js/i18n.js?v=3"></script>
     <script src="js/ui-kit.js?v=2"></script>
-    <script src="js/custom-select.js?v=1"></script>
+    <script src="js/custom-select.js?v=2"></script>
     <script src="js/age-verification.js?v=2"></script>
     <script src="js/emoji-render.js?v=1"></script>
     <link rel="stylesheet" href="js/system-dialog.css?v=2">
@@ -1478,7 +1482,6 @@
                 const newIsPlus = (e.newValue !== 'false');
                 if (newIsPlus !== isPlus) {
                     isPlus = newIsPlus;
-                    console.log("Pro Status Sync (Neighbourhood): ", isPlus);
                     reRenderRecentPosts();
                 }
             }
@@ -2911,6 +2914,23 @@
                                 if (emptyEl) emptyEl.remove();
                                 renderPostItem(post, feed, true);
                             }
+                        } else if (change.type === 'modified') {
+                            // Edits (editPost) and translation-worker writes both
+                            // arrive as `modified`. Without this branch an admin
+                            // edit did nothing on screen and a fresh post stayed in
+                            // its original language until a reload.
+                            const idx = recentPosts.findIndex(p => p.id === change.doc.id);
+                            if (idx !== -1) recentPosts[idx] = post;
+                            const existingCard = feed.querySelector('[data-post-id="' + change.doc.id + '"]');
+                            if (existingCard) {
+                                const nextNode = existingCard.nextSibling;
+                                existingCard.remove();
+                                renderPostItem(post, feed);
+                                const fresh = feed.querySelector('[data-post-id="' + change.doc.id + '"]');
+                                if (fresh && nextNode && nextNode.parentNode === feed) {
+                                    feed.insertBefore(fresh, nextNode);
+                                }
+                            }
                         } else if (change.type === 'removed') {
                             renderedPostKeys.delete(change.doc.id);
                             recentPosts = recentPosts.filter(p => p.id !== change.doc.id);
@@ -3747,7 +3767,6 @@
             const text = textDiv.getAttribute('data-original');
             if (!text) return;
 
-            console.log("Reprocessing post:", postId);
 
             var tokenSource = socialAuth.currentUser || currentUser;
             tokenSource.getIdToken(true).then(function (token) {
@@ -3768,7 +3787,6 @@
                     .then(function (resp) { return resp.json(); })
                     .then(function (data) {
                         if (data.success) {
-                            console.log("Reprocess success:", data);
                             showAlertModal("Reprocess triggered. It should update shortly on refresh.");
                         } else {
                             console.error("Reprocess error:", data);

@@ -12,7 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
     <script src="js/score-submit.js?v=1" data-game="pacman"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js?v=2"></script>
+    <script src="js/i18n.js?v=3"></script>
 
     <style>
         /* SYSTEM 7 AESTHETICS */
@@ -338,7 +338,7 @@
             }
         }
     </style>
-    <script src="theme.js?v=19"></script>
+    <script src="theme.js?v=20"></script>
 </head>
 
 <body>
@@ -470,6 +470,7 @@
         let lives = 3;
         let level = 1;
         let state = 'idle'; // idle, ready, playing, dying, clear, gameover
+        let rafId = null;
         let stateTimer = 0;
         let frightTimer = 0;
         let ghostCombo = 0;
@@ -620,7 +621,7 @@
                 startButton.removeAttribute('data-i18n');
             });
 
-            requestAnimationFrame(loop);
+            rafId = requestAnimationFrame(loop);
         }
 
         function resizeCanvas() {
@@ -648,6 +649,7 @@
             resetPositions();
             state = 'ready';
             stateTimer = 1600;
+            if (!rafId) rafId = requestAnimationFrame(loop);
         }
 
         // --- HIGHSCORE LOGIC ---
@@ -904,6 +906,10 @@
 
         // --- GAME LOOP ---
         function loop(timestamp) {
+            // Nothing on screen can change while the start modal is up or after
+            // game over, so stop the loop instead of repainting the whole maze
+            // ~60x/second forever.
+            if (state === 'idle' || state === 'gameover') { rafId = null; return; }
             if (!lastTime) lastTime = timestamp;
             let dt = timestamp - lastTime;
             lastTime = timestamp;
@@ -913,7 +919,7 @@
             update(dt);
             draw();
 
-            requestAnimationFrame(loop);
+            rafId = requestAnimationFrame(loop);
         }
 
         function update(dt) {
@@ -1057,6 +1063,7 @@
 
         function endGame() {
             state = 'gameover';
+            if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
             saveHighScore(score);
             document.getElementById('final-score').innerText = score;
             document.getElementById('game-over').style.display = 'block';

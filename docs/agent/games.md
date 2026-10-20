@@ -359,3 +359,25 @@ no emoji, no `alert`, no `aspect-ratio`/`min()`/`max()`.
 ---
 
 New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).
+
+## 2026-10-20: host migration + idle loops (audit `docs/audit-2026-10-20.md`)
+
+- **Six live games stopped deleting their game node on host disconnect.** `livechess`,
+  `livecheckers`, `liveconnect4`, `livedotsandboxes`, `livetictactoe` and `liveyahtzee` each had
+  `matchRef.onDisconnect().remove()` (where `matchRef` is `games/<type>/<id>`), so a host network
+  blip wiped the match for everyone. Those calls are gone, and each `listenToMatch()` now carries
+  the liveuno migration block:
+  ```js
+  if (gameState.players && gameState.host && !gameState.players[gameState.host]) { /* promote oldest human */ }
+  isHost = !!(currentUser && gameState.host === currentUser.uid);
+  ```
+  Re-deriving `isHost` on every snapshot is the important half: without it the promoted client
+  keeps `isHost === false` and never runs the host-only timers.
+- **`livepictionary.html`** had the same missing `isHost` re-derivation (it already kept the game
+  node). Fixed in `listenToMatch()`; the promoted host's round timers now run.
+- **`pacman.html`** stops its `requestAnimationFrame` loop in `endGame()` and while idle (start
+  modal up), re-arming in `startGame()`.
+- **`cubedash.html`** skips `drawFrame()` while paused or level-complete.
+
+When adding another live game, copy `listenToMatch()` from `liveuno.html` (migration + `isHost`
+line) rather than the older scaffold - the drift is what produced the six bugs above.

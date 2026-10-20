@@ -99,10 +99,13 @@
     files.push('locales/' + lang + '.json');
     if (extraPrefix) files.push('locales/' + extraPrefix + '-' + lang + '.json');
 
-    // Optimization: Unblock English users immediately. 
-    // They will use in-code defaults until the background fetch completes.
+    // English needs no locale file: every data-i18n element already carries its
+    // English copy in the markup, and window.t() falls back to the inline
+    // default. locales/en.json is 173 KB / 3,520 keys and was fetched and
+    // JSON.parsed on every navigation just to resolve a handful of
+    // attribute-only strings. Pages with data-i18n-file still fetch theirs.
     if (lang === 'en' && !extraPrefix) {
-        setTimeout(notifyReady, 0);
+        files.length = 0;
     }
 
     Promise.all(files.map(function (url) {
@@ -148,6 +151,26 @@
         notifyReady(); // Continue even on error to unblock app
     });
 
+    var I18N_SELECTOR = '[data-i18n], [data-i18n-placeholder], [data-i18n-title], [data-i18n-only], [data-i18n-html]';
+
+    function hasI18nAttr(el) {
+        return !!(el.getAttribute('data-i18n') || el.getAttribute('data-i18n-placeholder') ||
+            el.getAttribute('data-i18n-title') || el.getAttribute('data-i18n-only') ||
+            el.getAttribute('data-i18n-html'));
+    }
+
+    // Cheap pre-check for the MutationObserver: most inserted nodes are leaves
+    // with no i18n attributes, so skip them without running a selector scan.
+    function needsTranslation(node, haveTranslations) {
+        if (hasI18nAttr(node)) return true;
+        if (!node.firstElementChild) return false;
+        if (!haveTranslations) {
+            // Nothing to translate, but data-i18n-only still needs applying.
+            return !!(node.querySelector && node.querySelector('[data-i18n-only]'));
+        }
+        return !!(node.querySelector && node.querySelector(I18N_SELECTOR));
+    }
+
     function applyTranslations(t, root) {
         root = root || document;
 
@@ -164,14 +187,9 @@
             if (k5 && t[k5]) el.innerHTML = t[k5];
         };
 
-        var selector = '[data-i18n], [data-i18n-placeholder], [data-i18n-title], [data-i18n-only], [data-i18n-html]';
-        var els = root.querySelectorAll ? root.querySelectorAll(selector) : [];
+        var els = root.querySelectorAll ? root.querySelectorAll(I18N_SELECTOR) : [];
         for (var i = 0; i < els.length; i++) translate(els[i]);
-        if (root !== document && root.getAttribute && (
-            root.getAttribute('data-i18n') || root.getAttribute('data-i18n-placeholder') ||
-            root.getAttribute('data-i18n-title') || root.getAttribute('data-i18n-only') ||
-            root.getAttribute('data-i18n-html')
-        )) {
+        if (root !== document && root.getAttribute && hasI18nAttr(root)) {
             translate(root);
         }
     }
@@ -183,10 +201,14 @@
 
         var startObserver = function () {
             if (!document.body) return;
+            var haveTranslations = false;
+            for (var key in translations) {
+                if (translations.hasOwnProperty(key)) { haveTranslations = true; break; }
+            }
             var observer = new MutationObserver(function (mutations) {
                 mutations.forEach(function (mutation) {
                     mutation.addedNodes.forEach(function (node) {
-                        if (node.nodeType === 1) { // 1 = Element
+                        if (node.nodeType === 1 && needsTranslation(node, haveTranslations)) {
                             applyTranslations(translations, node);
                         }
                     });

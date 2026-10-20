@@ -36,3 +36,20 @@ The comments listener was `innerHTML = ''` + re-render ALL (≤100) comments per
 ---
 
 New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).
+
+### 2026-10-20 follow-up fixes (audit `docs/audit-2026-10-20.md`)
+
+Applied in one batch; each is independently revertable.
+
+- **`js/i18n.js` no longer fetches `locales/en.json`.** 173 KB / 3,520 keys were downloaded and `JSON.parse`d on every navigation to resolve three attribute-only strings (now inlined as markup fallbacks). Pages with `data-i18n-file` still fetch their file. The `MutationObserver` also skips inserted leaves with no i18n attributes (`needsTranslation()`), and does nothing but `data-i18n-only` when the translation table is empty (English).
+- **`theme.js` `init()` runs once.** The old code called the whole set on `DOMContentLoaded` *and* immediately after, and `applyTheme`/`applyFont` a third time. `FONT_KEY` moved to the top of the file so the single early `init()` still sees it.
+- **`journal.html`** debris: `updateCache()` is debounced 500 ms instead of running synchronously on every keystroke, flushed on `pagehide`/`visibilitychange`, and a pending save no longer gets clobbered by the next cloud snapshot.
+- **`timer.html`**: interval callbacks save at most every 10 s (`saveStateThrottled`); the stopwatch used to write 5 keys every 100 ms. Transitions still call `saveState()` and `pagehide` flushes.
+- **`rssreader.html`**: opening an article patches one card (`updateArticleReadState`) instead of rebuilding the whole list, and the per-article blob URL is revoked on close/replace.
+- **`mail.html`**: marking a message read toggles one row (rows carry `data-uid`) instead of re-rendering the list.
+- **`bible.html`**: scripture datasets load on demand (`ensureLocalScriptureData`) instead of ~272 KB of Dhammapada/Tao JSON before the first chapter.
+- **`watchlist.html`**: TMDB seasons fetch in parallel batches of 3 instead of one serial request per season.
+- **`dropbox.html`**: follows `has_more`/`cursor` with `filesListFolderContinue` (500-entry cap) and redraws once.
+- **`reddit.html`**: cached feed payloads are capped at 5 subs with an LRU index instead of one `reddit_feed_xml_*` key per subreddit forever.
+- **`functions/api/price.js`**: edge cache + "last good" stale fallback + `Retry-After`-friendly retry on the alternate host (matches the other proxies).
+- **`settings.html`**: the pixel wallpaper editor still re-encodes per touched pixel (not changed) but location is now plain JSON - see AGENTS.md.
