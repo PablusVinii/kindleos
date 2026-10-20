@@ -1,5 +1,20 @@
 import { mergeClaims } from './claims.js';
 
+// Per-isolate caches. The OAuth token is valid for an hour; minting one per
+// call (a webhook could call it three times) is pure latency.
+const googleTokenCache = { token: null, expiresAt: 0 };
+const googleJwkCache = { keys: null, expiresAt: 0 };
+
+async function getGoogleJwks() {
+    if (googleJwkCache.keys && googleJwkCache.expiresAt > Date.now()) return googleJwkCache.keys;
+    const res = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
+    if (!res.ok) throw new Error('Could not fetch Google public keys');
+    const data = await res.json();
+    googleJwkCache.keys = data.keys || [];
+    googleJwkCache.expiresAt = Date.now() + 6 * 60 * 60 * 1000;
+    return googleJwkCache.keys;
+}
+
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
@@ -641,11 +656,9 @@ async function verifyFirebaseIdToken(env, idToken) {
     if (payload.aud !== env.FIREBASE_PROJECT_ID) throw new Error('Invalid audience');
     if (payload.iss !== `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}`) throw new Error('Invalid issuer');
 
-    const keysRes = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
-    if (!keysRes.ok) throw new Error('Could not fetch Google public keys');
-    const keys = await keysRes.json();
+    const keys = await getGoogleJwks();
 
-    const jwk = keys.keys.find(k => k.kid === header.kid);
+    const jwk = keys.find(k => k.kid === header.kid);
     if (!jwk) throw new Error('Unknown signing key');
 
     const cryptoKey = await crypto.subtle.importKey(
@@ -665,14 +678,13 @@ async function verifyFirebaseIdToken(env, idToken) {
 
 // --- GOOGLE AUTH (Service Account JWT) ---
 async function getGoogleAccessToken(env) {
+    if (googleTokenCache.token && googleTokenCache.expiresAt > Date.now()) {
+        return googleTokenCache.token;
+    }
     const clientEmail = env.FIREBASE_CLIENT_EMAIL;
     const privateKeyPEM = env.FIREBASE_PRIVATE_KEY; // Expects standard PEM format with \n or literal newlines
 
     if (!clientEmail || !privateKeyPEM) throw new Error("Missing Firebase credentials");
-
-    // Clean API Key
-    console.log("Debug: Raw Key Length", privateKeyPEM.length);
-    console.log("Debug: Raw Key Start", privateKeyPEM.substring(0, 30));
 
     // Robust extraction: Find the content BETWEEN the headers, ignoring everything else.
     // 1. Unescape literal newlines from CLI input
@@ -695,7 +707,6 @@ async function getGoogleAccessToken(env) {
 
     // Remove all whitespace
     privateKeyBody = privateKeyBody.replace(/\s+/g, '');
-    console.log("Debug: Extracted Body Start (Fallback)", privateKeyBody.substring(0, 20));
 
     const binaryKey = str2ab(atob(privateKeyBody));
 
@@ -755,7 +766,10 @@ async function getGoogleAccessToken(env) {
     const tokenData = await tokenRes.json();
     if (tokenData.error) throw new Error("Google Token Error: " + JSON.stringify(tokenData));
 
-    return tokenData.access_token;
+    const expiresIn = Number(tokenData.expires_in) || 3600;
+    googleTokenCache.token = tokenData.access_token;
+    googleTokenCache.expiresAt = Date.now() + Math.max(60, expiresIn - 120) * 1000;
+    return googleTokenCache.token;
 }
 
 // --- UTILS ---
@@ -939,111 +953,70 @@ async function getEmailForUid(env, uid, existingToken = null) {
     return null;
 }
 
-// --- ADD TO CONFIG/SUPPORTERS ---
-// Updates config/supporters document with username and expiry
-// --- ADD TO CONFIG/SUPPORTERS ---
-// Updates config/supporters document with email and expiry
-async function addToSupportersConfig(env, token, email, expiresAt, isLifetime = false) {
+// --- CONFIG/SUPPORTERS (single-field writes) ---
+// Both helpers used to GET the whole map, mutate one key and PATCH the map
+// back. Two concurrent webhooks (or a bulk sync) would read the same old map
+// and the second write dropped the first subscriber. A field mask writes only
+// the one email, so concurrent grants cannot clobber each other.
+function firestoreFieldPath(key) {
+    // Dots are path separators in a Firestore field mask; emails contain them.
+    return '`' + String(key).replace(/\\/g, '\\\\').replace(/`/g, '\\`') + '`';
+}
+
+async function patchSupporterField(env, token, email, value) {
     const projectId = env.FIREBASE_PROJECT_ID;
     const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+    const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+    };
+    const mask = encodeURIComponent(firestoreFieldPath(email));
 
-    // For lifetime members, use a very far future date (year 2100)
-    const finalExpiry = isLifetime ? new Date('2100-01-01T00:00:00Z') : expiresAt;
+    const body = { fields: {} };
+    if (value) body.fields[email] = value;
 
-    // We need to update a single field within the map. 
-    // Firestore REST API uses field masks with dot notation for nested fields.
-    // config/supporters structure: { "email@example.com": { expiresAt: timestamp }, ... }
+    let res = await fetch(`${baseUrl}/config/supporters?updateMask.fieldPaths=${mask}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(body)
+    });
 
-    // First, get the current document to merge
-    let existingData = {};
-    try {
-        const getRes = await fetch(`${baseUrl}/config/supporters`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+    if (res.status === 404) {
+        // The document does not exist yet: a masked update cannot create it.
+        if (!value) return true; // nothing to remove
+        res = await fetch(`${baseUrl}/config/supporters`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ fields: body.fields })
         });
-        if (getRes.ok) {
-            const doc = await getRes.json();
-            if (doc.fields) {
-                existingData = doc.fields;
-            }
-        }
-    } catch (e) {
-        // Document might not exist yet, that's fine
     }
 
-    // Add/update this user
-    existingData[email] = {
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Failed to update config/supporters: ${res.status} ${text}`);
+    }
+    return true;
+}
+
+// Updates config/supporters with this email's expiry.
+async function addToSupportersConfig(env, token, email, expiresAt, isLifetime = false) {
+    // For lifetime members, use a very far future date (year 2100)
+    const finalExpiry = isLifetime ? new Date('2100-01-01T00:00:00Z') : expiresAt;
+    return patchSupporterField(env, token, email, {
         mapValue: {
             fields: {
                 expiresAt: { timestampValue: finalExpiry.toISOString() },
                 isLifetime: { booleanValue: isLifetime }
             }
         }
-    };
-
-    // Write the full document back
-    const url = `${baseUrl}/config/supporters`;
-    const body = { fields: existingData };
-
-    const res = await fetch(url, {
-        method: 'PATCH',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
     });
-
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Failed to update config/supporters: ${res.status} ${text}`);
-    }
-
-    return true;
 }
 
 // --- REMOVE FROM CONFIG/SUPPORTERS ---
 async function removeFromSupportersConfig(env, token, email) {
-    const projectId = env.FIREBASE_PROJECT_ID;
-    const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
-
-    // Get current document
-    let existingData = {};
-    try {
-        const getRes = await fetch(`${baseUrl}/config/supporters`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (getRes.ok) {
-            const doc = await getRes.json();
-            if (doc.fields) {
-                existingData = doc.fields;
-            }
-        }
-    } catch (e) {
-        return; // Nothing to remove
-    }
-
-    // Remove this user
-    delete existingData[email];
-
-    // Write the document back
-    const url = `${baseUrl}/config/supporters`;
-    const body = { fields: existingData };
-
-    const res = await fetch(url, {
-        method: 'PATCH',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-    });
-
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Failed to update config/supporters: ${res.status} ${text}`);
-    }
-
-    return true;
+    // A masked PATCH that omits the field deletes it; 404 means there was
+    // nothing to remove.
+    return patchSupporterField(env, token, email, null);
 }
 
 // --- BULK SYNC SUPPORTERS ---

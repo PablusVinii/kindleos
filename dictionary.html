@@ -170,7 +170,7 @@
         }
     </style>
     <link rel="stylesheet" href="css/custom-select.css">
-    <script src="theme.js?v=20"></script>
+    <script src="theme.js?v=21"></script>
     <script src="js/safe-html.js?v=1"></script>
     <style>
         #content-area {
@@ -517,7 +517,7 @@
             let audioHtml = "";
             const phonetic = entry.phonetics.find(p => p.audio && p.audio.length > 0);
             if (phonetic) {
-                audioHtml = `<button class="audio-btn" onclick="playAudio(${jsArg(phonetic.audio)})">🔊</button>`;
+                audioHtml = `<button class="audio-btn" onclick="playAudio(${jsArg(phonetic.audio)})">♪</button>`;
             }
             const textPhonetic = entry.phonetic || (entry.phonetics.find(p => p.text) ? entry.phonetics.find(p => p.text).text : "");
 
@@ -746,7 +746,7 @@
             // Find first valid audio
             const phonetic = entry.phonetics.find(p => p.audio && p.audio.length > 0);
             if (phonetic) {
-                audioHtml = `<button class="audio-btn" onclick="playAudio(${jsArg(phonetic.audio)})">🔊</button>`;
+                audioHtml = `<button class="audio-btn" onclick="playAudio(${jsArg(phonetic.audio)})">♪</button>`;
             }
 
             const textPhonetic = entry.phonetic || (entry.phonetics.find(p => p.text) ? entry.phonetics.find(p => p.text).text : "");

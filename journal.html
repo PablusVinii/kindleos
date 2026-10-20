@@ -11,7 +11,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="time.js?v=3"></script>
+    <script src="time.js?v=4"></script>
     <script src="js/i18n.js?v=3"></script>
     <style>
         /* SYSTEM 7 AESTHETICS */
@@ -649,7 +649,7 @@
             margin-left: 10px;
         }
     </style>
-    <script src="theme.js?v=20"></script>
+    <script src="theme.js?v=21"></script>
     
     
 </head>
@@ -888,9 +888,26 @@
                     if (saveTimer) return;
 
                     if (cloudNotes.length > 0 || snapshot.size === 0) {
-                        notes = cloudNotes;
+                        // Merge by `updated`: a note whose cached copy is newer than
+                        // the cloud copy (page killed before the debounced write
+                        // landed) must not be overwritten by the stale document.
+                        var localById = {};
+                        (notes || []).forEach(function (n) { if (n && n.id) localById[n.id] = n; });
+                        var toPush = [];
+                        var merged = cloudNotes.map(function (c) {
+                            var l = localById[c.id];
+                            if (l && (l.updated || 0) > (c.updated || 0)) {
+                                toPush.push(l);
+                                return l;
+                            }
+                            return c;
+                        });
+                        merged.sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); });
+                        notes = merged;
                         updateCache();
                         renderList();
+                        // Re-persist the recovered newer notes so the cloud catches up.
+                        toPush.forEach(function (n) { if (currentUser) pushNoteToCloud(n); });
                     }
                 }, (error) => {
                     console.error("Error getting notes: ", error);

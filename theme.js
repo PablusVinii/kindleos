@@ -627,13 +627,29 @@
         return false;
     }
 
+    // Try once immediately (the Firebase SDK is usually already parsed), then
+    // poll for at most 10s instead of the old 1s x 30 (30s) wakeup tail.
     var presenceAttempts = 0;
-    var presenceTimer = setInterval(function () {
-        presenceAttempts++;
-        if (autoInitPresence() || presenceAttempts > 30) {
-            clearInterval(presenceTimer);
+    var presenceTimer = null;
+
+    function tryAutoInitPresence() {
+        if (autoInitPresence()) {
+            if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; }
+            return true;
         }
-    }, 1000);
+        return false;
+    }
+
+    if (!tryAutoInitPresence()) {
+        presenceTimer = setInterval(function () {
+            presenceAttempts++;
+            if (tryAutoInitPresence() || presenceAttempts >= 20) {
+                clearInterval(presenceTimer);
+                presenceTimer = null;
+            }
+        }, 500);
+        window.addEventListener('load', tryAutoInitPresence);
+    }
 
     // --- CACHE MANAGEMENT ---
     function clearServiceWorkerCache() {

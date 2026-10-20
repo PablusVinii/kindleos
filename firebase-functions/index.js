@@ -201,9 +201,29 @@ async function assertMailRate(uid, kind, limit, windowMs) {
     }
 }
 
+// Mail opens a callable per folder/message; each one re-read the Pro status
+// (up to two Firestore reads, including the whole supporters map). A short
+// cache is safe: a cancelled subscription still loses access within a minute.
+const proStatusCache = new Map(); // uid -> { value: boolean, expires: number }
+const PRO_CACHE_TTL_MS = 60 * 1000;
+
+async function isUserProCached(uid, email, token) {
+    const hit = proStatusCache.get(uid);
+    if (hit && hit.expires > Date.now()) return hit.value;
+    const value = await isUserPro(uid, email, token);
+    proStatusCache.set(uid, { value, expires: Date.now() + PRO_CACHE_TTL_MS });
+    if (proStatusCache.size > 1000) {
+        const now = Date.now();
+        for (const [key, entry] of proStatusCache) {
+            if (entry.expires <= now) proStatusCache.delete(key);
+        }
+    }
+    return value;
+}
+
 async function assertMailAccess(request, kind) {
     const auth = requireAuth(request);
-    const pro = await isUserPro(auth.uid, auth.token.email, auth.token);
+    const pro = await isUserProCached(auth.uid, auth.token.email, auth.token);
     if (!pro) {
         throw new HttpsError('permission-denied', 'ReKindle+ is required for mail.');
     }
@@ -1219,41 +1239,41 @@ exports.getSocialToken = onCall(callOptions, async (request) => {
 
     const uid = request.auth.uid;
 
-    // Fetch moderator status from main project RTDB
-    const modSnap = await admin.database().ref('moderators/' + uid).once('value');
-    const isModerator = modSnap.val() === true;
+    // These three lookups are independent; they used to run in series on every
+    // social page load, before the client could sign in to the social project.
+    const needsVerifyDoc = request.auth.token.ageVerified !== true;
+    const verifyPromise = needsVerifyDoc
+        ? admin.firestore()
+            .collection('users').doc(uid)
+            .collection('ageVerification').doc('latest')
+            .get()
+            .catch(() => null)
+        : Promise.resolve(null);
 
-    // Pro status: claim first, then Firestore/supporters. This keeps existing
-    // subscribers working even if their token predates the claim-merge fix.
-    const isPro = await isUserPro(uid, request.auth.token.email, request.auth.token);
+    const [modSnap, isPro, verifyDoc] = await Promise.all([
+        admin.database().ref('moderators/' + uid).once('value'),
+        isUserPro(uid, request.auth.token.email, request.auth.token),
+        verifyPromise
+    ]);
+    const isModerator = modSnap.val() === true;
 
     // Age verification status from main project auth claims. Older Stripe
     // claim writes wiped this claim, so repair it lazily from the audit doc.
     let isAgeVerified = request.auth.token.ageVerified === true;
-    if (!isAgeVerified) {
+    if (!isAgeVerified && verifyDoc && verifyDoc.exists && verifyDoc.data().verified === true) {
+        isAgeVerified = true;
         try {
-            const verifyDoc = await admin.firestore()
-                .collection('users').doc(uid)
-                .collection('ageVerification').doc('latest')
-                .get();
-            if (verifyDoc.exists && verifyDoc.data().verified === true) {
-                isAgeVerified = true;
-                try {
-                    const userRecord = await admin.auth().getUser(uid);
-                    await admin.auth().setCustomUserClaims(uid, {
-                        ...(userRecord.customClaims || {}),
-                        ageVerified: true,
-                        ageVerifiedAt: Date.now(),
-                        ageVerificationCountry: verifyDoc.data().country || null,
-                        ageVerificationThreshold: verifyDoc.data().ageThreshold || null,
-                        ageVerificationMethod: 'self_declaration_repair'
-                    });
-                } catch (repairErr) {
-                    logger.warn('getSocialToken: could not repair ageVerified claim:', repairErr.message);
-                }
-            }
-        } catch (e) {
-            logger.warn('getSocialToken: age verification lookup failed:', e.message);
+            const userRecord = await admin.auth().getUser(uid);
+            await admin.auth().setCustomUserClaims(uid, {
+                ...(userRecord.customClaims || {}),
+                ageVerified: true,
+                ageVerifiedAt: Date.now(),
+                ageVerificationCountry: verifyDoc.data().country || null,
+                ageVerificationThreshold: verifyDoc.data().ageThreshold || null,
+                ageVerificationMethod: 'self_declaration_repair'
+            });
+        } catch (repairErr) {
+            logger.warn('getSocialToken: could not repair ageVerified claim:', repairErr.message);
         }
     }
 
@@ -1269,24 +1289,30 @@ exports.getSocialToken = onCall(callOptions, async (request) => {
     }
 
     // Ensure the user record exists in the social project's auth system with
-    // their email so they show up in the Firebase Console Authentication section.
+    // their email so they show up in the Firebase Console Authentication
+    // section. This is cosmetic: do not block token minting on it.
     if (email) {
-        try {
-            const socialUser = await socialAdminApp.auth().getUser(uid);
-            if (socialUser.email !== email) {
-                await socialAdminApp.auth().updateUser(uid, { email });
-            }
-        } catch (e) {
-            if (e.code === 'auth/user-not-found') {
-                await socialAdminApp.auth().createUser({
-                    uid,
-                    email,
-                    emailVerified: true
-                });
-            } else {
+        socialAdminApp.auth().getUser(uid)
+            .then((socialUser) => {
+                if (socialUser.email !== email) {
+                    return socialAdminApp.auth().updateUser(uid, { email });
+                }
+                return null;
+            })
+            .catch((e) => {
+                if (e.code === 'auth/user-not-found') {
+                    return socialAdminApp.auth().createUser({
+                        uid,
+                        email,
+                        emailVerified: true
+                    });
+                }
                 logger.warn('getSocialToken: failed to sync user to social project:', e.message);
-            }
-        }
+                return null;
+            })
+            .catch((e) => {
+                logger.warn('getSocialToken: social user sync failed:', e.message);
+            });
     }
 
     // Generate custom token signed by the social project's service account

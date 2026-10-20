@@ -10,24 +10,40 @@ has been verified on a Kindle or an e-ink panel — that is part of the work.
 **Order:** P1 = user-visible or correctness risk; P2 = measurable slowdown on the target device;
 P3 = maintainability. `risk` is the chance the change breaks something a test cannot catch.
 
+
+## Status 2026-10-21 (backlog pass)
+
+**Shipped:** BL-02, BL-03, BL-04, BL-05, BL-06, BL-07, BL-08, BL-09 (KindleChat, Neighbourhood
+post/comment, Topics comment), BL-11, BL-12, BL-13, BL-14, BL-15, BL-16, BL-17, BL-18, BL-19,
+BL-20, BL-24, BL-26 (stale service workers deleted), BL-28a–d, plus the repo-wide emoji sweep.
+Details are recorded in the matching `docs/agent/*.md`.
+
+**Still open (deliberately):**
+
+| ID | Why it is still open |
+|---|---|
+| BL-01 | Checked and **not applicable** — see the corrected entry below |
+| BL-10 | Reader chapter-mounting is a rewrite of pagination + resume; needs device testing |
+| BL-21 | 130+ page edits with differing modal behaviour; needs a visual QA pass |
+| BL-22 | Same: a shared stylesheet changes every page's layout |
+| BL-23 | Pruning needs per-namespace review; added `npm run locales:report` instead |
+| BL-25 | Same root cause as BL-01: the fork has no live-games feature to keep in sync |
+| BL-26 (pages) | `manga.html` / `texasholdem.html` need a product decision (register or delete) |
+| BL-27 (mail) | Stripe caches and the supporters field mask shipped; the mail callables still run serially because `loadEmails` depends on `loadFolders` setting `currentFolder` |
+| BL-28e | `moderation.html` has no `data-i18n` attributes at all, so adding i18n would be a no-op; adding `theme.js` would change an admin layout that was never built for zoom |
+
 ---
 
 ## P1 — correctness / user-visible
 
-### BL-01 · Lite / Legacy / Kobo dashboard never got the live-lobby validator
-- **Where:** `build-automation.js:1703` swaps `index_old.html` in as `index.html` for the Lite and
-  Legacy deploys; `index.html:12` also redirects `rekindle_layout=old` users there.
-- **Evidence:** `grep -c validateLiveMatch index.html` → 3, `index_old.html` → 0;
-  `grep -c matchmaking index_old.html` → 0.
-- **Symptom:** ghost `LIVE` badges and dead lobbies on the oldest Kindles and Kobas — exactly the
-  bug AGENTS §11 fixed for the main build.
-- **Fix:** either (a) port `validateLiveMatch` + the `cachedMatchValidation` cache and both call
-  sites into `index_old.html`, or (b) extract the dashboard body (app grid, favourites, live
-  validation, badge) to `js/dashboard.js` and leave only layout deltas in the two files.
-- **Verify:** build the Lite target (`_deploy/lite/index.html`), load it with a stale
-  `matchmaking` entry, confirm the card disappears and the listing is cleaned up.
-- **Effort:** medium · **Risk:** medium · **Why deferred:** the Lite build cannot be exercised
-  here and a half-port is worse than none.
+### BL-01 · NOT APPLICABLE — the Lite dashboard has no live-lobby UI
+- **Checked 2026-10-21:** `grep -c "matchmaking\|liveGames\|live-games" index_old.html` → 0. Its
+  `LIVE` labels come from the static `app.live` metadata flag (it means "this app supports live
+  play"), not from `matchmaking` listings. There is nothing to validate or clean up.
+- **What is actually true:** the Lite/Legacy build has no live-games section at all. Adding one is
+  a feature, not a fix; if that is wanted, port `validateLiveMatch` + the badge listener + the tab
+  together.
+- **Original audit claim was wrong** — it inferred a listing UI that does not exist.
 
 ### BL-02 · Topic search rebuilds the whole sidebar per keystroke
 - **Where:** `topics.html:867` `oninput="renderSidebar()"`; the rebuild is `topics.html:1592–1700`.

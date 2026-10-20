@@ -887,8 +887,8 @@
         }
     </style>
     <link rel="stylesheet" href="css/custom-select.css">
-    <script src="time.js?v=3"></script>
-    <script src="theme.js?v=20"></script>
+    <script src="time.js?v=4"></script>
+    <script src="theme.js?v=21"></script>
     <script src="js/i18n.js?v=3"></script>
     <script src="js/ui-kit.js?v=2"></script>
     <script src="js/custom-select.js?v=2"></script>
@@ -1289,9 +1289,12 @@
             const todayZoned = getZonedDate();
             todayZoned.setHours(0, 0, 0, 0);
 
-            // Filter logic: Check if event's zoned start time is >= todayZoned
+            // Filter logic: Check if event's zoned start time is >= todayZoned.
+            // Cache the conversion for the grouping pass below.
+            const zonedByKey = {};
             const filteredEvents = events.filter(e => {
                 const z = getZonedDate(new Date(e.start));
+                zonedByKey[e.id || e.start] = z;
                 return z >= todayZoned;
             });
 
@@ -1307,7 +1310,7 @@
             const grouped = {};
             filteredEvents.forEach(e => {
                 // IMPORTANT: Group by the DATE as it appears in the TARGET ZONE
-                const z = getZonedDate(new Date(e.start));
+                const z = zonedByKey[e.id || e.start] || getZonedDate(new Date(e.start));
                 // Use a string key based on the zoned date values
                 // ISO string slice is risky if z is local time, so build manually or use formatted
                 const dateKey = z.getFullYear() + '-' + (z.getMonth() + 1).toString().padStart(2, '0') + '-' + z.getDate().toString().padStart(2, '0');
@@ -1475,13 +1478,17 @@
                     { icon: 'calendar' }
                 );
             } else {
-                // Group by hour for a structured look
+                // Group by hour for a structured look. This used to run
+                // getZonedDate() once per event per hour (24xN conversions).
+                const byHour = {};
+                dayEvents.forEach(e => {
+                    const hour = getZonedDate(new Date(e.start)).getHours();
+                    if (!byHour[hour]) byHour[hour] = [];
+                    byHour[hour].push(e);
+                });
+
                 for (let hour = 0; hour < 24; hour++) {
-                    const hourEvents = dayEvents.filter(e => {
-                        const d = new Date(e.start);
-                        const zoned = getZonedDate(d);
-                        return zoned.getHours() === hour;
-                    });
+                    const hourEvents = byHour[hour] || [];
 
                     if (hourEvents.length > 0) {
                         const slot = document.createElement('div');

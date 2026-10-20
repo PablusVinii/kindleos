@@ -591,8 +591,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="time.js?v=3"></script>
-    <script src="theme.js?v=20"></script>
+    <script src="time.js?v=4"></script>
+    <script src="theme.js?v=21"></script>
     <script src="pro-gate.js?v=2"></script>
     
     <script src="js/i18n.js?v=3"></script>
@@ -1188,22 +1188,30 @@
                 });
 
                 if (result.data.success) {
+                    const newMessages = result.data.messages || [];
+                    const previousLast = emails.length ? emails[emails.length - 1] : null;
+
                     if (reset) {
-                        emails = result.data.messages;
+                        emails = newMessages;
                     } else {
-                        emails = emails.concat(result.data.messages);
+                        emails = emails.concat(newMessages);
                         isLoadingMore = false;
                     }
 
                     // Sort emails by date (newest first)
                     emails.sort((a, b) => {
-                        const dateA = new Date(a.envelope.date || a.internalDate);
-                        const dateB = new Date(b.envelope.date || b.internalDate);
-                        return dateB - dateA; // Descending order
+                        return emailDate(b) - emailDate(a); // Descending order
                     });
 
+                    const appendedPage = !reset && previousLast && newMessages.length &&
+                        emailDate(newMessages[0]) <= emailDate(previousLast);
+
                     currentCursor = result.data.nextCursor;
-                    renderEmailList();
+                    if (appendedPage) {
+                        appendEmailRows(newMessages);
+                    } else {
+                        renderEmailList();
+                    }
                     document.getElementById('status-bar').innerText = `Loaded ${emails.length} emails.`;
                 } else {
                     throw new Error(result.data.error);
@@ -1222,12 +1230,12 @@
             }
         }
 
-        function renderEmailList() {
-            const container = document.getElementById('list-container');
-            container.innerHTML = '';
+        function emailDate(email) {
+            return new Date(email.envelope.date || email.internalDate);
+        }
 
-            emails.forEach(email => {
-                const div = document.createElement('div');
+        function createEmailRow(email) {
+            const div = document.createElement('div');
                 div.className = `email-item ${!email.flags.includes('\\Seen') ? 'unread' : ''}`;
                 div.dataset.uid = String(email.uid);
                 div.onclick = () => openEmail(email);
@@ -1253,18 +1261,34 @@
                     <div class="email-subject">${escapeHtml(email.envelope.subject || '(No Subject)')}</div>
                     ${snippet}
                 `;
-                container.appendChild(div);
-            });
+            return div;
+        }
 
-            // Load More Button
-            if (currentCursor) {
-                const btn = document.createElement('button');
-                btn.id = 'btn-load-more';
-                btn.className = 'load-more-btn';
-                btn.innerText = "Load More...";
-                btn.onclick = () => loadEmails(false);
-                container.appendChild(btn);
-            }
+        function updateLoadMoreButton(container) {
+            const existing = document.getElementById('btn-load-more');
+            if (existing) existing.remove();
+            if (!currentCursor) return;
+            const btn = document.createElement('button');
+            btn.id = 'btn-load-more';
+            btn.className = 'load-more-btn';
+            btn.innerText = "Load More...";
+            btn.onclick = () => loadEmails(false);
+            container.appendChild(btn);
+        }
+
+        // Append only the new page's rows, so paging no longer rebuilds every
+        // accumulated row (and keeps the scroll position).
+        function appendEmailRows(list) {
+            const container = document.getElementById('list-container');
+            list.forEach(email => container.appendChild(createEmailRow(email)));
+            updateLoadMoreButton(container);
+        }
+
+        function renderEmailList() {
+            const container = document.getElementById('list-container');
+            container.innerHTML = '';
+            emails.forEach(email => container.appendChild(createEmailRow(email)));
+            updateLoadMoreButton(container);
         }
 
         function escapeHtml(text) {

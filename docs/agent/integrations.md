@@ -297,3 +297,12 @@ subscriber is not blocked by a stale token. Deploy the Stripe worker separately
 ---
 
 New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).
+
+## 2026-10-21 backlog pass
+
+- **`stocks.html`** fetches in batches of 4 with a single retry instead of firing every symbol at
+  once (3 retries each) at the shared Cloudflare egress.
+- **`bluesky.html`** reuses the rendered timeline for 5 minutes and caps embeds at two images.
+- **`mail.html`** appends a page of rows on "load more" instead of rebuilding the whole list.
+- **`sheetmusic.html`** composer images are LRU-capped at 100 `localStorage` entries.
+- **`functions/api/price.js`** already had the edge cache/stale fallback from the previous pass.

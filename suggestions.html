@@ -600,8 +600,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    <script src="time.js?v=3"></script>
-    <script src="theme.js?v=20"></script>
+    <script src="time.js?v=4"></script>
+    <script src="theme.js?v=21"></script>
     <script src="js/i18n.js?v=3"></script>
     <script src="js/custom-select.js?v=2"></script>
     <script src="js/reports.js?v=1"></script>
@@ -1393,7 +1393,7 @@
                 adminDiv.appendChild(createBtn(isItemPro ? 'Remove Pro' : 'Mark Pro', () => toggleProStatus(), isItemPro ? '#333' : '#666', 'white'));
 
                 // DELETE BUTTON (Admin Only)
-                adminDiv.appendChild(createBtn('🗑 Delete', () => deleteSuggestion(), '#8B0000', 'white'));
+                adminDiv.appendChild(createBtn('Delete', () => deleteSuggestion(), '#8B0000', 'white'));
             };
 
             window.deleteSuggestion = function () {
@@ -1716,7 +1716,7 @@
                         const isDev = (c.authorEmail === 'ukiyo@rekindle.ink') || (c.authorName && c.authorName.toLowerCase() === 'ukiyo');
                         const devBadge = isDev ? '<span class="dev-badge">DEV</span>' : '';
 
-                        const deleteBtn = isOwner ? `<button class="comment-delete-btn" onclick="deleteComment('${escapeHtml(c.key)}')">🗑</button>` : '';
+                        const deleteBtn = isOwner ? `<button class="comment-delete-btn" onclick="deleteComment('${escapeHtml(c.key)}')">X</button>` : '';
 
                         const censoredCommentText = censorText(c.text);
 

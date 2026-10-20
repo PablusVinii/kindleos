@@ -1563,8 +1563,8 @@
     <script src="bad_words.js?v=4"></script>
     <script src="js/promo-ban.js?v=1"></script>
     <script src="js/spam-guard.js?v=1"></script>
-    <script src="time.js?v=3"></script>
-    <script src="theme.js?v=20"></script>
+    <script src="time.js?v=4"></script>
+    <script src="theme.js?v=21"></script>
     <link rel="stylesheet" href="css/custom-select.css">
     <script src="js/i18n.js?v=3"></script>
     <script src="js/ui-kit.js?v=2"></script>
@@ -2661,8 +2661,19 @@
                 }
 
                 // SCROLL SPY LOGIC: LINEAR INTERPOLATION
+                // Per scroll event this used to force layout (scrollHeight), re-query
+                // the sidebar NodeList and run a smooth scrollIntoView animation
+                // (which re-enters this handler). Cache the list, throttle, and move
+                // the sidebar with scrollTop instead of animating.
+                var asciiSidebarItems = Array.prototype.slice.call(sidebar.querySelectorAll('.ascii-sidebar-item'));
+                var asciiSpyLast = 0;
+
                 content.addEventListener('scroll', function () {
                     if (!autoHighlightEnabled) return; // Skip if manually overridden
+
+                    var now = Date.now();
+                    if (now - asciiSpyLast < 120) return;
+                    asciiSpyLast = now;
 
                     // Calculate scroll percentage (0 to 1)
                     var maxScroll = content.scrollHeight - content.clientHeight;
@@ -2671,10 +2682,7 @@
                     var scrollPos = content.scrollTop;
                     var percentage = scrollPos / maxScroll;
 
-                    // Get all sidebar items
-                    var sidebarItems = sidebar.querySelectorAll('.ascii-sidebar-item');
-                    var totalItems = sidebarItems.length;
-
+                    var totalItems = asciiSidebarItems.length;
                     if (totalItems === 0) return;
 
                     var activeIndex = Math.floor(percentage * totalItems);
@@ -2682,16 +2690,20 @@
                     if (activeIndex < 0) activeIndex = 0;
                     if (activeIndex >= totalItems) activeIndex = totalItems - 1;
 
-                    // Update UI
-                    for (var i = 0; i < sidebarItems.length; i++) {
-                        var el = sidebarItems[i];
-                        if (i === activeIndex) {
-                            el.classList.add('active');
-                            // Smooth scroll into view for the category name if it's outside visible sidebar
-                            if (el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                        } else {
-                            el.classList.remove('active');
+                    // Update UI (only touch classes that actually change)
+                    for (var i = 0; i < totalItems; i++) {
+                        var el = asciiSidebarItems[i];
+                        var shouldBeActive = (i === activeIndex);
+                        if (el.classList.contains('active') !== shouldBeActive) {
+                            el.classList[shouldBeActive ? 'add' : 'remove']('active');
                         }
+                    }
+
+                    // Keep the category label visible without animating the page.
+                    var activeEl = asciiSidebarItems[activeIndex];
+                    if (activeEl && sidebar.scrollHeight > sidebar.clientHeight + 4) {
+                        var target = activeEl.offsetTop - Math.max(0, (sidebar.clientHeight - activeEl.offsetHeight) / 2);
+                        sidebar.scrollTop = Math.max(0, target);
                     }
                 });
 
@@ -3216,11 +3228,15 @@
                         if (!history.querySelector('.msg[data-msg-id="' + msgId + '"]')) return;
                         var cachedMsg = generalMsgData[msgId];
                         if (cachedMsg) {
-                            renderMessage(cachedMsg, msgId);
+                            if (!applyTranslationToRenderedMessage(msgId, text)) {
+                                renderMessage(cachedMsg, msgId);
+                            }
                             return;
                         }
                         generalChatRef.child(msgId).once('value').then(function (msgSnap) {
-                            if (msgSnap.val()) renderMessage(msgSnap.val(), msgId);
+                            if (msgSnap.val() && !applyTranslationToRenderedMessage(msgId, text)) {
+                                renderMessage(msgSnap.val(), msgId);
+                            }
                         });
                     }
                 };
@@ -3236,11 +3252,15 @@
                         if (!history.querySelector('.msg[data-msg-id="' + msgId + '"]')) return;
                         var cachedMsg = generalMsgData[msgId];
                         if (cachedMsg) {
-                            renderMessage(cachedMsg, msgId);
+                            if (!applyTranslationToRenderedMessage(msgId, text)) {
+                                renderMessage(cachedMsg, msgId);
+                            }
                             return;
                         }
                         generalChatRef.child(msgId).once('value').then(function (msgSnap) {
-                            if (msgSnap.val()) renderMessage(msgSnap.val(), msgId);
+                            if (msgSnap.val() && !applyTranslationToRenderedMessage(msgId, text)) {
+                                renderMessage(msgSnap.val(), msgId);
+                            }
                         });
                     }
                 };
@@ -5481,7 +5501,9 @@
 
             // SPAM PROTECTION + MODERATION: Enforced via Cloudflare Worker
             var tokenSource = socialAuth.currentUser || currentUser;
-            tokenSource.getIdToken(true).then(function (token) {
+            // Cached token first; only force a refresh if the worker rejects it
+            // (this used to cost an Identity Toolkit round trip per message).
+            tokenSource.getIdToken().then(function (token) {
                 var bodyObj = { type: 'kindlechat', text: text };
                 if (replyTarget) {
                     bodyObj.replyTo = {
@@ -5491,13 +5513,21 @@
                         text: (replyTarget.text || '').substring(0, 120)
                     };
                 }
-                return fetch(MODERATION_WORKER_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
-                    },
-                    body: JSON.stringify(bodyObj)
+                function postWith(t) {
+                    return fetch(MODERATION_WORKER_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + t
+                        },
+                        body: JSON.stringify(bodyObj)
+                    });
+                }
+                return postWith(token).then(function (resp) {
+                    if (resp.status === 401 || resp.status === 403) {
+                        return tokenSource.getIdToken(true).then(postWith);
+                    }
+                    return resp;
                 }).then(function (resp) { return resp.json(); });
             }).then(function (result) {
                 if (result.allowed === false) {
@@ -6116,6 +6146,40 @@
         }
 
         // --- TRANSLATION FUNCTION ---
+        // A translation arriving used to force a full renderMessage() rebuild of
+        // the bubble (innerHTML + emoji walk + avatar redraw + author lookup), for
+        // every message in the live window on load. Patch the bubble in place.
+        // Returns true when the message was handled (or did not need handling).
+        function applyTranslationToRenderedMessage(msgId, text) {
+            if (!settings.showTranslations) return true;
+            var bubble = document.getElementById('bubble-' + msgId);
+            if (!bubble) return false;
+
+            var cachedMsg = generalMsgData[msgId];
+            var originalText = (cachedMsg && cachedMsg.text) || bubble.getAttribute('data-original') || '';
+            if (!originalText) return false;
+            if (String(text).toLowerCase().trim() === String(originalText).toLowerCase().trim()) {
+                return true; // identity translation: nothing to show
+            }
+
+            var safeText = censorText(text);
+            bubble.setAttribute('data-state', 'translated');
+            bubble.setAttribute('data-original', escapeHtml(originalText));
+            bubble.setAttribute('data-translated', escapeHtml(safeText));
+            bubble.innerHTML = tagify(wrapAsciiEmojis(linkify(escapeHtml(safeText))));
+
+            var meta = bubble.parentNode ? bubble.parentNode.querySelector('.msg-meta') : null;
+            if (meta && !document.getElementById('toggle-' + msgId)) {
+                var span = document.createElement('span');
+                span.id = 'toggle-' + msgId;
+                span.style.cssText = 'font-size:0.7rem; color:#666; text-decoration:underline; cursor:pointer; margin-left:5px;';
+                span.textContent = window.t('kindlechat.msg.show_original', 'Show Original');
+                span.onclick = function () { toggleTranslation(msgId); };
+                meta.appendChild(span);
+            }
+            return true;
+        }
+
         function toggleTranslation(msgId) {
             var bubble = document.getElementById('bubble-' + msgId);
             var toggleBtn = document.getElementById('toggle-' + msgId);

@@ -116,3 +116,13 @@ If an app can function without Firebase (e.g., local-only games), wrap Firebase 
 ---
 
 New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).
+
+## 2026-10-21 backlog pass
+
+- **Timeout lookups are cached per uid for 30 s** (`timeoutCache` in
+  `workers/rekindle-moderate/worker.js`). Every content write used to pay an RTDB GET for
+  `timeouts/{uid}`, a node that is empty for almost every user. Repeat attempts from a timed-out
+  user now stop costing a Firebase round trip. A newly set timeout takes effect within 30 s.
+- **Report buttons are 48×48 touch targets**: the 20 px circle is now a `.report-dot` inside a
+  transparent `.report-btn` that occupies real layout space (no overlap with the timestamp /
+  Edit button). Applied in `neighbourhood.html` and `topics.html`.

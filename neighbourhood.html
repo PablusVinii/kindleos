@@ -334,32 +334,43 @@
 
         /* Report button - matches kindlechat circular style */
         .report-btn {
-            /* 32px hit area with a negative margin so the header row keeps its
-               original 20px footprint. Still short of the 48px guideline, but
-               a full 48 would overlap the timestamp / Edit button next to it. */
-            width: 32px;
-            height: 32px;
-            margin: -6px;
-            border: 1px solid black;
-            border-radius: 50%;
-            background: white;
+            /* Full 48x48 touch target (AGENTS section 3) with the familiar 20px
+               dot inside. It takes real layout space so the hit area cannot
+               overlap the timestamp / Edit button next to it. */
+            width: 48px;
+            height: 48px;
+            margin: 0 0 0 4px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            box-shadow: none;
             cursor: pointer;
-            text-align: center;
-            line-height: 18px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            box-shadow: 1px 1px 0 #999;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 1;
             flex-shrink: 0;
-            opacity: 0.5;
-            color: #cc0000;
-            margin-left: 4px;
         }
 
-        .report-btn:hover {
+        .report-btn .report-dot {
+            width: 20px;
+            height: 20px;
+            border: 1px solid black;
+            border-radius: 50%;
+            background: white;
+            box-shadow: 1px 1px 0 #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            line-height: 1;
+            font-weight: bold;
+            opacity: 0.5;
+            color: #cc0000;
+        }
+
+        .report-btn:hover .report-dot,
+        .report-btn:active .report-dot {
             opacity: 1.0;
             background: #ffe6e6;
         }
@@ -767,8 +778,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="time.js?v=3"></script>
-    <script src="theme.js?v=20"></script>
+    <script src="time.js?v=4"></script>
+    <script src="theme.js?v=21"></script>
     <script src="bad_words.js?v=4"></script>
     <script src="js/promo-ban.js?v=1"></script>
     <link rel="stylesheet" href="css/custom-select.css">
@@ -904,8 +915,7 @@
                                     data-i18n="neighbourhood.btn.clear_avatar"
                                     style="font-size:0.75rem; padding:6px 12px;; margin-top: 8px">Clear</button>
                                 <button class="sys-btn" id="btn-toggle-privacy" onclick="toggleProfilePrivacy()"
-                                    style="font-size:0.75rem; padding:6px 12px; margin-top:5px;; margin-top: 8px">🔓
-                                    Public</button>
+                                    style="font-size:0.75rem; padding:6px 12px; margin-top:5px;; margin-top: 8px">                                    Public</button>
                             </div>
                         </div>
 
@@ -2344,10 +2354,10 @@
             const btn = document.getElementById('btn-toggle-privacy');
             if (btn) {
                 if (myProfile.isPrivate) {
-                    btn.innerText = '🔒 Private';
+                    btn.innerText = 'Private';
                     btn.style.background = '#fee';
                 } else {
-                    btn.innerText = '🔓 Public';
+                    btn.innerText = 'Public';
                     btn.style.background = '';
                 }
             }
@@ -2836,6 +2846,9 @@
         // --- POSTS FEATURE ---
         let postsListener = null;
         let recentPosts = [];
+        // Every post we have ever rendered, including paginated pages, so admin
+        // mode and editPost() still work after they drop out of recentPosts.
+        const postsById = new Map();
         let isAdminMode = false;
         let isCurrentUserMod = false;
         let isModeratorMode = false;
@@ -2889,6 +2902,7 @@
                         docs.forEach(doc => {
                             const post = { id: doc.id, ...doc.data() };
                             recentPosts.push(post);
+                            postsById.set(post.id, post);
                             renderedPostKeys.add(doc.id);
                         });
                         if (recentPosts.length > 0) {
@@ -2910,6 +2924,7 @@
                             if (!renderedPostKeys.has(change.doc.id)) {
                                 renderedPostKeys.add(change.doc.id);
                                 recentPosts.unshift(post);
+                                postsById.set(post.id, post);
                                 const emptyEl = feed.querySelector('[data-empty]');
                                 if (emptyEl) emptyEl.remove();
                                 renderPostItem(post, feed, true);
@@ -2921,6 +2936,7 @@
                             // its original language until a reload.
                             const idx = recentPosts.findIndex(p => p.id === change.doc.id);
                             if (idx !== -1) recentPosts[idx] = post;
+                            postsById.set(post.id, post);
                             const existingCard = feed.querySelector('[data-post-id="' + change.doc.id + '"]');
                             if (existingCard) {
                                 const nextNode = existingCard.nextSibling;
@@ -2933,6 +2949,7 @@
                             }
                         } else if (change.type === 'removed') {
                             renderedPostKeys.delete(change.doc.id);
+                            postsById.delete(change.doc.id);
                             recentPosts = recentPosts.filter(p => p.id !== change.doc.id);
                             const card = feed.querySelector('[data-post-id="' + change.doc.id + '"]');
                             if (card) card.remove();
@@ -2956,6 +2973,18 @@
             const panel = document.getElementById('view-posts');
             panel.addEventListener('scroll', onPostsPanelScroll);
         }
+
+        // Nothing used to detach these: a bfcache-restored page kept receiving
+        // snapshots and the whole feed DOM stayed retained.
+        window.addEventListener('pagehide', function () {
+            if (postsListener) {
+                try { postsListener(); } catch (e) { }
+                postsListener = null;
+            }
+            detachAllCommentListeners();
+            var panel = document.getElementById('view-posts');
+            if (panel) panel.removeEventListener('scroll', onPostsPanelScroll);
+        });
 
         function onPostsPanelScroll() {
             if (loadingMore || allPostsLoaded) return;
@@ -2994,7 +3023,11 @@
                     if (olderPosts.length < PAGE_SIZE) allPostsLoaded = true;
                     oldestPostDoc = snap.docs[snap.docs.length - 1];
                     oldestPostKey = olderPosts[olderPosts.length - 1].id;
-                    olderPosts.forEach(post => renderPostItem(post, feed));
+                    olderPosts.forEach(post => {
+                        recentPosts.push(post);
+                        postsById.set(post.id, post);
+                        renderPostItem(post, feed);
+                    });
                 }
             } catch (e) {
                 console.error('[Posts] loadMore error:', e);
@@ -3031,6 +3064,7 @@
             feed.innerHTML = '';
             detachAllCommentListeners();
             recentPosts.forEach(post => renderPostItem(post, feed));
+            updateEndOfFeed(feed);
         }
 
         function toggleModeratorMode(enabled) {
@@ -3039,6 +3073,7 @@
             feed.innerHTML = '';
             detachAllCommentListeners();
             recentPosts.forEach(post => renderPostItem(post, feed));
+            updateEndOfFeed(feed);
         }
 
         function renderPostItem(post, container, prepend = false) {
@@ -3131,7 +3166,7 @@
                     var safePostId = escapeJsString(post.id);
                     var safeReportedUid = escapeJsString(post.uid);
                     var postSnapshot = escapeJsString(post.text || '');
-                    reportControls = `<div class="report-btn" onclick="rekindleOpenReportModal({contentType:'neighbourhood_post',contentId:'${safePostId}',contentPath:'neighbourhood_posts/${safePostId}',reportedUserId:'${safeReportedUid}',contentSnapshot:'${postSnapshot}'})" title="Report">!</div>`;
+                    reportControls = `<div class="report-btn" onclick="rekindleOpenReportModal({contentType:'neighbourhood_post',contentId:'${safePostId}',contentPath:'neighbourhood_posts/${safePostId}',reportedUserId:'${safeReportedUid}',contentSnapshot:'${postSnapshot}'})" title="Report"><span class="report-dot">!</span></div>`;
                 }
 
                 let nameBadge = '';
@@ -3323,7 +3358,7 @@
                     var safeCommentId = escapeJsString(comment.id);
                     var safeReportedCommentUid = escapeJsString(comment.uid);
                     var commentSnapshot = escapeJsString(comment.text || '');
-                    reportCommentControls = `<div class="report-btn" onclick="rekindleOpenReportModal({contentType:'neighbourhood_comment',contentId:'${safeCommentId}',contentPath:'neighbourhood_posts/${escapeHtml(postId)}/comments/${safeCommentId}',reportedUserId:'${safeReportedCommentUid}',contentSnapshot:'${commentSnapshot}'})" title="Report">!</div>`;
+                    reportCommentControls = `<div class="report-btn" onclick="rekindleOpenReportModal({contentType:'neighbourhood_comment',contentId:'${safeCommentId}',contentPath:'neighbourhood_posts/${escapeHtml(postId)}/comments/${safeCommentId}',reportedUserId:'${safeReportedCommentUid}',contentSnapshot:'${commentSnapshot}'})" title="Report"><span class="report-dot">!</span></div>`;
                 }
 
                 commentDiv.innerHTML = `
@@ -3363,14 +3398,23 @@
             input.disabled = true;
 
             var tokenSource = socialAuth.currentUser || currentUser;
-            tokenSource.getIdToken(true).then(function (token) {
-                return fetch(MODERATION_WORKER_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
-                    },
-                    body: JSON.stringify({ type: 'neighbourhood_comment', postId: postId, text: text })
+            // Cached token first; force a refresh only if the worker rejects it.
+            tokenSource.getIdToken().then(function (token) {
+                function postWith(t) {
+                    return fetch(MODERATION_WORKER_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + t
+                        },
+                        body: JSON.stringify({ type: 'neighbourhood_comment', postId: postId, text: text })
+                    });
+                }
+                return postWith(token).then(function (resp) {
+                    if (resp.status === 401 || resp.status === 403) {
+                        return tokenSource.getIdToken(true).then(postWith);
+                    }
+                    return resp;
                 }).then(function (resp) { return resp.json(); });
             }).then(function (result) {
                 if (result.error) {
@@ -3667,14 +3711,23 @@
             if (btn) btn.disabled = true;
 
             var tokenSource = socialAuth.currentUser || currentUser;
-            tokenSource.getIdToken(true).then(function (token) {
-                return fetch(MODERATION_WORKER_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
-                    },
-                    body: JSON.stringify({ type: 'neighbourhood_post', text: text })
+            // Cached token first; force a refresh only if the worker rejects it.
+            tokenSource.getIdToken().then(function (token) {
+                function postWith(t) {
+                    return fetch(MODERATION_WORKER_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + t
+                        },
+                        body: JSON.stringify({ type: 'neighbourhood_post', text: text })
+                    });
+                }
+                return postWith(token).then(function (resp) {
+                    if (resp.status === 401 || resp.status === 403) {
+                        return tokenSource.getIdToken(true).then(postWith);
+                    }
+                    return resp;
                 }).then(function (resp) { return resp.json(); });
             }).then(function (result) {
                 if (result.error) {
@@ -3836,7 +3889,7 @@
 
 
         function editPost(id) {
-            const post = recentPosts.find(p => p.id === id);
+            const post = postsById.get(id) || recentPosts.find(p => p.id === id);
             if (!post) return;
 
             showPromptModal("Edit Post Content:", post.text, (newText) => {

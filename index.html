@@ -68,10 +68,10 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js" defer></script>
 
-    <script src="time.js?v=3" defer></script>
+    <script src="time.js?v=4" defer></script>
     <script src="icons.js?v=5" defer></script>
     <script src="icons-beta.js?v=1" defer></script>
-    <script src="theme.js?v=20" defer></script>
+    <script src="theme.js?v=21" defer></script>
     <script src="bad_words.js?v=4" defer></script>
     <script src="js/i18n.js?v=3" defer></script>
     <script src="js/ip-ban.js?v=1" defer></script>
@@ -1504,7 +1504,9 @@
 
                         function attachBadgeListener() {
                             if (badgeListener) return;
-                            // Server-filter to only waiting matches
+                            // matchmaking requires auth in rtdb-rules; attaching while
+                            // signed out only produces a permission error.
+                            if (!window._rekindleAuthedUid) return;
                             badgeListenerRef = rtdb.ref('matchmaking');
                             badgeListener = badgeListenerRef.on('value', (snap) => {
                                 // Debounce rapid deltas (5s) to reduce GC churn
@@ -1550,6 +1552,7 @@
                             if (document.hidden) detachBadgeListener();
                             else attachBadgeListener();
                         });
+                        window.addEventListener('pagehide', detachBadgeListener);
 
                         window._badgeDetach = detachBadgeListener;
                         window._badgeAttach = attachBadgeListener;
@@ -1595,6 +1598,8 @@
 
                     if (user) {
                         currentUser = user;
+                        window._rekindleAuthedUid = user.uid;
+                        if (window._badgeAttach) window._badgeAttach();
                         localStorage.setItem('rekindle_uid', user.uid);
                         let displayUser = user.email.split('@')[0];
                         if (user.email.endsWith("@rekindle.ink")) {
@@ -1664,6 +1669,8 @@
         // ... [Helper functions like handleGuestMode, updateNavVisibility, etc. remain unchanged] ...
 
         function handleGuestMode() {
+            window._rekindleAuthedUid = null;
+            if (window._badgeDetach) window._badgeDetach();
             const wasPro = isPro;
             isPro = false;
             localStorage.setItem('rekindle_is_pro', isPro.toString());

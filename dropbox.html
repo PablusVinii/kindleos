@@ -41,7 +41,7 @@
 
     <!-- Shared Theme & Scaling Logic -->
     <script src="js/i18n.js?v=3"></script>
-    <script src="theme.js?v=20"></script>
+    <script src="theme.js?v=21"></script>
 
     <style>
         /* SYSTEM 7 AESTHETICS */
@@ -519,7 +519,7 @@
         }
 
         .loading::before {
-            content: "⏳";
+            content: "...";
             font-size: 2rem;
             font-style: normal;
             margin-bottom: 10px;
@@ -538,7 +538,7 @@
         }
 
         .empty-state::before {
-            content: "📂";
+            content: "[]";
             font-size: 3rem;
             font-style: normal;
             margin-bottom: 10px;
@@ -557,7 +557,7 @@
         }
 
         .error-state::before {
-            content: "⚠️";
+            content: "!";
             font-size: 2rem;
             margin-bottom: 10px;
         }

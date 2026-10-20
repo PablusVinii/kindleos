@@ -558,7 +558,7 @@
         }
     </style>
     <link rel="stylesheet" href="css/custom-select.css">
-    <script src="theme.js?v=20"></script>
+    <script src="theme.js?v=21"></script>
 </head>
 
 <body>
@@ -1172,7 +1172,29 @@
 
         const pendingImageRequests = {};
 
-        async function fetchComposerImage(composer) {
+        async         // Cap the composer-image cache. Every lookup used to write a new
+        // `rekindle_img_*` key forever; the documented 64MB cache limit makes the
+        // Kindle OS wipe the whole cache when it is exceeded.
+        var IMG_CACHE_MAX = 100;
+        var IMG_CACHE_LRU_KEY = 'rekindle_img_lru';
+
+        function cacheComposerImage(key, url) {
+            try {
+                localStorage.setItem('rekindle_img_' + key, url);
+                var lru = [];
+                try { lru = JSON.parse(localStorage.getItem(IMG_CACHE_LRU_KEY) || '[]'); } catch (e) { lru = []; }
+                if (!Array.isArray(lru)) lru = [];
+                lru = lru.filter(function (k) { return k !== key; });
+                lru.unshift(key);
+                while (lru.length > IMG_CACHE_MAX) {
+                    var evicted = lru.pop();
+                    if (evicted) localStorage.removeItem('rekindle_img_' + evicted);
+                }
+                localStorage.setItem(IMG_CACHE_LRU_KEY, JSON.stringify(lru));
+            } catch (e) { /* quota: not fatal */ }
+        }
+
+function fetchComposerImage(composer) {
             if (!composer) return null;
             const lowerC = composer.toLowerCase();
 
@@ -1206,7 +1228,7 @@
                     if (pageId && pageId !== "-1" && pages[pageId].thumbnail) {
                         const url = pages[pageId].thumbnail.source;
                         composerImageCache[lowerC] = url;
-                        localStorage.setItem(`rekindle_img_${lowerC}`, url); // Save to LocalStorage
+                        cacheComposerImage(lowerC, url);
                         resolve(url);
                         return;
                     }
@@ -1223,7 +1245,7 @@
                         if (pageId && pages[pageId].thumbnail) {
                             const url = pages[pageId].thumbnail.source;
                             composerImageCache[lowerC] = url;
-                            localStorage.setItem(`rekindle_img_${lowerC}`, url); // Save to LocalStorage
+                            cacheComposerImage(lowerC, url);
                             resolve(url);
                             return;
                         }
@@ -1236,7 +1258,7 @@
                 if (lowerC.includes('pachelbel')) {
                     const fallback = 'https://interlude-cdn-blob-prod.azureedge.net/interlude-blob-storage-prod/2025/06/Pachelbel-composer.jpg';
                     composerImageCache[lowerC] = fallback;
-                    localStorage.setItem(`rekindle_img_${lowerC}`, fallback); // Save fallback too
+                    cacheComposerImage(lowerC, fallback);
                     resolve(fallback);
                     return;
                 }

@@ -821,8 +821,8 @@
         </div>
     </div>
 
-    <script src="time.js?v=3"></script>
-    <script src="theme.js?v=20"></script> <!-- Inject Theme Script -->
+    <script src="time.js?v=4"></script>
+    <script src="theme.js?v=21"></script> <!-- Inject Theme Script -->
     <script src="js/i18n.js?v=3"></script>
     <script src="js/custom-select.js?v=2"></script>
 
@@ -862,6 +862,7 @@
 
         function writeStoredLocation(loc) {
             localStorage.setItem('rekindle_location_manual', JSON.stringify(loc));
+            if (window.rekindleInvalidateTimeCaches) window.rekindleInvalidateTimeCaches();
         }
         // Updated showModal to support callbacks for simple alerts too
         function showModal(msg, isConfirm = false, callback = null) {
@@ -1389,6 +1390,7 @@
         function endDraw() {
             if (isDrawing) {
                 isDrawing = false;
+                updateWallpaper(); // commit the PNG + storage once per stroke
                 savePixelData();
             }
         }
@@ -1396,8 +1398,9 @@
         function updatePixel(index, val) {
             if (pixelData[index] !== val) {
                 pixelData[index] = val;
-                renderGridUI();
-                updateWallpaper();
+                var cell = document.querySelector('.pixel[data-index="' + index + '"]');
+                if (cell) cell.classList[val === 1 ? 'add' : 'remove']('active');
+                previewWallpaper(); // no PNG encode / storage write mid-drag
             }
         }
 
@@ -1434,7 +1437,10 @@
         }
 
         // --- RENDER LOGIC (32x32px PNG, displayed at 16x16px) ---
-        function updateWallpaper() {
+        // Painting (a drag) used to re-encode a PNG and write three localStorage
+        // keys per touched pixel. Split: a cheap canvas preview while drawing, and
+        // one commit (toDataURL + storage) when the stroke ends.
+        function paintWallpaperCanvas() {
             // Canvas is 32x32
             ctx.clearRect(0, 0, 32, 32);
 
@@ -1453,18 +1459,23 @@
                 }
             }
 
-            const base64 = canvas.toDataURL('image/png');
-            const dataUrl = `url(${base64})`;
+            return canvas.toDataURL('image/png');
+        }
 
-            localStorage.setItem('rekindle_bg_image', dataUrl);
-            localStorage.setItem('rekindle_wallpaper_id', 'custom');
-
-            // Display size: 16px (50% scale of the 32px image)
+        function previewWallpaper() {
             const size = '16px 16px';
-            localStorage.setItem('rekindle_bg_size', size);
-
+            const dataUrl = `url(${paintWallpaperCanvas()})`;
             document.body.style.backgroundImage = dataUrl;
             document.body.style.backgroundSize = size;
+            return dataUrl;
+        }
+
+        function updateWallpaper() {
+            const dataUrl = previewWallpaper();
+            const size = '16px 16px';
+            localStorage.setItem('rekindle_bg_image', dataUrl);
+            localStorage.setItem('rekindle_wallpaper_id', 'custom');
+            localStorage.setItem('rekindle_bg_size', size);
         }
 
         function savePixelData() {

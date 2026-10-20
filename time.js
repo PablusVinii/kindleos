@@ -2,10 +2,58 @@
     // --- SHARED TIMEZONE HELPERS ---
     // Single source of truth for "Mixed Browser Timezone" fix
 
+    // The location blob was read + JSON.parsed on every formatted timestamp
+    // (feeds format several per row). Cache the parse, keyed on the raw string so
+    // a settings change is still picked up.
+    var _locRaw = null;
+    var _locValue = null;
+    var _locParsed = false;
+    var _offsetRaw = null;
+    var _offsetValue = null;
+    var _offsetParsed = false;
+    var _systemZone = null;
+
+    function readManualLocation() {
+        var raw = localStorage.getItem('rekindle_location_manual');
+        if (_locParsed && raw === _locRaw) return _locValue;
+        _locRaw = raw;
+        _locParsed = true;
+        _locValue = null;
+        if (raw) {
+            try { _locValue = JSON.parse(raw); } catch (e) { _locValue = null; }
+        }
+        return _locValue;
+    }
+
+    function readLegacyOffset() {
+        var raw = localStorage.getItem('rekindle_timezone_offset');
+        if (_offsetParsed && raw === _offsetRaw) return _offsetValue;
+        _offsetRaw = raw;
+        _offsetParsed = true;
+        _offsetValue = null;
+        if (raw) {
+            var parsed = parseFloat(raw);
+            _offsetValue = isNaN(parsed) ? null : parsed;
+        }
+        return _offsetValue;
+    }
+
+    window.rekindleInvalidateTimeCaches = function () {
+        _locRaw = null; _locValue = null; _locParsed = false;
+        _offsetRaw = null; _offsetValue = null; _offsetParsed = false;
+        _systemZone = null;
+    };
+
     function getGlobalTimeZone() {
         try {
-            const globalLoc = JSON.parse(localStorage.getItem('rekindle_location_manual'));
-            return globalLoc && globalLoc.zone ? globalLoc.zone : (typeof Intl !== 'undefined' && Intl.DateTimeFormat ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC');
+            const globalLoc = readManualLocation();
+            if (globalLoc && globalLoc.zone) return globalLoc.zone;
+            if (_systemZone === null) {
+                _systemZone = (typeof Intl !== 'undefined' && Intl.DateTimeFormat)
+                    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                    : 'UTC';
+            }
+            return _systemZone;
         } catch (e) {
             return 'UTC';
         }
@@ -28,28 +76,21 @@
         if (!zone) {
             maybeCheckTimezone();
         }
-        const manualLocStr = localStorage.getItem('rekindle_location_manual');
+        const manualLoc = readManualLocation();
         let manualZone = null;
         let offsetHours = null;
 
         // Primary source: utc_offset inside rekindle_location_manual (backwards compatible)
-        if (manualLocStr) {
-            try {
-                const loc = JSON.parse(manualLocStr);
-                manualZone = loc.zone || null;
-                if (typeof loc.utc_offset === 'number') {
-                    offsetHours = loc.utc_offset;
-                }
-            } catch (e) { }
+        if (manualLoc) {
+            manualZone = manualLoc.zone || null;
+            if (typeof manualLoc.utc_offset === 'number') {
+                offsetHours = manualLoc.utc_offset;
+            }
         }
 
         // Fallback: separate rekindle_timezone_offset key (legacy)
         if (offsetHours === null) {
-            const offsetStr = localStorage.getItem('rekindle_timezone_offset');
-            if (offsetStr) {
-                offsetHours = parseFloat(offsetStr);
-                if (isNaN(offsetHours)) offsetHours = null;
-            }
+            offsetHours = readLegacyOffset();
         }
 
         const isTargetingUserZone = !zone || (manualZone && zone === manualZone);
@@ -151,12 +192,9 @@
 
             // Get country code from location settings
             let country = null;
-            const manualLocStr = localStorage.getItem('rekindle_location_manual');
-            if (manualLocStr) {
-                const loc = JSON.parse(manualLocStr);
-                if (loc.country_code) {
-                    country = loc.country_code.toUpperCase();
-                }
+            const loc = readManualLocation();
+            if (loc && loc.country_code) {
+                country = loc.country_code.toUpperCase();
             }
             
             if (country) {
@@ -451,6 +489,7 @@
                         utc_offset: offsetHours
                     };
                     localStorage.setItem('rekindle_location_manual', JSON.stringify(locData));
+                    if (window.rekindleInvalidateTimeCaches) window.rekindleInvalidateTimeCaches();
                     syncTimezoneToProfile(locData, offsetHours);
 
                     showStatus('Timezone set to UTC' + (offsetHours >= 0 ? '+' : '') + offsetHours);

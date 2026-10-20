@@ -255,3 +255,16 @@ New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).
 - **Deleted the dead send path.** `sendGeneralMessageViaWorker()` / `sendGeneralMessageToRTDB()`
   had no callers and wrote straight to `kindlechat/messages`, bypassing the moderation worker,
   the rate limit and the repetition guard. `doSendMessage()` is the only send path.
+
+## 2026-10-21 backlog pass
+
+- **Translation arrivals patch the bubble** (`applyTranslationToRenderedMessage`) instead of
+  calling `renderMessage` for every message in the live window: sets `data-original`/
+  `data-translated`, rewrites the bubble text, and appends the Show Original toggle. Falls back to
+  a full render only when the bubble is missing (art/flipnote/special messages).
+- **ASCII picker scroll spy** caches the sidebar item list, throttles to 120 ms, only toggles
+  classes that change, and scrolls the sidebar with `scrollTop` instead of a smooth
+  `scrollIntoView` animation that re-entered the handler.
+- **Send token** uses the cached `getIdToken()` and force-refreshes only when the worker answers
+  401/403 (one retry). The same pattern is in `neighbourhood.html` (comment + post) and
+  `topics.html` (comment).

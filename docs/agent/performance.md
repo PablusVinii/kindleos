@@ -53,3 +53,30 @@ Applied in one batch; each is independently revertable.
 - **`reddit.html`**: cached feed payloads are capped at 5 subs with an LRU index instead of one `reddit_feed_xml_*` key per subreddit forever.
 - **`functions/api/price.js`**: edge cache + "last good" stale fallback + `Retry-After`-friendly retry on the alternate host (matches the other proxies).
 - **`settings.html`**: the pixel wallpaper editor still re-encodes per touched pixel (not changed) but location is now plain JSON - see AGENTS.md.
+
+### 2026-10-21 backlog pass (audit `docs/audit-2026-10-20.md`, backlog `docs/agent/backlog.md`)
+
+- **`time.js`**: the location blob is parsed once and cached (keyed on the raw string), and
+  `rekindle_timezone_offset` is cached too. Feeds that format 3–4 timestamps per row were paying
+  two `localStorage` reads + two `JSON.parse` per timestamp. `window.rekindleInvalidateTimeCaches()`
+  is called by `settings.html` and by `time.js`'s own save path.
+- **`calendar.html`**: day view buckets events by hour once (was `getZonedDate` per event per
+  hour, 24×N); agenda reuses the zoned date computed for its filter instead of converting again.
+- **`topics.html`**: the topic search input is debounced (`debouncedRenderSidebar`, 250 ms) and the
+  standing listener patches `allTopicsCache` from `docChanges()` instead of re-mapping 200 docs per
+  snapshot.
+- **`books.html`**: the saved-books listener is incremental — added/modified/removed patch one
+  `[data-doc-id]` row; a status change no longer clears both lists and re-decodes every cover.
+- **`mail.html`**: "load more" appends only the new page's rows (`appendEmailRows`); the load-more
+  button is re-created in place.
+- **`bluesky.html`**: the rendered timeline is reused for 5 minutes (Back from a profile no longer
+  refetches 30 posts + every image); embeds are capped at 2 images with a "+N more" line.
+- **`stocks.html`**: requests run in batches of 4 with one retry instead of all-at-once ×3.
+- **`settings.html`**: pixel wallpaper painting is split into a cheap canvas preview during the
+  drag and one `toDataURL` + storage commit on `endDraw`.
+- **`theme.js`**: the presence init tries immediately, then polls at 500 ms for at most 10 s
+  (was 1 s × 30 = 30 s).
+- **`index.html`**: the matchmaking badge listener now attaches only after auth resolves (RTDB
+  rules require it) and detaches on `pagehide`.
+- **`sheetmusic.html`**: composer-image cache capped at 100 entries with an LRU index.
+- **`stocks`/`price`** unchanged beyond batching; `functions/api/price.js` cache landed earlier.

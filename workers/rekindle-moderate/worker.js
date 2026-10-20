@@ -507,14 +507,36 @@ function containsDih(text) {
     return /\bdih\b|\b\w+dih\b/i.test(String(text));
 }
 
+// Every content write used to pay an RTDB GET for timeouts/{uid}, which is
+// empty for virtually every user. Cache the verdict briefly; a timeout still
+// takes effect within 30s, and repeat attempts from a timed-out user stop
+// costing a Firebase round trip each.
+const timeoutCache = new Map(); // uid -> { expires: number, result: object }
+const TIMEOUT_CACHE_TTL_MS = 30 * 1000;
+
+function cacheTimeoutResult(uid, result) {
+    timeoutCache.set(uid, { expires: Date.now() + TIMEOUT_CACHE_TTL_MS, result });
+    if (timeoutCache.size > 500) {
+        const now = Date.now();
+        for (const [key, entry] of timeoutCache) {
+            if (entry.expires <= now) timeoutCache.delete(key);
+        }
+    }
+    return result;
+}
+
 async function checkTimeout(uid, env, userToken, accessToken) {
+    const cached = timeoutCache.get(uid);
+    if (cached && cached.expires > Date.now()) return cached.result;
+
+    let result = { timedOut: false };
     try {
         const data = await rtdbGetWithUserToken(`timeouts/${uid}`, env, userToken);
         if (data && typeof data.until === "number") {
             const now = Date.now();
             if (data.until > now) {
                 const remainingMinutes = Math.ceil((data.until - now) / 60000);
-                return { timedOut: true, remainingMinutes };
+                result = { timedOut: true, remainingMinutes };
             }
         }
     } catch (e) {
@@ -526,14 +548,14 @@ async function checkTimeout(uid, env, userToken, accessToken) {
                 const now = Date.now();
                 if (data.until > now) {
                     const remainingMinutes = Math.ceil((data.until - now) / 60000);
-                    return { timedOut: true, remainingMinutes };
+                    result = { timedOut: true, remainingMinutes };
                 }
             }
         } catch (e2) {
             console.error("[Moderate] Timeout check with access token failed:", e2.message);
         }
     }
-    return { timedOut: false };
+    return cacheTimeoutResult(uid, result);
 }
 
 /* ------------------------------------------------------------------ */

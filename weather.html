@@ -674,8 +674,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    <script src="time.js?v=3"></script>
-    <script src="theme.js?v=20"></script>
+    <script src="time.js?v=4"></script>
+    <script src="theme.js?v=21"></script>
     <script src="js/i18n.js?v=3"></script>
 </head>
 
@@ -1199,7 +1199,7 @@
                 .then(data => {
                     if (data && data.features && data.features.length > 0) {
                         currentAlertData = data.features[0].properties;
-                        alertBanner.innerText = `⚠️ ${currentAlertData.event}`;
+                        alertBanner.innerText = `! ${currentAlertData.event}`;
                         alertBanner.style.display = 'inline-block';
                     }
                 })
