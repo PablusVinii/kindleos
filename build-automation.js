@@ -1639,6 +1639,28 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
     }
 }
 
+// Every build gets a unique service-worker cache name. In GitHub Actions the
+// short commit SHA + run id make each push a guaranteed client cache update;
+// local builds fall back to a timestamp.
+function getBuildCacheId() {
+    const sha = process.env.GITHUB_SHA ? process.env.GITHUB_SHA.slice(0, 7) : '';
+    const runId = process.env.GITHUB_RUN_ID ? '-' + process.env.GITHUB_RUN_ID : '';
+    return sha ? sha + runId : Date.now().toString(36);
+}
+
+async function stampServiceWorkerCache(dir, cacheId) {
+    const swPath = path.join(dir, 'sw.js');
+    if (!(await fs.pathExists(swPath))) return false;
+    const code = await fs.readFile(swPath, 'utf8');
+    const updated = code.replace(
+        /const CACHE_NAME = ['"][^'"]+['"];/,
+        "const CACHE_NAME = 'rekindle-cache-" + cacheId + "';"
+    );
+    if (updated === code) return false;
+    await fs.outputFile(swPath, updated);
+    return true;
+}
+
 async function run() {
     console.log("🚀 Starting Build...");
 
@@ -1686,6 +1708,20 @@ async function run() {
         console.log("📄 Replaced index.html with index_old.html for Lite and Legacy builds.");
     } else {
         console.warn("⚠️  index_old.html not found — Lite/Legacy will use default index.html.");
+    }
+
+    // 2.6 Stamp a unique service-worker cache name into each deploy target.
+    // This runs on every build, including GitHub Actions pushes, so clients
+    // drop the old cache even when no shared asset URL happened to change.
+    const buildCacheId = getBuildCacheId();
+    const stamped = [];
+    for (const dir of [MAIN_DIR, LITE_DIR, LEGACY_DIR]) {
+        if (await stampServiceWorkerCache(dir, buildCacheId)) stamped.push(dir);
+    }
+    if (stamped.length) {
+        console.log(`🧊 Stamped SW cache: rekindle-cache-${buildCacheId}`);
+    } else {
+        console.warn("⚠️  Could not stamp sw.js CACHE_NAME — check the source file.");
     }
 
     // 2.7 Process Main Files (Minify Only)
