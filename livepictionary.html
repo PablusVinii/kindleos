@@ -380,6 +380,7 @@
             color: black;
         }
     </style>
+    <link rel="stylesheet" href="js/system-dialog.css?v=2">
 </head>
 <body>
 <div class="window">
@@ -500,10 +501,12 @@
     </div>
 
     <div class="modal-overlay" id="alert-modal">
-        <div class="modal-box">
-            <h3 id="alert-title" data-i18n="pictionary.alert.notice">Notice</h3>
-            <p id="alert-msg" style="margin:12px 0;"></p>
-            <button class="sys-btn" onclick="closeAlert()" data-i18n="pictionary.btn.ok">OK</button>
+        <div class="modal-box rk-dialog">
+            <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" id="alert-title" data-i18n="pictionary.alert.notice">Notice</span></div>
+            <div class="rk-dialog-body">
+                <p id="alert-msg"></p>
+                <button class="sys-btn" onclick="closeAlert()" data-i18n="pictionary.btn.ok">OK</button>
+            </div>
         </div>
     </div>
 </div>

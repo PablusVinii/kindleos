@@ -825,6 +825,7 @@
     <script src="js/custom-select.js?v=1"></script>
     <script src="js/age-verification.js?v=2"></script>
     <script src="js/emoji-render.js?v=1"></script>
+    <link rel="stylesheet" href="js/system-dialog.css?v=2">
 </head>
 
 <body>
@@ -1041,12 +1042,14 @@
     </div>
     <!-- LOGIN OVERLAY -->
     <div id="login-overlay" style="display: none;">
-        <div class="modal-box">
-            <h2 id="login-overlay-title" data-i18n="topics.login.title">Log in to join the conversation</h2>
-            <p id="login-overlay-desc" data-i18n="topics.login.desc">Create topics and comment with other ReKindle readers.</p>
-            <p id="login-overlay-message" style="font-size: 0.9rem; color: #666; margin: 10px 0; max-width: 300px;"></p>
-            <button class="sys-btn" onclick="window.location.href='index?login=true'" data-i18n="login.btn.login">Log
-                In</button>
+        <div class="modal-box rk-dialog">
+            <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" id="login-overlay-title" data-i18n="topics.login.title">Log in to join the conversation</span></div>
+            <div class="rk-dialog-body">
+                <p id="login-overlay-desc" data-i18n="topics.login.desc">Create topics and comment with other ReKindle readers.</p>
+                <p id="login-overlay-message" style="font-size: 0.9rem; color: #666; margin: 10px 0; max-width: 300px;"></p>
+                <button class="sys-btn rk-primary" onclick="window.location.href='index?login=true'" data-i18n="login.btn.login">Log
+                    In</button>
+            </div>
         </div>
     </div>
 

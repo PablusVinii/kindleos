@@ -387,6 +387,7 @@
     <script src="time.js?v=2"></script>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=2"></script>
 </head>
 
 <body>
@@ -680,10 +681,10 @@
             // 2. HABIT ROWS
             if (habits.length === 0) {
                 const empty = document.createElement('div');
-                empty.style.padding = "20px";
-                empty.style.textAlign = "center";
-                empty.style.fontStyle = "italic";
-                empty.innerText = window.t('streak.msg.empty', "No habits yet. Add one below.");
+                empty.innerHTML = window.rekindleEmptyState(
+                    window.t('streak.msg.empty', "No habits yet. Add one below."),
+                    { icon: 'habit', compact: true }
+                );
                 container.appendChild(empty);
                 return;
             }

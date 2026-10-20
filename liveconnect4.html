@@ -258,6 +258,7 @@
         }
     </style>
 <script src="js/gamerules.js?v=2"></script>
+    <link rel="stylesheet" href="js/system-dialog.css?v=2">
 </head>
 <body>
     <div class="window">
@@ -326,17 +327,21 @@
         
         <!-- MODALS -->
         <div id="winner-modal" class="modal-overlay">
-            <div class="modal-box">
-                <h2 id="winner-text">Game Over</h2>
-                <button class="sys-btn" onclick="document.getElementById('winner-modal').style.display='none'">Back to Board</button>
+            <div class="modal-box rk-dialog">
+                <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" id="winner-text">Game Over</span></div>
+                <div class="rk-dialog-body">
+                    <button class="sys-btn" onclick="document.getElementById('winner-modal').style.display='none'">Back to Board</button>
+                </div>
             </div>
         </div>
 
         <div id="custom-alert-modal" class="modal-overlay">
-            <div class="modal-box">
-                <h3 id="custom-alert-title">Notice</h3>
-                <p id="custom-alert-msg" style="margin: 15px 0;"></p>
-                <button class="sys-btn" onclick="closeAlert()">OK</button>
+            <div class="modal-box rk-dialog">
+                <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" id="custom-alert-title">Notice</span></div>
+                <div class="rk-dialog-body">
+                    <p id="custom-alert-msg"></p>
+                    <button class="sys-btn" onclick="closeAlert()">OK</button>
+                </div>
             </div>
         </div>
     </div>

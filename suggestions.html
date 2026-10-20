@@ -606,6 +606,7 @@
     <script src="js/custom-select.js?v=1"></script>
     <script src="js/reports.js?v=1"></script>
     <script src="bad_words.js?v=4"></script>
+    <link rel="stylesheet" href="js/system-dialog.css?v=2">
 </head>
 
 <body>
@@ -719,13 +720,15 @@
         </div>
 
         <div id="login-overlay">
-            <div class="modal-box">
-                <h2 data-i18n="suggestions.msg.login_required">Please Log In</h2>
-                <p data-i18n="suggestions.msg.login_desc">You need to be logged in to enable suggestions.</p>
-                <button class="sys-btn" onclick="window.location.href='index?login=true'"
-                    data-i18n="suggestions.btn.login">Log In</button>
-                <button class="sys-btn" onclick="window.location.href='index'"
-                    data-i18n="common.back">Back</button>
+            <div class="modal-box rk-dialog">
+                <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" data-i18n="suggestions.msg.login_required">Please Log In</span></div>
+                <div class="rk-dialog-body">
+                    <p data-i18n="suggestions.msg.login_desc">You need to be logged in to enable suggestions.</p>
+                    <button class="sys-btn rk-primary" onclick="window.location.href='index?login=true'"
+                        data-i18n="suggestions.btn.login">Log In</button>
+                    <button class="sys-btn" onclick="window.location.href='index'"
+                        data-i18n="common.back">Back</button>
+                </div>
             </div>
         </div>
     </div>

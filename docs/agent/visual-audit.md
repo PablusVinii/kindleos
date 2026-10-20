@@ -69,6 +69,7 @@ window front, or call `activate(ignoringOtherApps:)`, that guarantee is lost.
 | Controls | 48px min height, 2px border, 2px shadow, active invert |
 | Empty state | Centered icon + bold message + optional hint/action; max-width 300px |
 | Overlay | Dim `rgba(0,0,0,0.45)` backdrop + white bordered card; not a white wash |
+| Dialog | `rk-dialog` striped title bar (wraps long titles), `.rk-dialog-body`, 48px actions |
 | Succinct | One primary action; no duplicate titles; no gradients/animations/emojis |
 
 ## Shared fixes from the 2026-10-20 pass
@@ -86,6 +87,34 @@ window front, or call `activate(ignoringOtherApps:)`, that guarantee is lost.
 - `neighbourhood.html` / `topics.html` — login overlays use a dim scrim + white
   `.modal-box` and app-specific copy instead of the Suggestions strings.
 
+## Shared fixes from the 2026-10-21 pass
+
+- **`js/system-dialog.css`** — one shared System 7 dialog card: striped title bar
+  (34px min-height; long titles wrap rather than clip), `.rk-dialog-body` with
+  48px full-width actions. Load it **after** the page's `<style>` block, add
+  `class="rk-dialog"` to the modal box, then replace the old heading with
+  `.rk-dialog-bar` / `.rk-dialog-title` and wrap the content in
+  `.rk-dialog-body`. Keep the existing `#id` wrappers and JS (the `showAlert()`
+  functions still write to `#custom-alert-title` / `#custom-alert-msg`).
+- **Dialogs upgraded** — all eight live-game alert/winner dialogs, Pictionary's
+  alert, `suggestions.html`, `words.html`, `topics.html` and `neighbourhood.html`
+  sign-in gates, and Circle's start/result/leaderboard dialogs. The previous plain
+  white box looked like an unfinished form next to the striped paywall card.
+- **Empty states** — `contacts` (list + details pane), `flashcards`, `streak`,
+  `interactive`, `reader`, `browser`, `books`, `neighbourhood` and `kindlechat`
+  now use `rekindleEmptyState()` instead of a floating italic line. New icons:
+  `contacts`, `cards`, `chat`, `habit`.
+- **`flashcards.html` shell** — `.window-content` now flexes (`flex:1; min-height:0`)
+  and `#deck-list` fills it, so the status bar sits at the bottom instead of
+  mid-window with a white void underneath.
+- **`akinator.html`** — start screen is vertically centred and has a simple lamp
+  SVG; the old layout left most of the page blank.
+- **`codebreaker.html` / `nonograms.html`** — 3rem logo headings reduced to 2rem,
+  grey menu-button shadows replaced with the standard black 2px shadow, menu
+  background white.
+- `js/ui-kit.js` is now `?v=2` on every page that loads it. `js/system-dialog.css`
+  is new at `?v=2`.
+
 ## Audit snapshot (2026-10-20)
 
 - 136 root pages captured (excludes `index_old.html`, `admin/`, `Sync/`).
@@ -95,3 +124,13 @@ window front, or call `activate(ignoringOtherApps:)`, that guarantee is lost.
 - Deferred deliberately: `dino` (fixed 600×150 canvas), `pool`/`pool2p` (black felt
   is the game surface), `spellbound`/`strands` (gray is a modal/tab state), and
   compact game windows (`2048`, `hanoi`, `pet`, `solitaire`, `texasholdem`).
+
+### 2026-10-21 follow-up
+
+Re-captured all 136 root pages at 800×1000 and triaged the remaining outliers.
+24 pages changed: 13 auth/alert dialogs (8 live games, Suggestions, Words, Circle,
+Topics, Neighbourhood), 9 empty states (Contacts, Flashcards, Habit Tracker,
+Interactive Reader, Reader, Browser, Books, Neighbourhood, KindleChat), 3 menus
+(Akinator, Codebreaker, Nonograms), plus the Flashcards shell fix.
+`js/system-dialog.css` is the reusable piece; future modal work should use it
+instead of copying a white `.modal-box` heading.

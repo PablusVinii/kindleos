@@ -12,6 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js" defer></script>
     <script src="theme.js?v=19" defer></script>
     <script src="js/i18n.js?v=2" defer></script>
+    <script src="js/ui-kit.js?v=2" defer></script>
     <style>
         /* [Standard CSS - unchanged except for modal] */
         :root {
@@ -865,7 +866,17 @@
         }
         function renderHistory() {
             const container = document.getElementById('history-container'); container.innerHTML = '';
-            if (history.length === 0) { container.innerHTML = '<div style="font-style:italic; text-align:center; color:#888; padding:10px;">No recent history</div>'; return; }
+            if (history.length === 0) {
+                container.innerHTML = window.rekindleEmptyState(
+                    window.t('browser.msg.no_history', 'No recent history'),
+                    {
+                        icon: 'clock',
+                        compact: true,
+                        hint: window.t('browser.hint.enter_url', 'Type a URL above and press Go.')
+                    }
+                );
+                return;
+            }
             history.forEach(item => {
                 const div = document.createElement('div'); div.className = 'history-item';
                 div.onclick = () => { document.getElementById('search-input').value = item.url; handleGo(); };

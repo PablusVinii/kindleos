@@ -213,6 +213,13 @@
         }
 
         /* VIEWS */
+        .window-content {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
         .view {
             flex-grow: 1;
             display: flex;
@@ -225,6 +232,8 @@
 
         /* DECK LIST */
         #deck-list {
+            flex: 1;
+            min-height: 0;
             overflow-y: auto;
         }
 
@@ -471,6 +480,7 @@
     </style>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=2"></script>
 </head>
 
 <body>
@@ -686,7 +696,10 @@
             list.innerHTML = '';
 
             if (decks.length === 0) {
-                list.innerHTML = `<div style="text-align:center; padding:20px; color:#666;">${window.t('flashcards.empty', 'No decks. Tap "+ Deck" to create one.')}</div>`;
+                list.innerHTML = window.rekindleEmptyState(
+                    window.t('flashcards.empty', 'No decks. Tap "+ Deck" to create one.'),
+                    { icon: 'cards', compact: true }
+                );
                 return;
             }
 

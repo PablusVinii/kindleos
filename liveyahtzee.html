@@ -365,6 +365,7 @@
             margin: 5px 0;
         }
     </style>
+    <link rel="stylesheet" href="js/system-dialog.css?v=2">
 </head>
 <body>
     <div class="window">
@@ -432,18 +433,22 @@
 
         <!-- Modals -->
         <div id="winner-modal" class="modal-overlay">
-            <div class="modal-box">
-                <h2 id="winner-text" data-i18n="yahtzee.msg.game_over">Game Over</h2>
-                <div id="final-scoreboard" style="text-align: left; margin: 15px 0;"></div>
+            <div class="modal-box rk-dialog">
+                <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" id="winner-text" data-i18n="yahtzee.msg.game_over">Game Over</span></div>
+                <div class="rk-dialog-body">
+                    <div id="final-scoreboard" style="text-align: left; margin: 15px 0;"></div>
                 <button class="sys-btn" onclick="leaveMatch()" data-i18n="common.back">Main Menu</button>
+                </div>
             </div>
         </div>
 
         <div id="custom-alert-modal" class="modal-overlay">
-            <div class="modal-box">
-                <h3 id="custom-alert-title" data-i18n="common.notice">Notice</h3>
-                <p id="custom-alert-msg" style="margin: 15px 0;"></p>
-                <button class="sys-btn" onclick="closeAlert()" data-i18n="common.ok">OK</button>
+            <div class="modal-box rk-dialog">
+                <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" id="custom-alert-title" data-i18n="common.notice">Notice</span></div>
+                <div class="rk-dialog-body">
+                    <p id="custom-alert-msg"></p>
+                    <button class="sys-btn" onclick="closeAlert()" data-i18n="common.ok">OK</button>
+                </div>
             </div>
         </div>
     </div>

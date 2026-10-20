@@ -476,6 +476,7 @@
         }
     </style>
     <script src="theme.js?v=19"></script>
+    <link rel="stylesheet" href="js/system-dialog.css?v=2">
 </head>
 
 <body>
@@ -517,11 +518,13 @@
         </div>
 
         <div id="login-overlay" class="overlay" style="display:none;">
-            <div class="modal-inner">
-                <h2 data-i18n="words.overlay.login.title">Words Online</h2>
-                <p data-i18n="words.overlay.login.text">You must log in to play.</p>
-                <button onclick="location.href='index?login=true'" data-i18n="words.overlay.login.btn_login">Log In</button>
-                <button onclick="location.href='index'" data-i18n="common.back">Back</button>
+            <div class="modal-inner rk-dialog">
+                <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" data-i18n="words.overlay.login.title">Words Online</span></div>
+                <div class="rk-dialog-body">
+                    <p data-i18n="words.overlay.login.text">You must log in to play.</p>
+                    <button class="rk-primary" onclick="location.href='index?login=true'" data-i18n="words.overlay.login.btn_login">Log In</button>
+                    <button onclick="location.href='index'" data-i18n="common.back">Back</button>
+                </div>
             </div>
         </div>
 

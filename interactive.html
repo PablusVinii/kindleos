@@ -477,6 +477,7 @@
     </style>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=2"></script>
 </head>
 
 <body>
@@ -827,7 +828,10 @@
             });
 
             if (mergedLibrary.length === 0) {
-                list.innerHTML = '<div style="text-align:center; padding:40px; color:#666;">Library Empty.<br>Go to the store to find stories!</div>';
+                list.innerHTML = window.rekindleEmptyState(
+                    window.t('interactive.msg.library_empty', 'Library Empty.<br>Go to the store to find stories!'),
+                    { icon: 'book' }
+                );
                 return;
             }
 
@@ -924,7 +928,10 @@
                     list.appendChild(el);
                 });
             } else if (resumeGames.length === 0) {
-                list.innerHTML = '<div style="text-align:center; padding:40px; color:#666;">Library Empty.<br>Go to the store to find stories!</div>';
+                list.innerHTML = window.rekindleEmptyState(
+                    window.t('interactive.msg.library_empty', 'Library Empty.<br>Go to the store to find stories!'),
+                    { icon: 'book' }
+                );
             }
         }
 

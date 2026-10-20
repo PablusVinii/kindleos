@@ -769,9 +769,11 @@
     <script src="js/promo-ban.js?v=1"></script>
     <link rel="stylesheet" href="css/custom-select.css">
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=2"></script>
     <script src="js/custom-select.js?v=1"></script>
     <script src="js/age-verification.js?v=2"></script>
     <script src="js/emoji-render.js?v=1"></script>
+    <link rel="stylesheet" href="js/system-dialog.css?v=2">
 </head>
 
 <body>
@@ -1173,12 +1175,14 @@
         </div>
     </div>
     <div id="login-overlay" style="display: none;"> <!-- Hidden by default, shown by JS -->
-        <div class="modal-box">
-            <h2 id="login-overlay-title" data-i18n="neighbourhood.login.title">Log in to join the neighbourhood</h2>
-            <p id="login-overlay-desc" data-i18n="neighbourhood.login.desc">Post, comment and connect with other ReKindle readers.</p>
-            <p id="login-overlay-message" style="font-size: 0.9rem; color: #666; margin: 10px 0; max-width: 300px;"></p>
-            <button class="sys-btn" onclick="window.location.href='index?login=true'" data-i18n="login.btn.login">Log
-                In</button>
+        <div class="modal-box rk-dialog">
+            <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" id="login-overlay-title" data-i18n="neighbourhood.login.title">Log in to join the neighbourhood</span></div>
+            <div class="rk-dialog-body">
+                <p id="login-overlay-desc" data-i18n="neighbourhood.login.desc">Post, comment and connect with other ReKindle readers.</p>
+                <p id="login-overlay-message" style="font-size: 0.9rem; color: #666; margin: 10px 0; max-width: 300px;"></p>
+                <button class="sys-btn rk-primary" onclick="window.location.href='index?login=true'" data-i18n="login.btn.login">Log
+                    In</button>
+            </div>
         </div>
     </div>
 
@@ -2891,7 +2895,7 @@
                         if (docs.length < PAGE_SIZE) allPostsLoaded = true;
                         recentPosts.forEach(post => renderPostItem(post, feed));
                     } else {
-                        feed.innerHTML = '<div style="text-align:center; color:#666;" data-empty="true">No posts yet. Be the first!</div>';
+                        feed.innerHTML = emptyFeedHtml();
                         allPostsLoaded = true;
                     }
                     updateEndOfFeed(feed);
@@ -2918,7 +2922,7 @@
                                 commentListeners.delete(change.doc.id);
                             }
                             if (recentPosts.length === 0) {
-                                feed.innerHTML = '<div style="text-align:center; color:#666;" data-empty="true">No posts yet. Be the first!</div>';
+                                feed.innerHTML = emptyFeedHtml();
                             }
                         }
                     });
@@ -2978,6 +2982,13 @@
 
             loadingMore = false;
             updateEndOfFeed(feed);
+        }
+
+        function emptyFeedHtml() {
+            return '<div data-empty="true">' + window.rekindleEmptyState(
+                window.t('neighbourhood.msg.no_posts', 'No posts yet. Be the first!'),
+                { icon: 'chat', compact: true }
+            ) + '</div>';
         }
 
         function updateEndOfFeed(feed) {

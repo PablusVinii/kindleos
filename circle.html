@@ -272,6 +272,7 @@
         }
     </style>
     <script src="theme.js?v=19"></script>
+    <link rel="stylesheet" href="js/system-dialog.css?v=2">
 </head>
 
 <body>
@@ -295,22 +296,28 @@
             <button class="sys-btn" id="retry-btn" onclick="resetGame()" style="display:none;" data-i18n="circle.btn.retry">Retry</button>
         </div>
 
-        <div id="start-game-modal" style="display: block;">
-            <h2 data-i18n="circle.label.ready">Ready?</h2>
-            <p data-i18n="circle.msg.draw">Draw a circle as close to perfect as you can!</p>
-            <button class="sys-btn" onclick="startGame()" data-i18n="circle.btn.start">Start</button>
+        <div id="start-game-modal" class="rk-dialog" style="display: block;">
+            <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" data-i18n="circle.label.ready">Ready?</span></div>
+            <div class="rk-dialog-body">
+                <p data-i18n="circle.msg.draw">Draw a circle as close to perfect as you can!</p>
+                <button class="sys-btn rk-primary" onclick="startGame()" data-i18n="circle.btn.start">Start</button>
+            </div>
         </div>
 
-        <div id="result-modal">
-            <h2 data-i18n="circle.label.result_title">Result</h2>
-            <p id="result-modal-text" style="font-family: 'Courier New', monospace; font-size: 1.2rem; font-weight: bold;"></p>
-            <button class="sys-btn" onclick="resetGame()" data-i18n="circle.btn.retry">Retry</button>
+        <div id="result-modal" class="rk-dialog">
+            <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" data-i18n="circle.label.result_title">Result</span></div>
+            <div class="rk-dialog-body">
+                <p id="result-modal-text" style="font-family: 'Courier New', monospace; font-size: 1.2rem; font-weight: bold;"></p>
+                <button class="sys-btn" onclick="resetGame()" data-i18n="circle.btn.retry">Retry</button>
+            </div>
         </div>
 
-        <div id="leaderboard-modal">
-            <h3 data-i18n="circle.label.top_scores">Top Circles</h3>
-            <div class="lb-list" id="lb-content" data-i18n="circle.status.loading">Loading...</div>
-            <button class="sys-btn" onclick="document.getElementById('leaderboard-modal').style.display='none'" data-i18n="circle.btn.close">Close</button>
+        <div id="leaderboard-modal" class="rk-dialog">
+            <div class="rk-dialog-bar"><div class="rk-dialog-stripes"></div><span class="rk-dialog-title" data-i18n="circle.label.top_scores">Top Circles</span></div>
+            <div class="rk-dialog-body">
+                <div class="lb-list" id="lb-content" data-i18n="circle.status.loading">Loading...</div>
+                <button class="sys-btn" onclick="document.getElementById('leaderboard-modal').style.display='none'" data-i18n="circle.btn.close">Close</button>
+            </div>
         </div>
     </div>
 

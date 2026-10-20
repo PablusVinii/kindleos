@@ -412,6 +412,7 @@
     </style>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=2"></script>
 </head>
 
 <body>
@@ -441,10 +442,7 @@
                 </div>
                 <div id="list-container"></div>
             </div>
-            <div class="details-pane" id="details-pane">
-                <div style="text-align:center; margin-top:50px; font-style:italic; color:#666;"
-                    data-i18n="contacts.details.select">Select a contact.</div>
-            </div>
+            <div class="details-pane" id="details-pane"></div>
         </div>
 
         <div id="status-bar" data-i18n="contacts.status.local">Local Mode</div>
@@ -542,9 +540,20 @@
         let contactToDeleteId = null;
         let editingContactId = null;
 
+        function selectContactPlaceholder() {
+            const pane = document.getElementById('details-pane');
+            if (!pane) return;
+            pane.innerHTML = window.rekindleEmptyState(
+                window.t('contacts.details.select', 'Select a contact.'),
+                { icon: 'contacts', compact: true }
+            );
+        }
+
         window.onload = function () {
             if (window.rekindleApplyWallpaper) window.rekindleApplyWallpaper();
             if (window.rekindleApplyDefaultFullscreen) window.rekindleApplyDefaultFullscreen();
+
+            selectContactPlaceholder();
 
             // Initialize Firebase
             firebase.initializeApp(firebaseConfig);
@@ -616,7 +625,10 @@
             }
 
             if (!list || list.length === 0) {
-                container.innerHTML = `<div style="padding:20px;text-align:center;">${window.t('contacts.list.empty', 'No contacts.')}</div>`;
+                container.innerHTML = window.rekindleEmptyState(
+                    window.t('contacts.list.empty', 'No contacts.'),
+                    { icon: 'contacts', compact: true }
+                );
                 return;
             }
             list.forEach(person => {
@@ -968,7 +980,7 @@
                         localStorage.setItem('rekindle_contacts_local', JSON.stringify(contacts));
                         renderList(contacts);
                         // Clear details to update view safely
-                        document.getElementById('details-pane').innerHTML = '<div style="text-align:center; margin-top:50px; font-style:italic; color:#666;">Select a contact.</div>';
+                        selectContactPlaceholder();
                     }
                 }
             } else {
@@ -1004,7 +1016,7 @@
                     contacts.splice(idx, 1);
                     localStorage.setItem('rekindle_contacts_local', JSON.stringify(contacts));
                     renderList(contacts);
-                    document.getElementById('details-pane').innerHTML = '<div style="text-align:center; margin-top:50px; font-style:italic; color:#666;">Select a contact.</div>';
+                    selectContactPlaceholder();
                 }
             }
             closeDeleteModal();

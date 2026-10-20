@@ -22,7 +22,11 @@
         calendar: '<rect x="4" y="6" width="24" height="22"/><path d="M4 12h24M10 4v4M22 4v4"/>',
         music: '<path d="M13 24V8l13-3v16"/><circle cx="9" cy="24" r="4"/><circle cx="22" cy="21" r="4"/>',
         search: '<circle cx="14" cy="14" r="8"/><path d="M20 20l7 7"/>',
-        bookmark: '<path d="M9 4h14v24l-7-5-7 5z"/>'
+        bookmark: '<path d="M9 4h14v24l-7-5-7 5z"/>',
+        contacts: '<circle cx="16" cy="10" r="5"/><path d="M5 27c1-7 5-10 11-10s10 3 11 10"/>',
+        cards: '<rect x="7" y="4" width="18" height="24"/><path d="M11 10h10M11 15h10M11 20h6"/>',
+        chat: '<path d="M5 6h22v16H12l-7 6z"/><path d="M10 12h12M10 17h8"/>',
+        habit: '<rect x="5" y="7" width="22" height="20"/><path d="M5 13h22M11 4v6M21 4v6"/><path d="M10 20l3 3 6-6"/>'
     };
 
     var STYLE_ID = 'rk-empty-styles';

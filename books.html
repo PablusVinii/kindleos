@@ -261,7 +261,7 @@
     <script src="time.js?v=2"></script>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
-    <script src="js/ui-kit.js?v=1"></script>
+    <script src="js/ui-kit.js?v=2"></script>
     <script src="js/custom-select.js?v=1"></script>
 </head>
 
@@ -572,9 +572,15 @@
                         }
                     });
 
-                    // Hide empty states nicely
-                    if(wantCount === 0) wantList.innerHTML = `<div style="color:#666; font-style:italic; padding:10px;">No books here.</div>`;
-                    if(readCount === 0) readList.innerHTML = `<div style="color:#666; font-style:italic; padding:10px;">No books here.</div>`;
+                    // Empty states
+                    if(wantCount === 0) wantList.innerHTML = window.rekindleEmptyState(
+                        window.t('books.empty.want', 'No books here.'),
+                        { icon: 'bookmark', compact: true }
+                    );
+                    if(readCount === 0) readList.innerHTML = window.rekindleEmptyState(
+                        window.t('books.empty.read', 'No books here.'),
+                        { icon: 'book', compact: true }
+                    );
                 });
         }
 
