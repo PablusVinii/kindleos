@@ -988,6 +988,20 @@
             // For now, let's keep the load logic in startHost/Monitor flow
         }
 
+        // Cryptographically random 6-digit pairing code. Rejection sampling keeps
+        // every digit uniform; there is deliberately no Math.random() fallback
+        // because this code lets another device join the session.
+        function makeSessionId() {
+            if (typeof crypto === 'undefined' || !crypto.getRandomValues) return null;
+            var digits = '';
+            var buf = new Uint8Array(1);
+            while (digits.length < 6) {
+                crypto.getRandomValues(buf);
+                if (buf[0] < 250) digits += String(buf[0] % 10);
+            }
+            return digits;
+        }
+
         // --- HOST LOGIC ---
         async function startHost() {
             if (!currentUser) {
@@ -997,7 +1011,11 @@
                 return;
             }
 
-            sessionId = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b => b % 10).join('').padStart(6, '0') : Math.floor(100000 + Math.random() * 900000).toString();
+            sessionId = makeSessionId();
+            if (!sessionId) {
+                showModal('Error', 'This browser cannot generate a secure session code.');
+                return;
+            }
             document.getElementById('host-code').innerText = sessionId;
             switchView('keyboard-view');
 
@@ -1343,7 +1361,11 @@
         function startMonitorQR() {
             // Need to set session ID first
             if (!sessionId) {
-                sessionId = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b => b % 10).join('').padStart(6, '0') : Math.floor(100000 + Math.random() * 900000).toString();
+                sessionId = makeSessionId();
+                if (!sessionId) {
+                    showModal('Error', 'This browser cannot generate a secure session code.');
+                    return;
+                }
             }
 
             // Push content and ID to session

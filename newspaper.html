@@ -476,6 +476,11 @@
         // --- CONFIGURATION ---
         const RSS_BASE = "https://api.rss2json.com/v1/api.json?rss_url=";
 
+        function escapeHtml(text) {
+            if (text == null) return "";
+            return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
         const FEEDS = {
             world: "http://feeds.bbci.co.uk/news/world/rss.xml",
             technology: "http://feeds.bbci.co.uk/news/technology/rss.xml",
@@ -557,22 +562,23 @@
                     div.className = 'article';
                     div.onclick = () => openArticle(item.link); // Changed to open modal
 
-                    // Clean HTML tags and increase length
-                    const cleanDesc = item.description.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/<[^>]*>?/gm, '').substring(0, 350) + "...";
+                    // Strip markup for the plain-text summary; the result is
+                    // HTML-escaped at insertion time.
+                    const cleanDesc = String(item.description || '').replace(/<[^>]*>?/gm, '').substring(0, 350) + "...";
 
                     // Try to find an image
                     let imgUrl = item.thumbnail || (item.enclosure ? item.enclosure.link : null);
 
                     let imgHtml = '';
                     if (imgUrl) {
-                        imgHtml = `<img src="${imgUrl}" class="article-img" style="display:block;">`;
+                        imgHtml = `<img src="${escapeHtml(imgUrl)}" class="article-img" style="display:block;">`;
                     }
 
                     // Changed <a> to <span> to avoid default link behavior
                     div.innerHTML = `
                         <div class="article-content">
-                            <span class="headline">${item.title}</span>
-                            <div class="summary">${cleanDesc}</div>
+                            <span class="headline">${escapeHtml(item.title)}</span>
+                            <div class="summary">${escapeHtml(cleanDesc)}</div>
                         </div>
                         ${imgHtml}
                     `;

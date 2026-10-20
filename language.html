@@ -1468,17 +1468,18 @@
 
             if (currentMode === 'sentences') {
                 const isCharBased = (targetLang === 'jpn' || targetLang === 'cmn');
-                html += `<div class="question-text">${q.prompt}</div>`;
+                html += `<div class="question-text">${escapeHtml(q.prompt)}</div>`;
                 html += `<div style="font-size:1.2rem; margin: 10px 0; border:1px dashed black; padding:15px; background:#f9f9f9; width:100%; box-sizing:border-box;">${q.sentence}</div>`;
                 html += `<div style="margin-bottom:20px; font-style:italic; color:#666;">Choose the missing ${isCharBased ? 'character' : 'word'}</div>`;
             } else {
-                html += `<div class="question-text">${q.prompt}</div>`;
+                html += `<div class="question-text">${escapeHtml(q.prompt)}</div>`;
             }
 
             // Choices
             html += `<div class="choices-grid">`;
             q.choices.forEach(c => {
-                html += `<div class="choice-btn" onclick="selectChoice(this, '${escapeHtml(c).replace(/\\/g, '\\\\\\\\').replace(/'/g, "\\'")}')">${escapeHtml(c)}</div>`;
+                const jsChoice = escapeHtml(JSON.stringify(String(c)));
+                html += `<div class="choice-btn" onclick="selectChoice(this, ${jsChoice})">${escapeHtml(c)}</div>`;
             });
             html += `</div>`;
 

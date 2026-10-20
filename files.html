@@ -802,7 +802,7 @@
                                 <circle cx="12" cy="19" r="1"></circle>
                             </svg>
                         </div>
-                        <div class="menu-dropdown" id="menu-${file.fullPath.replace(/"/g, '\\"') /* ID doesn't need same escaping, just double quotes if any */}">
+                        <div class="menu-dropdown" id="menu-${escapeHtml(file.fullPath)}">
                             <div class="menu-item" onclick="downloadFile(event, '${safePath}')">Download</div>
                             <div class="menu-item" onclick="deleteFile(event, '${safePath}', '${safeName}')">Delete</div>
                         </div>

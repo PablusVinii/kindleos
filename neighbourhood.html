@@ -2619,15 +2619,22 @@
                 msgBtn.onclick = () => {
                     // Open KindleChat with this user's UID and name for faster loading
                     const chatName = getKindleName(user);
-                    window.location.href = `kindlechat.html?chat_with_uid=${user.uid}&name=${encodeURIComponent(chatName)}`;
+                    window.location.href = `kindlechat.html?chat_with_uid=${encodeURIComponent(user.uid)}&name=${encodeURIComponent(chatName)}`;
                 };
             }
         }
 
         function addSocialLink(container, text, url) {
             const a = document.createElement('a');
-            // Validate social link URL to prevent javascript: injection
-            const safeUrl = (/^(https?:|mailto:)/i.test(url)) ? url : '#';
+            // Parse and whitelist the scheme; a regex prefix test can be fooled
+            // by control characters and does not normalise the URL.
+            let safeUrl = '#';
+            try {
+                const parsed = new URL(String(url || ''));
+                if (parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'mailto:') {
+                    safeUrl = parsed.href;
+                }
+            } catch (e) { /* invalid URL -> '#' */ }
             a.href = safeUrl;
             a.target = '_blank';
             a.className = 'social-icon';
@@ -2727,6 +2734,22 @@
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
+        }
+
+        // Escape a value that will sit inside a single-quoted JS string in an
+        // HTML attribute. Backslashes/quotes/newlines are JS-escaped and the
+        // HTML metacharacters are entity-encoded so the attribute survives.
+        function escapeJsString(text) {
+            if (text === null || text === undefined) return "";
+            return String(text)
+                .replace(/\\/g, "\\\\")
+                .replace(/'/g, "\\'")
+                .replace(/\n/g, "\\n")
+                .replace(/\r/g, "\\r")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
         }
 
         function containsUrl(text) {
@@ -3074,17 +3097,9 @@
                 // Report controls (visible to all authenticated users) - circular ! style
                 let reportControls = '';
                 if (currentUser && post.uid && post.uid !== currentUser.uid) {
-                    var safePostId = escapeHtml(post.id);
-                    var safeReportedUid = escapeHtml(post.uid);
-                    var postSnapshot = (post.text || '')
-                        .replace(/\\/g, '\\\\\\\\')
-                        .replace(/'/g, "\\'")
-                        .replace(/\n/g, '\\n')
-                        .replace(/\r/g, '\\r')
-                        .replace(/\u0026/g, '\u0026amp;')
-                        .replace(/\u003c/g, '\u0026lt;')
-                        .replace(/\u003e/g, '\u0026gt;')
-                        .replace(/"/g, '\u0026quot;');
+                    var safePostId = escapeJsString(post.id);
+                    var safeReportedUid = escapeJsString(post.uid);
+                    var postSnapshot = escapeJsString(post.text || '');
                     reportControls = `<div class="report-btn" onclick="rekindleOpenReportModal({contentType:'neighbourhood_post',contentId:'${safePostId}',contentPath:'neighbourhood_posts/${safePostId}',reportedUserId:'${safeReportedUid}',contentSnapshot:'${postSnapshot}'})" title="Report">!</div>`;
                 }
 
@@ -3274,17 +3289,9 @@
                 // Report controls for comments (visible to all authenticated users) - circular ! style
                 let reportCommentControls = '';
                 if (currentUser && comment.uid && comment.uid !== currentUser.uid) {
-                    var safeCommentId = escapeHtml(comment.id);
-                    var safeReportedCommentUid = escapeHtml(comment.uid);
-                    var commentSnapshot = (comment.text || '')
-                        .replace(/\\/g, '\\\\\\\\')
-                        .replace(/'/g, "\\'")
-                        .replace(/\n/g, '\\n')
-                        .replace(/\r/g, '\\r')
-                        .replace(/\u0026/g, '\u0026amp;')
-                        .replace(/\u003c/g, '\u0026lt;')
-                        .replace(/\u003e/g, '\u0026gt;')
-                        .replace(/"/g, '\u0026quot;');
+                    var safeCommentId = escapeJsString(comment.id);
+                    var safeReportedCommentUid = escapeJsString(comment.uid);
+                    var commentSnapshot = escapeJsString(comment.text || '');
                     reportCommentControls = `<div class="report-btn" onclick="rekindleOpenReportModal({contentType:'neighbourhood_comment',contentId:'${safeCommentId}',contentPath:'neighbourhood_posts/${escapeHtml(postId)}/comments/${safeCommentId}',reportedUserId:'${safeReportedCommentUid}',contentSnapshot:'${commentSnapshot}'})" title="Report">!</div>`;
                 }
 

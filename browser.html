@@ -654,10 +654,22 @@
             const isLite = params.get('lite') === 'true';
             const returnTo = params.get('return');
             
+            function safeReturnTarget(raw) {
+                if (!raw) return 'index';
+                try {
+                    const u = new URL(raw, window.location.origin);
+                    // Pin to this origin: rejects //evil.com, javascript:, data: and
+                    // backslash tricks that a startsWith('/') check would let through.
+                    if (u.origin !== window.location.origin) return 'index';
+                    if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'index';
+                    return u.pathname + u.search + u.hash;
+                } catch (e) {
+                    return 'index';
+                }
+            }
+
             if (returnTo) {
-                // Validate returnTo to prevent open redirect
-                const isSafeReturn = returnTo.startsWith('/') || returnTo.startsWith(window.location.origin + '/');
-                const safeReturn = isSafeReturn ? returnTo : 'index';
+                const safeReturn = safeReturnTarget(returnTo);
                 document.querySelector('.close-box').onclick = () => window.location.href = safeReturn;
                 const liteBackBtn = document.getElementById('lite-back-btn');
                 if (liteBackBtn) {

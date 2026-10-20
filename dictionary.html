@@ -171,6 +171,7 @@
     </style>
     <link rel="stylesheet" href="css/custom-select.css">
     <script src="theme.js?v=19"></script>
+    <script src="js/safe-html.js?v=1"></script>
     <style>
         #content-area {
             flex-grow: 1;
@@ -418,6 +419,11 @@
             if (text == null) return "";
             return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
+        // Safe argument for an inline handler: JSON handles escapes, escapeHtml
+        // keeps the double-quoted HTML attribute intact.
+        function jsArg(value) {
+            return escapeHtml(JSON.stringify(String(value == null ? '' : value)));
+        }
         function showModal(msg, isConfirm = false, callback = null) {
             const overlay = document.getElementById('modal-overlay');
             const messageEl = document.getElementById('modal-message');
@@ -511,37 +517,36 @@
             let audioHtml = "";
             const phonetic = entry.phonetics.find(p => p.audio && p.audio.length > 0);
             if (phonetic) {
-                audioHtml = `<button class="audio-btn" onclick="playAudio('${phonetic.audio}')">🔊</button>`;
+                audioHtml = `<button class="audio-btn" onclick="playAudio(${jsArg(phonetic.audio)})">🔊</button>`;
             }
             const textPhonetic = entry.phonetic || (entry.phonetics.find(p => p.text) ? entry.phonetics.find(p => p.text).text : "");
 
             let html = `
-                <div class="wotd-banner">${label}</div>
+                <div class="wotd-banner">${escapeHtml(label)}</div>
                 <div class="word-header">
-                    <div class="word-title">${entry.word} ${audioHtml}</div>
-                    <div class="phonetic">${textPhonetic}</div>
+                    <div class="word-title">${escapeHtml(entry.word)} ${audioHtml}</div>
+                    <div class="phonetic">${escapeHtml(textPhonetic)}</div>
                 </div>
             `;
 
             entry.meanings.forEach(meaning => {
-                html += `<div class="part-of-speech">${meaning.partOfSpeech}</div>`;
+                html += `<div class="part-of-speech">${escapeHtml(meaning.partOfSpeech)}</div>`;
                 html += `<ol class="definitions">`;
                 meaning.definitions.forEach(def => {
-                    html += `<li>${def.definition}`;
-                    if (def.example) html += `<span class="example">"${def.example}"</span>`;
+                    html += `<li>${escapeHtml(def.definition)}`;
+                    if (def.example) html += `<span class="example">"${escapeHtml(def.example)}"</span>`;
                     html += `</li>`;
                 });
                 html += `</ol>`;
                 if (meaning.synonyms && meaning.synonyms.length > 0) {
                     const synsLabel = window.t ? window.t('dictionary.label.synonyms', "Synonyms:") : "Synonyms:";
-                    const syns = meaning.synonyms.slice(0, 5).map(s => `<span class="syn-tag" onclick="searchWord('${s}')">${s}</span>`).join(", ");
+                    const syns = meaning.synonyms.slice(0, 5).map(s => `<span class="syn-tag" onclick="searchWord(${jsArg(s)})">${escapeHtml(s)}</span>`).join(", ");
                     html += `<div class="synonyms"><strong>${synsLabel}</strong> ${syns}</div>`;
                 }
             });
 
             html += `<br><br><div style="font-size:0.7rem;color:#999;border-top:1px solid #ccc;padding-top:5px;">${window.t ? window.t('dictionary.label.source_api', "Source: Wiktionary (via DictionaryAPI)") : "Source: Wiktionary (via DictionaryAPI)"}</div>`;
-            var sanitizedHtml = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-            content.innerHTML = sanitizedHtml;
+            window.rekindleSetSafeHtml(content, html);
             content.scrollTop = 0;
         }
 
@@ -715,7 +720,7 @@
             // We wrapper it to style it
             let html = `
                 <div class="word-header">
-                    <div class="word-title">${word}</div>
+                    <div class="word-title">${escapeHtml(word)}</div>
                 </div>
                 <div class="wiki-content">
                     ${htmlContent}
@@ -723,7 +728,9 @@
                  <br><br><div style="font-size:0.7rem; color:#999; border-top:1px solid #ccc; padding-top:5px;">${window.t ? window.t('dictionary.label.source_wiki', "Source: Wiktionary") : "Source: Wiktionary"}</div>
             `;
 
-            content.innerHTML = html;
+            // htmlContent is raw MediaWiki HTML: sanitise it through DOMParser
+            // instead of running it through innerHTML.
+            window.rekindleSetSafeHtml(content, html);
             content.scrollTop = 0;
         }
 
@@ -739,27 +746,27 @@
             // Find first valid audio
             const phonetic = entry.phonetics.find(p => p.audio && p.audio.length > 0);
             if (phonetic) {
-                audioHtml = `<button class="audio-btn" onclick="playAudio('${phonetic.audio}')">🔊</button>`;
+                audioHtml = `<button class="audio-btn" onclick="playAudio(${jsArg(phonetic.audio)})">🔊</button>`;
             }
 
             const textPhonetic = entry.phonetic || (entry.phonetics.find(p => p.text) ? entry.phonetics.find(p => p.text).text : "");
 
             let html = `
                 <div class="word-header">
-                    <div class="word-title">${entry.word} ${audioHtml}</div>
-                    <div class="phonetic">${textPhonetic}</div>
+                    <div class="word-title">${escapeHtml(entry.word)} ${audioHtml}</div>
+                    <div class="phonetic">${escapeHtml(textPhonetic)}</div>
                 </div>
             `;
 
             // 2. Meanings
             entry.meanings.forEach(meaning => {
-                html += `<div class="part-of-speech">${meaning.partOfSpeech}</div>`;
+                html += `<div class="part-of-speech">${escapeHtml(meaning.partOfSpeech)}</div>`;
 
                 html += `<ol class="definitions">`;
                 meaning.definitions.forEach(def => {
-                    html += `<li>${def.definition}`;
+                    html += `<li>${escapeHtml(def.definition)}`;
                     if (def.example) {
-                        html += `<span class="example">"${def.example}"</span>`;
+                        html += `<span class="example">"${escapeHtml(def.example)}"</span>`;
                     }
                     html += `</li>`;
                 });
@@ -768,7 +775,7 @@
                 // Synonyms/Antonyms
                 if (meaning.synonyms && meaning.synonyms.length > 0) {
                     const synsLabel = window.t ? window.t('dictionary.label.synonyms', "Synonyms:") : "Synonyms:";
-                    const syns = meaning.synonyms.slice(0, 5).map(s => `<span class="syn-tag" onclick="searchWord('${s}')">${s}</span>`).join(", ");
+                    const syns = meaning.synonyms.slice(0, 5).map(s => `<span class="syn-tag" onclick="searchWord(${jsArg(s)})">${escapeHtml(s)}</span>`).join(", ");
                     html += `<div class="synonyms"><strong>${synsLabel}</strong> ${syns}</div>`;
                 }
             });
@@ -776,7 +783,7 @@
             // License/Source footer (optional, keeps it clean to omit or minimal)
             html += `<br><br><div style="font-size:0.7rem; color:#999; border-top:1px solid #ccc; padding-top:5px;">${window.t ? window.t('dictionary.label.source_api', "Source: Wiktionary (via DictionaryAPI)") : "Source: Wiktionary (via DictionaryAPI)"}</div>`;
 
-            content.innerHTML = html;
+            window.rekindleSetSafeHtml(content, html);
             content.scrollTop = 0;
         }
 

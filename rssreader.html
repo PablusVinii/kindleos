@@ -883,6 +883,32 @@
             if (text == null) return "";
             return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
+
+        // Compare the parsed hostname, not a substring: "evil.com/xkcd.com"
+        // must not opt into the XKCD special case.
+        function isXkcdSite(url) {
+            try {
+                const host = new URL(String(url)).hostname.toLowerCase();
+                return host === 'xkcd.com' || host.endsWith('.xkcd.com');
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Escape a value that will sit inside a single-quoted JS string in an
+        // HTML attribute (JS-escaped backslashes/quotes + HTML metacharacters).
+        function escapeJsString(text) {
+            if (text === null || text === undefined) return "";
+            return String(text)
+                .replace(/\\/g, "\\\\")
+                .replace(/'/g, "\\'")
+                .replace(/\n/g, "\\n")
+                .replace(/\r/g, "\\r")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
         // --- FIREBASE CONFIG ---
         const firebaseConfig = {
             apiKey: "AIzaSyDY7x7vVmlYUyVZNLuCCmIQYa6PWFVfZqQ",
@@ -1480,9 +1506,9 @@
                         // Only show "Uncategorized" filter if user has at least one named category
                         if (cat === 'Uncategorized' && !hasNamedCategories) return;
                         // Escape single quotes in cat name for the onclick handler
-                        const escapedCat = escapeHtml(cat).replace(/\\/g, '\\\\\\\\').replace(/'/g, "\\'");
+                        const escapedCat = escapeJsString(cat);
                         const btnId = `filter-${cat.replace(/\s+/g, '-')}`;
-                        dynamicBtns += `<button class="filter-btn ${filterMode === cat ? 'active' : ''}" id="${btnId}" onclick="setFilter('${escapedCat}')">${cat}</button>`;
+                        dynamicBtns += `<button class="filter-btn ${filterMode === cat ? 'active' : ''}" id="${escapeHtml(btnId)}" onclick="setFilter('${escapedCat}')">${escapeHtml(cat)}</button>`;
                     });
                 }
                 filterBar.innerHTML = staticBtns + dynamicBtns;
@@ -1692,7 +1718,7 @@
 
                         // Specialized extraction for XKCD "alt text" (title attribute)
                         let xkcdTitle = "";
-                        if (feed.url.includes('xkcd.com')) {
+                        if (isXkcdSite(feed.url)) {
                             const tempDiv = document.createElement('div');
                             tempDiv.innerHTML = item.description || item.content;
                             const foundImg = tempDiv.querySelector('img');
@@ -1848,7 +1874,7 @@
             modal.style.display = 'flex';
 
             // SPECIAL HANDLING FOR XKCD
-            if (article && article.feedUrl && article.feedUrl.includes('xkcd.com')) {
+            if (article && isXkcdSite(article.feedUrl)) {
                 frame.removeAttribute('src');
                 frame.srcdoc = `
                 <html>
@@ -2008,7 +2034,12 @@
                         if (link) {
                             e.preventDefault();
                             const href = link.href;
-                            if (href && !href.startsWith('javascript:')) {
+                            let safeLink = false;
+                            try {
+                                const u = new URL(href, window.location.href);
+                                safeLink = (u.protocol === 'http:' || u.protocol === 'https:');
+                            } catch (e) { safeLink = false; }
+                            if (href && safeLink) {
                                 parent.window.location.href = 'browser.html?url=' + encodeURIComponent(href);
                             }
                             return;

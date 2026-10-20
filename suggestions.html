@@ -1211,6 +1211,7 @@
 
                     let badgeText = (window.t ? window.t(badgeKey) : (category === 'General' ? type : category)).toUpperCase();
                     if (badgeText.startsWith('SUGGESTIONS.')) badgeText = (category === 'General' ? type : category).toUpperCase(); // Fallback if key missing
+                    badgeText = escapeHtml(badgeText);
 
                     const isProblem = (data.type === 'problem');
                     const isTranslation = (data.type === 'translation');
@@ -1245,7 +1246,7 @@
                     let reportBtnHtml = '';
                     if (currentUser && data.authorUid && data.authorUid !== currentUser.uid) {
                         const safeSnapshot = escapeJsString(censoredTitle + ' - ' + censoredDescription);
-                        reportBtnHtml = `<div class="report-btn suggestion-report" onclick="event.stopPropagation(); rekindleOpenReportModal({contentType:'suggestion',contentId:'${escapeHtml(id)}',contentPath:'suggestions/${escapeHtml(id)}',reportedUserId:'${escapeHtml(data.authorUid || '')}',contentSnapshot:'${safeSnapshot}'})" title="Report">!</div>`;
+                        reportBtnHtml = `<div class="report-btn suggestion-report" onclick="event.stopPropagation(); rekindleOpenReportModal({contentType:'suggestion',contentId:'${escapeJsString(id)}',contentPath:'suggestions/${escapeJsString(id)}',reportedUserId:'${escapeJsString(data.authorUid || '')}',contentSnapshot:'${safeSnapshot}'})" title="Report">!</div>`;
                     }
 
                     el.innerHTML = `
@@ -1256,7 +1257,7 @@
                         </div>
                         <div style="display:flex; align-items:center;">
                             ${reportBtnHtml}
-                            <button class="${voteClass}" onclick="event.stopPropagation(); toggleVote('${id}')">▲ ${voteCount}</button>
+                            <button class="${voteClass}" onclick="event.stopPropagation(); toggleVote('${escapeJsString(id)}')">▲ ${voteCount}</button>
                         </div>
                     </div>
                     <div style="font-size:0.9rem; margin-bottom:5px; height: 1.2em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
@@ -2006,7 +2007,7 @@
 
         } catch (e) {
             console.error("CRITICAL INIT ERROR", e);
-            document.body.innerHTML = '<div style="padding:20px;">CRITICAL ERROR: ' + e.message + '</div>';
+            document.body.innerHTML = '<div style="padding:20px;">CRITICAL ERROR: ' + escapeHtml(e.message) + '</div>';
         }
 
         function showConfirm(msg, onOk, onCancel) {

@@ -411,9 +411,13 @@
                 var params = new URLSearchParams(window.location.search);
                 var ret = params.get('return');
                 if (!ret) return '';
-                if (ret.charAt(0) !== '/' || ret.charAt(1) === '/' || ret.indexOf('\\') !== -1) return '';
-                if (/^\/login(\.html)?(\?|$)/.test(ret)) return '';
-                return ret;
+                var u = new URL(ret, window.location.origin);
+                // Pin to this origin: rejects //evil.com, javascript:, data: and
+                // backslash tricks that a startsWith('/') check would let through.
+                if (u.origin !== window.location.origin) return '';
+                if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+                if (u.pathname === '/login' || u.pathname === '/login.html') return '';
+                return u.pathname + u.search + u.hash;
             } catch (e) {
                 return '';
             }

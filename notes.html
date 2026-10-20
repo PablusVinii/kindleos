@@ -15,6 +15,7 @@
     <script src="time.js?v=2"></script>
     <script src="js/i18n.js?v=2"></script>
     <script src="js/ui-kit.js?v=1"></script>
+    <script src="js/safe-html.js?v=1"></script>
     <style>
         /* SYSTEM 7 AESTHETICS */
         :root {
@@ -744,7 +745,9 @@
             if (!note) return;
 
             document.getElementById('note-title-input').value = note.title;
-            document.getElementById('note-content').innerHTML = (note.content || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+            // Notes are HTML from contenteditable; sanitise through DOMParser
+            // instead of stripping <script> and assigning innerHTML.
+            window.rekindleSetSafeHtml(document.getElementById('note-content'), note.content || '');
 
             document.getElementById('list-view').style.display = 'none';
             document.getElementById('list-controls').style.display = 'none';

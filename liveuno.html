@@ -1024,6 +1024,9 @@
         function renderCard(card, onClick) {
             const isWild = card.color === 'wild';
             const displayText = escapeHtml(isWild && card.type === '+4' ? '+4' : card.type);
+            // Card data comes from RTDB game state, so only allow the known
+            // colour classes (prevents attribute injection through card.color).
+            const safeColor = ['red', 'blue', 'green', 'yellow', 'wild'].indexOf(card.color) >= 0 ? card.color : '';
             const clickAttr = onClick ? `onclick="${escapeHtml(onClick)}"` : '';
             if (card === 'back') {
                 return `
@@ -1035,7 +1038,7 @@
                 `;
             }
             return `
-                <div class="card ${card.color || ''}" ${clickAttr}>
+                <div class="card ${safeColor}" ${clickAttr}>
                     <div class="card-small-top">${displayText}</div>
                     <div class="card-inner">
                         <div class="card-inner-text">
@@ -1122,7 +1125,7 @@
                     const p = gameState.players[uid] || {};
                     oppHtml.push(`
                         <div class="opponent opponent-card ${isActive ? 'active-turn' : ''}" style="display:flex; flex-direction:column; align-items:center;">
-                            <canvas id="game-avatar-${uid}" width="32" height="32" style="border:2px solid black; width:32px; height:32px; image-rendering:pixelated; background:white;"></canvas>
+                            <canvas id="game-avatar-${escapeHtml(uid)}" width="32" height="32" style="border:2px solid black; width:32px; height:32px; image-rendering:pixelated; background:white;"></canvas>
                             <div>${isActive ? '▶ ' : ''}${escapeHtml(p.name)}</div>
                             <div style="font-size:0.8rem; font-weight:normal;">${count} cards</div>
                         </div>

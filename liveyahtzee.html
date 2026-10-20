@@ -720,7 +720,7 @@
             const rows = CATS.map(cat => {
                 let pCols = "";
                 displayOrder.forEach(uid => {
-                    pCols += `<div class="score-cell center" id="score-${uid}-${cat}"></div>`;
+                    pCols += `<div class="score-cell center" id="score-${escapeHtml(uid)}-${cat}"></div>`;
                 });
                 return `
                 <div class="score-row" id="row-${cat}" onclick="scoreCategoryClick('${cat}')" style="grid-template-columns: 2.2fr repeat(${numPlayers}, 1fr);">
@@ -730,14 +730,14 @@
             `}).join('');
 
             let pBonusCols = "";
-            displayOrder.forEach(uid => pBonusCols += `<div class="score-cell center" id="score-${uid}-bonus">0/63</div>`);
+            displayOrder.forEach(uid => pBonusCols += `<div class="score-cell center" id="score-${escapeHtml(uid)}-bonus">0/63</div>`);
             const upperBonusRow = `<div class="score-row disabled" id="row-bonus" style="grid-template-columns: 2.2fr repeat(${numPlayers}, 1fr);">
                 <div class="score-cell" data-i18n="yahtzee.label.upper_bonus">${window.t ? window.t('yahtzee.label.upper_bonus', 'Bonus:') : 'Bonus:'}</div>
                 ${pBonusCols}
             </div>`;
 
             let pTotalCols = "";
-            displayOrder.forEach(uid => pTotalCols += `<div class="score-cell center" id="score-${uid}-total">0</div>`);
+            displayOrder.forEach(uid => pTotalCols += `<div class="score-cell center" id="score-${escapeHtml(uid)}-total">0</div>`);
             const totalRow = `<div class="score-row total" style="grid-template-columns: 2.2fr repeat(${numPlayers}, 1fr);">
                 <div class="score-cell" data-i18n="yahtzee.label.total">${window.t ? window.t('yahtzee.label.total', 'Total:') : 'Total:'}</div>
                 ${pTotalCols}
@@ -842,10 +842,10 @@
                 const name = uid === currentUser.uid ? (window.t ? window.t('yahtzee.label.you', 'You') : 'You') : escapeHtml(p.name);
                 return `<div class="opponent-score-row ${isActive ? 'active-turn' : ''}">
                     <div style="display:flex; align-items:center;">
-                        <canvas id="game-avatar-${uid}" width="24" height="24" style="border:1px solid black; width:24px; height:24px; image-rendering:pixelated;"></canvas>
+                        <canvas id="game-avatar-${escapeHtml(uid)}" width="24" height="24" style="border:1px solid black; width:24px; height:24px; image-rendering:pixelated;"></canvas>
                         <span style="margin-left:8px;">${isActive ? '▶ ' : ''}${name}</span>
                     </div>
-                    <span>${p.total}</span>
+                    <span>${Number(p.total) || 0}</span>
                 </div>`;
             }).join('');
 

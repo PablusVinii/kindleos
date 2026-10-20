@@ -458,6 +458,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/safe-html.js?v=1"></script>
 </head>
 
 <body>
@@ -718,12 +719,9 @@
         }
 
         function decodeXmlEntities(text) {
-            return text
-                .replace(/&amp;/g, "&")
-                .replace(/&lt;/g, "<")
-                .replace(/&gt;/g, ">")
-                .replace(/&quot;/g, '"')
-                .replace(/&apos;/g, "'");
+            // Single pass: chained replaces would decode "&amp;lt;" twice.
+            const entities = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+            return String(text).replace(/&(amp|lt|gt|quot|apos);/g, function (m, name) { return entities[name]; });
         }
 
         function stripCdata(text) {
@@ -1200,10 +1198,9 @@
 
                     if (post.contentHtml) {
                         let body = this.decodeHtml(post.contentHtml);
-                        const tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = body.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+                        const doc = new DOMParser().parseFromString(String(body || ''), 'text/html');
 
-                        const table = tempDiv.querySelector('table');
+                        const table = doc.querySelector('table');
                         if (table) {
                             const text = table.innerText || table.textContent;
                             if (text.indexOf('[link]') !== -1 && text.indexOf('[comments]') !== -1) {
@@ -1211,9 +1208,9 @@
                             }
                         }
 
-                        const remainingText = (tempDiv.innerText || tempDiv.textContent).trim();
+                        const remainingText = (doc.body.innerText || doc.body.textContent || '').trim();
                         if (remainingText.length > 0) {
-                            body = this.processCommentHtml(tempDiv.innerHTML);
+                            body = this.processCommentHtml(doc.body.innerHTML);
                             html += `<div class="thread-body">${body}</div>`;
                         } else if (post.permalink) {
                             html += `<div class="thread-body"><a href="https://www.reddit.com${post.permalink}" target="_blank" style="color:blue; text-decoration:underline;">[Open Post on Reddit]</a></div>`;
@@ -1235,18 +1232,20 @@
                     });
 
                     html += '</div>';
-                    content.innerHTML = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+                    // Sanitise the assembled thread through DOMParser so
+                    // untrusted Reddit HTML never reaches an innerHTML sink.
+                    window.rekindleSetSafeHtml(content, html);
                     this.addLinkHandlers();
 
                 } catch (e) {
                     if (e.message && e.message.indexOf('superseded') !== -1) return;
-                    content.innerHTML = `<div class="loading" style="color:red">Error loading thread<br>${e.message}</div>`;
+                    content.innerHTML = `<div class="loading" style="color:red">Error loading thread<br>${escapeHtml(e.message)}</div>`;
                 }
             },
 
             processCommentHtml(html) {
-                const div = document.createElement('div');
-                div.innerHTML = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+                const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+                const div = doc.body;
                 const links = div.querySelectorAll('a');
 
                 links.forEach(a => {
@@ -1294,17 +1293,18 @@
                         e.preventDefault();
                         e.stopPropagation();
                         const href = a.getAttribute('href');
-                        if (!href || href.indexOf('#') === 0 || href.indexOf('javascript:') === 0 || href.indexOf('data:') === 0) return;
-                        let url = href;
-                        if (url.indexOf('http') !== 0) {
-                            try {
-                                url = new URL(url, 'https://www.reddit.com').href;
-                            } catch (_) {
-                                return;
-                            }
+                        if (!href || href.charAt(0) === '#') return;
+                        let url;
+                        try {
+                            url = new URL(href, 'https://www.reddit.com');
+                        } catch (_) {
+                            return;
                         }
+                        // Only http(s) may reach the browser frame; blocks
+                        // javascript:, data:, vbscript: and file: URLs.
+                        if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
                         ui.saveReturnState();
-                        window.location.href = 'browser.html?lite=true&return=/reddit.html&url=' + encodeURIComponent(url);
+                        window.location.href = 'browser.html?lite=true&return=/reddit.html&url=' + encodeURIComponent(url.href);
                     });
                 });
             },

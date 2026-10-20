@@ -66,7 +66,9 @@
 
     // A trailing TLD ("kindlehub.pro", "kindlehub pro", "kindlehubDOTpro")
     // belongs to the mention, so it is masked/blocked together with it.
-    var TLD_RE = /^[\W_]*(?:dot[\W_]*)*(?:pro|com|net|org|app|site|ink)(?![a-z0-9])/;
+    // Bounded so a long run of "dot" tokens cannot trigger exponential
+    // backtracking (CodeQL js/redos). Four is more than any real mention uses.
+    var TLD_RE = /^[\W_]*(?:dot[\W_]*){0,4}(?:pro|com|net|org|app|site|ink)(?![a-z0-9])/;
 
     var BLOCKS = '\u2588\u2588\u2588\u2588\u2588'; // █████
 

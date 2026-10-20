@@ -1726,9 +1726,10 @@
 
             // Mark as read
             var newReadCount = topic.commentCount || 0;
+            if (id === '__proto__' || id === 'constructor' || id === 'prototype') return;
             if (!userTopicStates[id] || userTopicStates[id].lastReadCount < newReadCount) {
                 // Update local first for snappy UI
-                if (!userTopicStates[id] || id === '__proto__' || id === 'constructor' || id === 'prototype') userTopicStates[id] = {};
+                if (!userTopicStates[id]) userTopicStates[id] = {};
                 userTopicStates[id].lastReadCount = newReadCount;
                 userTopicStates[id].lastReadTime = firebase.database.ServerValue.TIMESTAMP;
 
@@ -1781,17 +1782,9 @@
             // Show Report button for non-authors
             var reportBtn = document.getElementById('header-report-btn');
             if (currentUser && topic.authorId && topic.authorId !== currentUser.uid) {
-                var safeTopicId = topic.id.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-                var safeReportedTopicUid = (topic.authorId || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-                var topicSnapshot = ((topic.title || '') + ' - ' + (topic.subheading || ''))
-                    .replace(/\\/g, '\\\\\\\\')
-                    .replace(/'/g, "\\'")
-                    .replace(/\n/g, '\\n')
-                    .replace(/\r/g, '\\r')
-                    .replace(/\u0026/g, '\u0026amp;')
-                    .replace(/\u003c/g, '\u0026lt;')
-                    .replace(/\u003e/g, '\u0026gt;')
-                    .replace(/"/g, '\u0026quot;');
+                var safeTopicId = escapeJsString(topic.id);
+                var safeReportedTopicUid = escapeJsString(topic.authorId || '');
+                var topicSnapshot = escapeJsString((topic.title || '') + ' - ' + (topic.subheading || ''));
                 reportBtn.setAttribute('onclick', "rekindleOpenReportModal({contentType:'topic',contentId:'" + safeTopicId + "',contentPath:'topics/" + safeTopicId + "',reportedUserId:'" + safeReportedTopicUid + "',contentSnapshot:'" + topicSnapshot + "'})");
                 reportBtn.style.display = 'flex';
             } else {
@@ -2281,18 +2274,10 @@
             // Report button for topic comments (visible to all authenticated users) - circular ! style
             var reportCommentBtn = '';
             if (currentUser && msg.authorId && msg.authorId !== currentUser.uid) {
-                var safeTopicCommentId = escapeHtml(msg.id);
-                var safeReportedCommentUid = escapeHtml(msg.authorId);
-                var commentSnapshot = (msg.body || '')
-                    .replace(/\\/g, '\\\\\\\\')
-                    .replace(/'/g, "\\'")
-                    .replace(/\n/g, '\\n')
-                    .replace(/\r/g, '\\r')
-                    .replace(/\u0026/g, '\u0026amp;')
-                    .replace(/\u003c/g, '\u0026lt;')
-                    .replace(/\u003e/g, '\u0026gt;')
-                    .replace(/"/g, '\u0026quot;');
-                reportCommentBtn = '<div class="report-btn" onclick="rekindleOpenReportModal({contentType:\'topic_comment\',contentId:\'' + safeTopicCommentId + '\',contentPath:\'topics/' + escapeHtml(currentTopicId) + '/comments/' + safeTopicCommentId + '\',reportedUserId:\'' + safeReportedCommentUid + '\',contentSnapshot:\'' + commentSnapshot + '\'})" title="Report">!</div>';
+                var safeTopicCommentId = escapeJsString(msg.id);
+                var safeReportedCommentUid = escapeJsString(msg.authorId);
+                var commentSnapshot = escapeJsString(msg.body || '');
+                reportCommentBtn = '<div class="report-btn" onclick="rekindleOpenReportModal({contentType:\'topic_comment\',contentId:\'' + safeTopicCommentId + '\',contentPath:\'topics/' + escapeJsString(currentTopicId) + '/comments/' + safeTopicCommentId + '\',reportedUserId:\'' + safeReportedCommentUid + '\',contentSnapshot:\'' + commentSnapshot + '\'})" title="Report">!</div>';
             }
 
             var authorNameSpanId = 'author-name-' + msg.id;
@@ -2689,7 +2674,8 @@
                     }
                     var newCount = result.commentCount;
                     if (newCount != null) {
-                        if (!userTopicStates[postingTopicId] || postingTopicId === '__proto__' || postingTopicId === 'constructor' || postingTopicId === 'prototype') userTopicStates[postingTopicId] = {};
+                        if (postingTopicId === '__proto__' || postingTopicId === 'constructor' || postingTopicId === 'prototype') return;
+                        if (!userTopicStates[postingTopicId]) userTopicStates[postingTopicId] = {};
                         userTopicStates[postingTopicId].lastReadCount = newCount;
                         if (currentUser) {
                             db.ref('users_private/' + currentUser.uid + '/topic_states/' + postingTopicId + '/lastReadCount').set(newCount);
@@ -3161,6 +3147,22 @@
         function escapeHtml(text) {
             if (!text) return "";
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // Escape a value that will sit inside a single-quoted JS string in an
+        // HTML attribute. Backslashes/quotes/newlines are JS-escaped and the
+        // HTML metacharacters are entity-encoded so the attribute survives.
+        function escapeJsString(text) {
+            if (text === null || text === undefined) return "";
+            return String(text)
+                .replace(/\\/g, "\\\\")
+                .replace(/'/g, "\\'")
+                .replace(/\n/g, "\\n")
+                .replace(/\r/g, "\\r")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
         }
 
         function resolveAuthorName(uid, element, avatarId) {

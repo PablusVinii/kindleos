@@ -3069,17 +3069,9 @@
 
             var reportButtonHtml = '';
             if (currentUser && msg.uid && msg.uid !== currentUser.uid && msg.uid !== 'xEtAch5i5tdiMDTOnL8dXFxM5Nt1') {
-                var safeMsgId2 = safeMsgId.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-                var safeReportedUid = safeUid.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-                var safeSnapshot = ('[Pixel Art] ' + (caption || ''))
-                    .replace(/\\/g, '\\\\\\\\')
-                    .replace(/'/g, "\\'")
-                    .replace(/\n/g, '\\n')
-                    .replace(/\r/g, '\\r')
-                    .replace(/\u0026/g, '\u0026amp;')
-                    .replace(/\u003c/g, '\u0026lt;')
-                    .replace(/\u003e/g, '\u0026gt;')
-                    .replace(/"/g, '\u0026quot;');
+                var safeMsgId2 = escapeJsString(msgId || '');
+                var safeReportedUid = escapeJsString(msg.uid || '');
+                var safeSnapshot = escapeJsString('[Pixel Art] ' + (caption || ''));
                 reportButtonHtml = '<div class="report-btn" style="width:auto; height:auto; padding:4px 10px; border-radius:0; font-size:0.8rem; opacity:1; margin-left:8px;" onclick="rekindleOpenReportModal({contentType:\'kindlechat\',contentId:\'' + safeMsgId2 + '\',contentPath:\'kindlechat/messages/' + safeMsgId2 + '\',reportedUserId:\'' + safeReportedUid + '\',contentSnapshot:\'' + safeSnapshot + '\'})" title="Report" data-i18n="kindlechat.btn.report">Report</div>';
             }
 
@@ -3617,11 +3609,13 @@
             if (typeof msg.timestamp === 'number') div.dataset.ts = msg.timestamp;
 
             var safeUid = escapeHtml(msg.uid || '');
+            var jsUid = escapeJsString(msg.uid || '');
             var avatarId = 'avatar-' + (msgId || Math.random().toString(36).substr(2, 9));
             var safeUser = escapeHtml(msg.uid ? msg.uid.substring(0, 8) : '');
+            var jsUser = escapeJsString(msg.uid ? msg.uid.substring(0, 8) : '');
             var nameHtml = isSelf
-                ? '<span class="author-name-field" onclick="openUserProfile(\'' + safeUid + '\', \'\')">' + window.t('kindlechat.msg.you', 'You') + '</span>'
-                : '<span class="author-name-field" onclick="openUserProfile(\'' + safeUid + '\', \'\')" style="font-weight:bold;">' + safeUser + '</span>';
+                ? '<span class="author-name-field" onclick="openUserProfile(\'' + jsUid + '\', \'\')">' + window.t('kindlechat.msg.you', 'You') + '</span>'
+                : '<span class="author-name-field" onclick="openUserProfile(\'' + jsUid + '\', \'' + jsUser + '\')" style="font-weight:bold;">' + safeUser + '</span>';
 
 
             var timeStr = msg.timestamp ? formatChatTime(msg.timestamp) : "";
@@ -3632,17 +3626,7 @@
             if (currentUser && currentUsername === 'ukiyo') {
                 if (settings.showAdminTools) {
                     // Escape for JS string literal (single-quoted) inside HTML attribute (double-quoted)
-                    var safeText = msg.text
-                        ? msg.text
-                            .replace(/\\/g, '\\\\\\\\')
-                            .replace(/'/g, "\\'")
-                            .replace(/\n/g, '\\n')
-                            .replace(/\r/g, '\\r')
-                            .replace(/&/g, '&amp;')
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;')
-                            .replace(/"/g, '&quot;')
-                        : "";
+                    var safeText = escapeJsString(msg.text || '');
 
                     // Reprocess Button
                     if (currentRoomId === 'general') {
@@ -3653,9 +3637,9 @@
                     adminControlsHtml += '<div class="del-btn" onclick="deleteGeneralMessage(\'' + msgId + '\')">✕</div>';
                 }
             } else if (currentUser && isCurrentUserMod && isModeratorMode && currentRoomId === 'general') {
-                var timeoutUidKc = (msg.uid || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+                var timeoutUidKc = escapeJsString(msg.uid || '');
                 if (timeoutUidKc && msg.uid !== currentUser.uid) {
-                    modControlsHtml += '<button style="background:#8a4800;color:white;border:none;padding:1px 6px;font-size:0.7rem;cursor:pointer;font-family:inherit;margin-left:4px;" onclick="timeoutUser(\'' + timeoutUidKc + '\', \'' + (msg.user || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'") + '\')">Timeout</button>';
+                    modControlsHtml += '<button style="background:#8a4800;color:white;border:none;padding:1px 6px;font-size:0.7rem;cursor:pointer;font-family:inherit;margin-left:4px;" onclick="timeoutUser(\'' + timeoutUidKc + '\', \'' + escapeJsString(msg.user || '') + '\')">Timeout</button>';
                 }
                 modControlsHtml += '<button style="background:black;color:white;border:none;padding:1px 6px;font-size:0.7rem;cursor:pointer;font-family:inherit;margin-left:4px;" onclick="deleteGeneralMessage(\'' + msgId + '\')">Delete</button>';
             }
@@ -3663,8 +3647,8 @@
             // REPORT BUTTON (visible to all authenticated users) - circular button like react-btn
             var reportButton = '';
             if (currentUser && msg.uid && msg.uid !== currentUser.uid && msg.uid !== 'xEtAch5i5tdiMDTOnL8dXFxM5Nt1') {
-                var safeMsgId = msgId.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-                var safeReportedUid = (msg.uid || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+                var safeMsgId = escapeJsString(msgId);
+                var safeReportedUid = escapeJsString(msg.uid || '');
                 var msgSnapshot = msg.text || '';
                 if (msg.is_pixel_art && msg.pixel_art) {
                     msgSnapshot = '[Pixel Art] ' + msgSnapshot;
@@ -3672,15 +3656,7 @@
                 if (msg.is_flipnote && msg.flipnote_data) {
                     msgSnapshot = '[Flipbook] ' + msgSnapshot;
                 }
-                var safeSnapshot = msgSnapshot
-                    .replace(/\\/g, '\\\\\\\\')
-                    .replace(/'/g, "\\'")
-                    .replace(/\n/g, '\\n')
-                    .replace(/\r/g, '\\r')
-                    .replace(/\u0026/g, '\u0026amp;')
-                    .replace(/\u003c/g, '\u0026lt;')
-                    .replace(/\u003e/g, '\u0026gt;')
-                    .replace(/"/g, '\u0026quot;');
+                var safeSnapshot = escapeJsString(msgSnapshot);
                 reportButton = '<div class="report-btn" onclick="rekindleOpenReportModal({contentType:\'kindlechat\',contentId:\'' + safeMsgId + '\',contentPath:\'kindlechat/messages/' + safeMsgId + '\',reportedUserId:\'' + safeReportedUid + '\',contentSnapshot:\'' + safeSnapshot + '\'})" title="Report">!</div>';
             }
 
@@ -3863,7 +3839,7 @@
             div.innerHTML = '<div class="msg-meta">' + nameHtml + '<span>' + timeStr + '</span>' + transBtnHtml + modControlsHtml + '</div>' +
                 replyContextHtml +
                 '<div class="msg-row">' +
-                '<canvas id="' + avatarId + '" class="msg-avatar" width="32" height="32" onclick="openUserProfile(\'' + safeUid + '\', \'' + safeUser + '\')"></canvas>' +
+                '<canvas id="' + avatarId + '" class="msg-avatar" width="32" height="32" onclick="openUserProfile(\'' + jsUid + '\', \'' + jsUser + '\')"></canvas>' +
                 '<div style="display:flex; align-items:center; min-width: 0;">' +
                 (isSelf ? reactButton + replyButton + reportButton + saveButton + adminControlsHtml : '') +
                 bubbleContent +
@@ -4935,6 +4911,22 @@
             if (!text) return "";
             var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
             return text.replace(/[&<>"']/g, function (m) { return map[m]; });
+        }
+
+        // Escape a value that will sit inside a single-quoted JS string in an
+        // HTML attribute. Backslashes/quotes/newlines are JS-escaped and the
+        // HTML metacharacters are entity-encoded so the attribute survives.
+        function escapeJsString(text) {
+            if (text === null || text === undefined) return "";
+            return String(text)
+                .replace(/\\/g, "\\\\")
+                .replace(/'/g, "\\'")
+                .replace(/\n/g, "\\n")
+                .replace(/\r/g, "\\r")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
         }
 
         function formatChatTime(timestamp) {
