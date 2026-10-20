@@ -3518,5 +3518,16 @@
   "topics.lbl.poll_options": "Poll options",
   "topics.lbl.poll_question": "Poll question",
   "topics.ph.poll_option": "Option",
-  "topics.ph.poll_question": "Ask a question..."
+  "topics.ph.poll_question": "Ask a question...",
+  "app.help.name": "Help & FAQ",
+  "app.help.desc": "Guides for every app and game.",
+  "home.nav.help": "Help",
+  "home.info.help": "Help & FAQ",
+  "help.title": "Help & FAQ",
+  "help.search.label": "Search help",
+  "help.search.placeholder": "Search apps, games...",
+  "help.nav.index": "A-Z index",
+  "help.nav.home": "ReKindle home",
+  "help.font.smaller": "Smaller text",
+  "help.font.larger": "Larger text"
 }

@@ -41,11 +41,14 @@ ReKindle is a Progressive Web App (PWA). No "installation" or jailbreak is requi
 
 ReKindle operates in two modes: **Guest Mode** (all data stored locally on your device) and **Cloud Mode** (create an account to sync data across devices).
 
+### Help & Documentation
+*   **Help & FAQ:** An in-app guide to every app, game, account feature and setting, with search, an A-Z index and troubleshooting. Open it from the home-screen Help icon or the top menu.
+
 ### Productivity & Organization
 *   **Quick ToDo⁺:** A unique task manager that uses **OCR (Handwriting Recognition)** to convert your handwriting into digital, sync-able tasks.
-*   **Google Integration:** Full read/write sync for **Google Tasks**, **Google Calendar**, and **Google Contacts**.
+*   **Google Integration:** Read/write sync for **Google Tasks** and **Google Calendar**, plus a read-only **Google Contacts** address-book import.
 *   **Mail⁺:** A fully functional email client for your E-ink device.
-*   **Universal Sync:** Supports **CalDAV** and **CardDAV** for non-Google users.
+*   **Universal Import:** Read-only **CalDAV / iCalendar** and **CardDAV / vCard** feeds for non-Google users.
 *   **Note Pad:** A clean, distraction-free writing environment.
 *   **Habit Tracker:** Keep your streaks alive with a visual weekly tracker.
 *   **Focus Timer:** A Pomodoro-style timer to boost productivity.
