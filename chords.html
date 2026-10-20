@@ -734,17 +734,6 @@
         }
 
         // --- WALLPAPER UTILS ---
-        function sanitizeBackgroundImage(imageString) {
-            if (!imageString) return '';
-            if (imageString.startsWith('url("data:image/png;base64,')) return imageString;
-            if (imageString.startsWith('url("') && imageString.endsWith('")')) {
-                const url = imageString.substring(5, imageString.length - 2);
-                if ((url.startsWith('http') || url.startsWith('/')) && !url.includes('javascript:')) return imageString;
-            }
-            return '';
-        }
-
-
 
 
         function toggleFullScreen() {

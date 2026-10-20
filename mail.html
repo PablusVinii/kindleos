@@ -1189,6 +1189,8 @@
 
                 if (result.data.success) {
                     const newMessages = result.data.messages || [];
+                    // Append path relies on DOM order matching `emails` order.
+                    newMessages.sort((a, b) => emailDate(b) - emailDate(a));
                     const previousLast = emails.length ? emails[emails.length - 1] : null;
 
                     if (reset) {

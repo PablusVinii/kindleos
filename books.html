@@ -596,6 +596,9 @@
 
         function loadSavedBooks() {
             if (!currentUser) return;
+            // A re-subscribe (sign out/in) starts a fresh snapshot: render it in
+            // full instead of treating it as incremental changes.
+            savedBooksInitialDone = false;
             db.collection('users').doc(currentUser.uid).collection('reading_list')
                 .orderBy('addedAt', 'desc')
                 .onSnapshot((snapshot) => {
