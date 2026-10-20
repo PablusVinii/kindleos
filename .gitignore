@@ -1,4 +1,6 @@
 .DS_Store
+__pycache__/
+*.pyc
 /_deploy/
 /node_modules/
 /firebase-functions/node_modules/
