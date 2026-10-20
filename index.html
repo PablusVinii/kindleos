@@ -2379,11 +2379,16 @@
             document.getElementById('generic-msg').innerText = message;
             document.getElementById('generic-modal').style.display = 'flex';
         }
+        // Shared empty-field guard for the sign-in and registration forms. The
+        // wording differs per form, so each caller supplies its own message.
+        function credentialsMissing(username, password) {
+            return !username || !password;
+        }
         async function doLogin() {
             if (!isFirebaseAvailable || !auth) { document.getElementById('login-msg').innerText = "Error: Offline / No Database Connection"; return; }
             const u = document.getElementById('username').value;
             const p = document.getElementById('password').value;
-            if (!u || !p) { document.getElementById('login-msg').innerText = "Error: Please enter a valid username and password."; return; }
+            if (credentialsMissing(u, p)) { document.getElementById('login-msg').innerText = "Error: Please enter a valid username and password."; return; }
 
             document.getElementById('login-msg').innerText = "Connecting...";
             try {
@@ -2417,7 +2422,7 @@
             if (!isFirebaseAvailable || !auth) { document.getElementById('login-msg').innerText = "Error: Offline / No Database Connection"; return; }
             const u = document.getElementById('username').value.trim();
             const p = document.getElementById('password').value;
-            if (!u || !p) { document.getElementById('login-msg').innerText = "Error: Please enter a username and password."; return; }
+            if (credentialsMissing(u, p)) { document.getElementById('login-msg').innerText = "Error: Please enter a username and password."; return; }
             if (u.length > 20) { document.getElementById('login-msg').innerText = "Error: Username must be 20 characters or less."; return; }
             if (!/^[a-zA-Z0-9]+$/.test(u)) { document.getElementById('login-msg').innerText = "Error: Username can only contain letters and numbers."; return; }
             if (u.includes('@')) { document.getElementById('login-msg').innerText = "Error: Please enter a username only, not an email."; return; }
