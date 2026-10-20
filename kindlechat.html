@@ -3581,7 +3581,7 @@
             var snippet = escapeHtml(text.substring(0, 80));
             if (text.length > 80) snippet += '...';
 
-            var safeOriginalMsgId = (replyTo.msgId || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            var safeOriginalMsgId = escapeJsString(replyTo.msgId || '');
             var safeUsername = escapeHtml(censorUsername(username));
 
             return '<div class="reply-context" onclick="scrollToReplyMessage(\'' + safeOriginalMsgId + '\')">' +

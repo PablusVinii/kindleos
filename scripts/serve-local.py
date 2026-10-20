@@ -34,10 +34,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return None, path
         root = os.path.realpath(os.getcwd())
         target = os.path.realpath(os.path.join(root, decoded.lstrip('/')))
-        try:
-            if os.path.commonpath([root, target]) != root:
-                return None, path
-        except ValueError:
+        if target != root and not target.startswith(root + os.sep):
             return None, path
         return target, path
 
