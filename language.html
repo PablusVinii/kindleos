@@ -1478,12 +1478,16 @@
             // Choices
             html += `<div class="choices-grid">`;
             q.choices.forEach(c => {
-                const jsChoice = escapeHtml(JSON.stringify(String(c)));
-                html += `<div class="choice-btn" onclick="selectChoice(this, ${jsChoice})">${escapeHtml(c)}</div>`;
+                html += `<div class="choice-btn" data-choice="${escapeHtml(c)}">${escapeHtml(c)}</div>`;
             });
             html += `</div>`;
 
             container.innerHTML = html;
+            // Bind after render instead of embedding a JS string in an onclick
+            // attribute (values are chosen by the question data).
+            container.querySelectorAll('.choices-grid .choice-btn').forEach(btn => {
+                btn.onclick = function () { selectChoice(this, this.dataset.choice); };
+            });
 
             // Update Progress
             const pct = (qIndex / questions.length) * 100;

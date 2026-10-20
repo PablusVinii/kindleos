@@ -3684,12 +3684,14 @@
             }
 
             if (msg.is_reaction_image) {
-                bubbleContent = '<div class="msg-bubble ascii">' + messageText + '</div>';
+                bubbleContent = '<div class="msg-bubble ascii">' + escapeHtml(messageText) + '</div>';
                 isSpecialMessage = true;
             } else if (msg.is_game_link) {
                 var parts = msg.text.split(':');
-                var gameType = parts[0];
-                var gameId = parts[1];
+                // msg.text is client-writable: only allow a plain game slug and
+                // encode the id before either is used in an href.
+                var gameType = String(parts[0] || '').replace(/[^a-z0-9_-]/gi, '');
+                var gameId = encodeURIComponent(String(parts[1] || ''));
                 var gameName = gameType.charAt(0).toUpperCase() + gameType.slice(1);
                 var isStarter = msg.uid === currentUser.uid;
 
@@ -3723,8 +3725,8 @@
                 bubbleContent = '<div class="msg-bubble art-bubble" style="padding: 5px; background: white !important; color: black !important; border: 2px solid black !important; outline: none !important;">' +
                     '<a href="flipbook?source=kindlechat" style="font-weight:bold; margin-bottom:5px; font-size:0.8rem; display:block; text-decoration:none; color:black;">' + window.t('kindlechat.art.flipbook', 'Flipbook') + '</a>' +
                     '<div id="flipnote-view-' + msgId + '" style="width:128px; height:128px; border:2px solid black; margin:0 auto; background:white; position:relative; cursor:pointer;" onclick="openGalleryItem(\'' + msgId + '\')">' +
-                    '<img id="flipnote-img-' + msgId + '" src="' + thumb + '" style="width:100%; height:100%; image-rendering:pixelated; display:block;">' +
-                    '<div id="flipnote-overlay-' + msgId + '" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.1); font-size:2rem; color:white; text-shadow:1px 1px 0 black;">▶</div>' +
+                    '<img id="flipnote-img-' + escapeHtml(msgId) + '" src="' + escapeHtml(thumb) + '" style="width:100%; height:100%; image-rendering:pixelated; display:block;">' +
+                    '<div id="flipnote-overlay-' + escapeHtml(msgId) + '" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.1); font-size:2rem; color:white; text-shadow:1px 1px 0 black;">▶</div>' +
                     '</div>' +
                     ((messageText && messageText !== 'undefined' && messageText !== 'null') ? ('<div style="margin-top:5px; font-size:0.9rem;">' + escapeHtml(messageText) + '</div>') : '') +
                     '</div>';
@@ -3738,7 +3740,7 @@
 
                 bubbleContent = '<div class="msg-bubble art-bubble" style="padding: 5px; background: white !important; color: black !important; border: 2px solid black !important; outline: none !important;">' +
                     '<a href="pixel?source=kindlechat" style="font-weight:bold; margin-bottom:5px; font-size:0.8rem; display:block; text-decoration:none; color:black;">' + window.t('kindlechat.art.pixel', 'Pixel Art') + '</a>' +
-                    '<img src="' + msg.pixel_art + '" onclick="openGalleryItem(\'' + msgId + '\')" style="' +
+                    '<img src="' + escapeHtml(msg.pixel_art) + '" onclick="openGalleryItem(\'' + escapeJsString(msgId) + '\')" style="' +
                     'image-rendering: -webkit-optimize-contrast; ' +
                     'image-rendering: crisp-edges; ' +
                     'image-rendering: pixelated; ' +

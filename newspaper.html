@@ -562,9 +562,10 @@
                     div.className = 'article';
                     div.onclick = () => openArticle(item.link); // Changed to open modal
 
-                    // Strip markup for the plain-text summary; the result is
-                    // HTML-escaped at insertion time.
-                    const cleanDesc = String(item.description || '').replace(/<[^>]*>?/gm, '').substring(0, 350) + "...";
+                    // Extract plain text with DOMParser (no regex sanitizer);
+                    // the result is HTML-escaped at insertion time.
+                    const descDoc = new DOMParser().parseFromString(String(item.description || ''), 'text/html');
+                    const cleanDesc = String(descDoc.body.textContent || '').substring(0, 350) + "...";
 
                     // Try to find an image
                     let imgUrl = item.thumbnail || (item.enclosure ? item.enclosure.link : null);

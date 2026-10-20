@@ -21,10 +21,33 @@ os.chdir(os.path.abspath(ROOT))
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
+    def _resolve(self):
+        """Map a request path inside the served root, or return None.
+
+        SimpleHTTPRequestHandler follows ".." and absolute paths; this check
+        (after percent-decoding, which is what the handler itself does) keeps
+        every request under the project root and blocks NUL-byte tricks.
+        """
         path = urllib.parse.urlsplit(self.path).path
-        if path != '/' and not os.path.exists('.' + path):
-            if os.path.exists('.' + path + '.html'):
+        decoded = urllib.parse.unquote(path)
+        if '\x00' in decoded:
+            return None, path
+        root = os.path.realpath(os.getcwd())
+        target = os.path.realpath(os.path.join(root, decoded.lstrip('/')))
+        try:
+            if os.path.commonpath([root, target]) != root:
+                return None, path
+        except ValueError:
+            return None, path
+        return target, path
+
+    def do_GET(self):
+        target, path = self._resolve()
+        if target is None:
+            self.send_error(403, 'Forbidden')
+            return
+        if path != '/' and not os.path.exists(target):
+            if os.path.exists(target + '.html'):
                 self.path = path + '.html'
         return super().do_GET()
 
