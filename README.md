@@ -42,7 +42,7 @@ ReKindle is a Progressive Web App (PWA). No "installation" or jailbreak is requi
 ReKindle operates in two modes: **Guest Mode** (all data stored locally on your device) and **Cloud Mode** (create an account to sync data across devices).
 
 ### Help & Documentation
-*   **Help & FAQ:** An in-app guide to every app, game, account feature and setting, with search, an A-Z index and troubleshooting. Open it from the home-screen Help icon or the top menu.
+*   **Help & FAQ:** An in-app guide to every app, game, account feature and setting, with search, an A-Z index and troubleshooting. Open it from the Help link in the top menu or the About panel.
 
 ### Productivity & Organization
 *   **Quick ToDo⁺:** A unique task manager that uses **OCR (Handwriting Recognition)** to convert your handwriting into digital, sync-able tasks.

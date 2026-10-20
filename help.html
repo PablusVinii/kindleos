@@ -27,6 +27,8 @@
 
         body {
             background-color: #e5e5e5;
+            background-repeat: repeat;
+            background-position: top left;
             font-family: "Geneva", "Verdana", sans-serif;
             image-rendering: pixelated;
             margin: 0;
@@ -891,6 +893,7 @@
             }
 
             function init() {
+                if (window.rekindleApplyWallpaper) window.rekindleApplyWallpaper();
                 for (var c = 0; c < categories.length; c++) {
                     catById[categories[c].id] = categories[c];
                 }

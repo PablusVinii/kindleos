@@ -10,14 +10,6 @@ const APPS = [
         icon: '<circle cx="16" cy="16" r="14"/><path d="M2 16 H30"/><path d="M16 3 C22 10 22 22 16 29"/><path d="M16 3 C10 10 10 22 16 29"/>'
     },
     {
-        id: 'help',
-        name: 'Help & FAQ',
-        cat: 'essentials',
-        desc: 'Guides for every app and game.',
-        new: true,
-        icon: '<circle cx="16" cy="16" r="14"/><path d="M12 12 a4 4 0 1 1 6 3 c-1 1-2 1-2 3"/><circle cx="16" cy="24" r="1.5" fill="black" stroke="none"/>'
-    },
-    {
         id: 'calendar',
         name: 'Calendar',
         cat: 'essentials',

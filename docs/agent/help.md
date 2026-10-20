@@ -50,7 +50,7 @@ arcade).
   `manga`, `login`, `moderation`, `quicknotes`, `index_old`) are described in
   "Unlisted & legacy pages". If one is promoted to the home screen, add a full
   guide with `appHref`.
-- The Help app documents itself (`id: 'help'`, `appHref: 'help'`).
+- The Help app documents itself (`id: 'help'`, `appHref: 'help'`). It is not in the app drawer; the top menu and About panel link to it.
 
 ## UI / i18n notes
 
@@ -79,7 +79,7 @@ scripts/shot-webkit.sh "http://127.0.0.1:8899/help" 800 1000 /tmp/help-task.png 
 
 Check: 800px two-pane layout, 600px stacked category strip (3 rows max), long
 tables fit at 600px, article text size persists via `rekindle_help_font`, and the
-home-screen Help icon (Essentials, with NEW badge) opens the page.
+top-menu Help link (and the About-panel Help link) opens the page. Help is intentionally **not** in the app drawer.
 
 ## When an app changes
 
