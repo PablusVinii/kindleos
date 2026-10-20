@@ -311,7 +311,7 @@
         }
     </style>
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
 </head>
 
 <body>
@@ -450,7 +450,7 @@
                     renderNoteList();
                 }, (error) => {
                     console.error("Error getting notes: ", error);
-                    document.getElementById('status-bar').innerText = (window.t ? window.t('teleprompter.msg.sync_error') : "Sync Error. Using Local.");
+                    document.getElementById('status-bar').innerText = (window.t ? window.t('teleprompter.msg.sync_error', "Sync Error. Using Local.") : "Sync Error. Using Local.");
                     loadLocalNotes();
                 });
         }
@@ -509,14 +509,14 @@
             container.innerHTML = '';
 
             if (notes.length === 0) {
-                container.innerHTML = `<div style="padding:40px; text-align:center; font-style:italic;">${window.t ? window.t('teleprompter.msg.empty') : 'No notes found.'}</div>`;
+                container.innerHTML = `<div style="padding:40px; text-align:center; font-style:italic;">${window.t ? window.t('teleprompter.msg.empty', "No notes found.") : 'No notes found.'}</div>`;
                 return;
             }
 
             notes.forEach(note => {
                 const div = document.createElement('div');
                 div.className = 'note-item';
-                div.innerText = note.title || (window.t ? window.t('teleprompter.msg.untitled') : 'Untitled Note');
+                div.innerText = note.title || (window.t ? window.t('teleprompter.msg.untitled', "Untitled Note") : 'Untitled Note');
                 div.onclick = () => startTeleprompter(note.id);
                 container.appendChild(div);
             });
@@ -525,7 +525,7 @@
         function startTeleprompter(noteId) {
             const note = notes.find(n => n.id === noteId);
             if (!note || !note.content) {
-                currentNoteLines = [window.t ? window.t('teleprompter.msg.note_empty') : "(This note is empty)"];
+                currentNoteLines = [window.t ? window.t('teleprompter.msg.note_empty', "(This note is empty)") : "(This note is empty)"];
             } else {
                 let htmlStr = note.content.replace(/<div[^>]*>/gi, '\n').replace(/<\/div>/gi, '');
                 htmlStr = htmlStr.replace(/<p[^>]*>/gi, '\n').replace(/<\/p>/gi, '');
@@ -533,7 +533,7 @@
                 htmlStr = htmlStr.replace(/\\n/g, '\n'); // Handle legacy escaped newlines
                 currentNoteLines = htmlStr.split('\n').map(l => l.trim()).filter(line => line !== '');
                 if (currentNoteLines.length === 0) {
-                    currentNoteLines = [window.t ? window.t('teleprompter.msg.no_lines') : "(No lines found in this note)"];
+                    currentNoteLines = [window.t ? window.t('teleprompter.msg.no_lines', "(No lines found in this note)") : "(No lines found in this note)"];
                 }
             }
 

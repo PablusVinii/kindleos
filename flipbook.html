@@ -163,7 +163,7 @@
             align-items: center;
             cursor: pointer;
             box-shadow: 4px 4px 0 #ccc;
-            aspect-ratio: 1 / 1.2;
+            min-height: 170px;
             justify-content: space-between;
             position: relative;
         }
@@ -177,7 +177,7 @@
 
         .gallery-preview {
             width: 100%;
-            aspect-ratio: 1/1;
+            height: 110px;
             border: 1px solid #ddd;
             image-rendering: pixelated;
             background: white;
@@ -252,8 +252,8 @@
             background: white;
             border: 2px solid black;
             width: 100%;
+            height: 100%;
             /* Controlled by container */
-            aspect-ratio: 1/1;
             image-rendering: pixelated;
             box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.2);
             cursor: crosshair;
@@ -523,8 +523,8 @@
         }
     </style>
     <script src="theme.js?v=19"></script>
-    <script src="pro-gate.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="pro-gate.js?v=1"></script>
+    <script src="js/i18n.js?v=2"></script>
 </head>
 
 <body>
@@ -969,7 +969,7 @@
             if (!requirePro()) return;
 
             if (!isManifestLoaded) {
-                showInfoModal(window.t ? window.t('flipbook.status.loading') : "Please wait, loading...");
+                showInfoModal(window.t ? window.t('flipbook.status.loading', "Loading...") : "Please wait, loading...");
                 return;
             }
 
@@ -1034,7 +1034,7 @@
             const item = manifest.find(m => m.id === id);
             if (!item) return;
             isOpening = true;
-            showLoadingModal(window.t ? window.t('flipbook.status.loading') : "Loading...");
+            showLoadingModal(window.t ? window.t('flipbook.status.loading', "Loading...") : "Loading...");
 
             // Flush any pending autosave for the previously open animation
             // BEFORE switching, so its frames can never be written under this id.
@@ -1921,7 +1921,7 @@
             }
         }
     </script>
-    <script src="time.js"></script>
+    <script src="time.js?v=1"></script>
 
 
 </body>

@@ -643,7 +643,7 @@
         }
     </style>
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
 </head>
 
 <body>
@@ -895,7 +895,7 @@
             hideAllViews();
             document.getElementById('welcome-view').style.display = 'flex';
             document.getElementById('header-back').style.display = 'none';
-            document.getElementById('lang-label').innerText = window.t ? window.t('language.title') : "Languages";
+            document.getElementById('lang-label').innerText = window.t ? window.t('language.title', "Languages") : "Languages";
             document.getElementById('stats-bar').style.display = 'none';
         }
 
@@ -903,7 +903,7 @@
             hideAllViews();
             document.getElementById('picker-view').style.display = 'flex';
             document.getElementById('header-back').style.display = 'flex';
-            document.getElementById('lang-label').innerText = window.t ? window.t('language.select.quiz') : "Select Quiz Language";
+            document.getElementById('lang-label').innerText = window.t ? window.t('language.select.quiz', "Select Quiz Language") : "Select Quiz Language";
             renderLessonsPicker();
         }
 
@@ -911,7 +911,7 @@
             hideAllViews();
             document.getElementById('sentence-picker-view').style.display = 'flex';
             document.getElementById('header-back').style.display = 'flex';
-            document.getElementById('lang-label').innerText = window.t ? window.t('language.select.practice') : "Select Practice Language";
+            document.getElementById('lang-label').innerText = window.t ? window.t('language.select.practice', "Select Practice Language") : "Select Practice Language";
             renderSentencePicker();
         }
 
@@ -943,7 +943,7 @@
             const scoreEl = document.getElementById('session-score');
             const total = (currentMode === 'sentences') ? sessionTotal : questions.length;
             if (total > 0) {
-                const correctText = window.t ? window.t('language.stats.correct') : 'Correct';
+                const correctText = window.t ? window.t('language.stats.correct', "Correct") : 'Correct';
                 scoreEl.innerText = `${sessionCorrect} / ${total} ${correctText}`;
             } else {
                 scoreEl.innerText = "";
@@ -1129,7 +1129,7 @@
                 }
 
                 const prompt = window.t
-                    ? window.t('language.prompt.translate_to', { lang: langName }) + `<br><br><b>"${english}"</b>`
+                    ? window.tFormat('language.prompt.translate_to', { lang: langName }, "Translate to {{lang}}:") + `<br><br><b>"${english}"</b>`
                     : `Translate to ${langName}:<br><br><b>"${english}"</b>`;
 
                 // Get distractors from other results
@@ -1206,7 +1206,7 @@
                 }
 
                 const prompt = window.t
-                    ? window.t('language.prompt.translate_to', { lang: langName }) + `<br><br><b>"${english}"</b>`
+                    ? window.tFormat('language.prompt.translate_to', { lang: langName }, "Translate to {{lang}}:") + `<br><br><b>"${english}"</b>`
                     : `Translate to ${langName}:<br><br><b>"${english}"</b>`;
 
                 let distractorsPool = [];

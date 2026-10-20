@@ -275,7 +275,7 @@
             text-align: center;
         }
     </style>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
     <script src="theme.js?v=19"></script>
 </head>
@@ -507,9 +507,9 @@
             if (game.in_checkmate()) {
                 const winnerColor = (game.turn() === 'w') ? 'black' : 'white';
                 const winnerName = window.t ? window.t('chess2p.status.' + winnerColor) : (winnerColor === 'black' ? 'Black' : 'White');
-                status = window.t ? window.t('chess2p.msg.checkmate', { winner: winnerName }) : `Checkmate! ${winnerName} wins.`;
+                status = window.t ? window.tFormat('chess2p.msg.checkmate', { winner: winnerName }, "Checkmate! ${winner} wins.") : `Checkmate! ${winnerName} wins.`;
             } else if (game.in_draw()) {
-                status = window.t ? window.t('chess2p.msg.draw') : 'Draw.';
+                status = window.t ? window.t('chess2p.msg.draw', "Draw.") : 'Draw.';
             } else {
                 // Normal turn
                 const turnColor = (game.turn() === 'w') ? 'white' : 'black';
@@ -518,7 +518,7 @@
 
                 // check?
                 if (game.in_check()) {
-                    status += (window.t ? window.t('chess2p.msg.check') : " (Check!)");
+                    status += (window.t ? window.t('chess2p.msg.check', " (Check!)") : " (Check!)");
                 }
             }
             statusEl.innerText = status;

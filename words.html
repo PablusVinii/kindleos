@@ -7,7 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
 
     <style>
         /* SYSTEM 7 AESTHETICS */
@@ -535,13 +535,13 @@
             const btnsEl = document.getElementById('modal-btns');
             messageEl.textContent = msg;
             if (isConfirm) {
-                const cancelTxt = window.t ? window.t('words.btn.cancel') : "Cancel";
-                const okTxt = window.t ? window.t('words.btn.ok') : "OK";
+                const cancelTxt = window.t ? window.t('words.btn.cancel', "Cancel") : "Cancel";
+                const okTxt = window.t ? window.t('words.btn.ok', "OK") : "OK";
                 btnsEl.innerHTML = `<button class="modal-btn" id="modal-cancel">${cancelTxt}</button><button class="modal-btn" id="modal-ok">${okTxt}</button>`;
                 document.getElementById('modal-cancel').onclick = () => { overlay.style.display = 'none'; if (callback) callback(false); };
                 document.getElementById('modal-ok').onclick = () => { overlay.style.display = 'none'; if (callback) callback(true); };
             } else {
-                const okTxt = window.t ? window.t('words.btn.ok') : "OK";
+                const okTxt = window.t ? window.t('words.btn.ok', "OK") : "OK";
                 btnsEl.innerHTML = `<button class="modal-btn" onclick="hideModal()">${okTxt}</button>`;
             }
             overlay.style.display = 'flex';
@@ -670,8 +670,8 @@
         // --- MATCHMAKING LOGIC ---
 
         async function resumeOrFindGame() {
-            const loadingTitle = window.t ? window.t('words.modal.loading.title') : "Loading";
-            const checkingTxt = window.t ? window.t('words.modal.loading.text') : "Checking active games...";
+            const loadingTitle = window.t ? window.t('words.modal.loading.title', "Loading") : "Loading";
+            const checkingTxt = window.t ? window.t('words.modal.loading.text', "Checking active games...") : "Checking active games...";
             showOverlay(loadingTitle, checkingTxt, true);
             try {
                 const p1Snap = await db.collection('word_games').where('p1_uid', '==', currentUser.uid).get();
@@ -698,8 +698,8 @@
         }
 
         async function findGame() {
-            const matchmakingTitle = window.t ? window.t('words.modal.matchmaking.title') : "Matchmaking";
-            const lookingTxt = window.t ? window.t('words.modal.matchmaking.text') : "Looking for a player...";
+            const matchmakingTitle = window.t ? window.t('words.modal.matchmaking.title', "Matchmaking") : "Matchmaking";
+            const lookingTxt = window.t ? window.t('words.modal.matchmaking.text', "Looking for a player...") : "Looking for a player...";
             showOverlay(matchmakingTitle, lookingTxt, true);
             const gamesRef = db.collection('word_games');
             try {
@@ -741,8 +741,8 @@
                     startGameListener();
                 }
             } catch (e) {
-                const errorTitle = window.t ? window.t('words.modal.error.title') : "Error";
-                const errorTxt = window.t ? window.t('words.modal.error.text') : "Connection error.";
+                const errorTitle = window.t ? window.t('words.modal.error.title', "Error") : "Error";
+                const errorTxt = window.t ? window.t('words.modal.error.text', "Connection error.") : "Connection error.";
                 showOverlay(errorTitle, errorTxt, false);
             }
         }
@@ -756,7 +756,7 @@
 
                     if (gameData.status === 'finished') {
                         hideOverlay();
-                        document.getElementById('status-text').innerText = window.t ? window.t('words.status.game_ended') : "Game Ended.";
+                        document.getElementById('status-text').innerText = window.t ? window.t('words.status.game_ended', "Game Ended.") : "Game Ended.";
                         document.getElementById('play-btn').disabled = true;
                         return;
                     }
@@ -773,8 +773,8 @@
                     if (gameData.status === 'waiting' && isP1) { hideOverlay(); updateUI(); }
                     else if (gameData.status === 'active') { hideOverlay(); updateUI(); }
                     else if (gameData.status === 'waiting' && !isP1) {
-                        const waitingTitle = window.t ? window.t('words.status.waiting') : "Waiting";
-                        const waitingTxt = window.t ? window.t('words.status.waiting_opponent') : "Waiting for opponent...";
+                        const waitingTitle = window.t ? window.t('words.status.waiting', "Waiting...") : "Waiting";
+                        const waitingTxt = window.t ? window.t('words.status.waiting_opponent', "Waiting for opponent...") : "Waiting for opponent...";
                         showOverlay(waitingTitle, waitingTxt, true);
                     }
                 });
@@ -792,8 +792,8 @@
         async function forfeitAndRestart() {
             if (unsubscribe) unsubscribe();
 
-            const forfeitingTitle = window.t ? window.t('words.modal.forfeiting.title') : "Forfeiting";
-            const endingTxt = window.t ? window.t('words.modal.forfeiting.text') : "Ending current game...";
+            const forfeitingTitle = window.t ? window.t('words.modal.forfeiting.title', "Forfeiting") : "Forfeiting";
+            const endingTxt = window.t ? window.t('words.modal.forfeiting.text', "Ending current game...") : "Ending current game...";
             showOverlay(forfeitingTitle, endingTxt, true);
 
             if (gameId) {
@@ -859,14 +859,14 @@
         function updateUI() {
             const isMyTurn = gameData.turn === currentUser.uid;
             const isP1 = (currentUser.uid === gameData.p1_uid);
-            const opponentName = isP1 ? (gameData.p2_name || (window.t ? window.t('words.hud.opponent') : "Opponent")) : gameData.p1_name;
+            const opponentName = isP1 ? (gameData.p2_name || (window.t ? window.t('words.hud.opponent', "Opponent") : "Opponent")) : gameData.p1_name;
 
             let statusText = "";
             if (gameData.status === 'waiting') {
-                statusText = isP1 ? (window.t ? window.t('words.status.first_move') : "Make the first move!") : (window.t ? window.t('words.status.waiting_opponent') : "Waiting for opponent...");
+                statusText = isP1 ? (window.t ? window.t('words.status.first_move', "Make the first move!") : "Make the first move!") : (window.t ? window.t('words.status.waiting_opponent', "Waiting for opponent...") : "Waiting for opponent...");
             } else {
-                const waitingForTxt = window.t ? window.t('words.status.waiting_for') : "Waiting for ${name}";
-                statusText = isMyTurn ? (window.t ? window.t('words.status.your_turn') : "Your Turn") : waitingForTxt.replace('${name}', opponentName);
+                const waitingForTxt = window.t ? window.t('words.status.waiting_for', "Waiting for ${name}") : "Waiting for ${name}";
+                statusText = isMyTurn ? (window.t ? window.t('words.status.your_turn', "Your Turn") : "Your Turn") : waitingForTxt.replace('${name}', opponentName);
             }
             document.getElementById('status-text').innerText = statusText;
             document.getElementById('p1-score').innerText = isP1 ? gameData.p1_score : gameData.p2_score;
@@ -978,10 +978,10 @@
                     const typeCode = BOARD_BONUSES[bIndex];
                     let type = '', label = '';
 
-                    if (typeCode === 4) { type = 'tw'; label = window.t ? window.t('words.bonus.tw') : 'TW'; }
-                    else if (typeCode === 3) { type = 'dw'; label = window.t ? window.t('words.bonus.dw') : 'DW'; }
-                    else if (typeCode === 2) { type = 'tl'; label = window.t ? window.t('words.bonus.tl') : 'TL'; }
-                    else if (typeCode === 1) { type = 'dl'; label = window.t ? window.t('words.bonus.dl') : 'DL'; }
+                    if (typeCode === 4) { type = 'tw'; label = window.t ? window.t('words.bonus.tw', "TW") : 'TW'; }
+                    else if (typeCode === 3) { type = 'dw'; label = window.t ? window.t('words.bonus.dw', "DW") : 'DW'; }
+                    else if (typeCode === 2) { type = 'tl'; label = window.t ? window.t('words.bonus.tl', "TL") : 'TL'; }
+                    else if (typeCode === 1) { type = 'dl'; label = window.t ? window.t('words.bonus.dl', "DL") : 'DL'; }
                     else if (x === 7 && y === 7) { type = 'dw'; label = '★'; }
 
                     if (type) {
@@ -1017,7 +1017,7 @@
             const isVertical = uniqueXs === 1;
 
             if (uniqueXs > 1 && uniqueYs > 1) {
-                const notInLineTxt = window.t ? window.t('words.error.not_in_line') : "Not in a line (0)";
+                const notInLineTxt = window.t ? window.t('words.error.not_in_line', "Not in a line (0)") : "Not in a line (0)";
                 document.getElementById('move-score').innerText = notInLineTxt;
                 document.getElementById('play-btn').disabled = true;
                 return;
@@ -1063,7 +1063,7 @@
             });
 
             if (placedTiles.length === 7) totalScore += 50;
-            const scoreTxt = window.t ? window.t('words.score.points') : "Points: ${score}";
+            const scoreTxt = window.t ? window.t('words.score.points', "Points: ${score}") : "Points: ${score}";
             document.getElementById('move-score').innerText = scoreTxt.replace('${score}', totalScore);
         }
 
@@ -1118,7 +1118,7 @@
             const uniqueYs = new Set(ys).size;
 
             if (uniqueXs > 1 && uniqueYs > 1) {
-                showModal(window.t ? window.t('words.error.straight_line') : "Tiles must be in a straight line.");
+                showModal(window.t ? window.t('words.error.straight_line', "Tiles must be in a straight line.") : "Tiles must be in a straight line.");
                 return;
             }
 
@@ -1160,7 +1160,7 @@
             try {
                 await db.collection('word_games').doc(gameId).update(updates);
             } catch (e) {
-                showModal(window.t ? window.t('words.error.connection') : "Connection error.");
+                showModal(window.t ? window.t('words.error.connection', "Connection error.") : "Connection error.");
             }
         }
 

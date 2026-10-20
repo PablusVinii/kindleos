@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rekindle-cache-v24'; // Bumped 2026-10-20: theme.js ?v=19 + gamerules.js ?v=2 cache-bust
+const CACHE_NAME = 'rekindle-cache-v25'; // Bumped 2026-10-20: i18n.js ?v=2, index.html refresh, shared-script versions
 const ASSETS_TO_CACHE = [
     './',
     './index.html',

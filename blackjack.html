@@ -301,7 +301,7 @@
         }
     </style>
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
 </head>
 
@@ -324,7 +324,7 @@
 
             <div class="info-area">
                 <div id="message" data-i18n="blackjack.msg.bet">Place your bet</div>
-                <div id="chips-display" data-i18n="blackjack.label.bank">Bank: $1000</div>
+                <div id="chips-display">Bank: $1000</div>
             </div>
 
             <div class="hand-area">
@@ -603,7 +603,7 @@
         }
 
         function updateBankDisplay() {
-            document.getElementById('chips-display').innerText = (window.t ? window.t('blackjack.label.bank', 'Bank: ${amount}').replace('${amount}', bankroll) : `Bank: $${bankroll}`);
+            document.getElementById('chips-display').innerText = (window.t ? window.tFormat('blackjack.label.bank', { amount: bankroll }, 'Bank: ${amount}') : `Bank: $${bankroll}`);
             document.getElementById('chips-display').removeAttribute('data-i18n');
         }
 

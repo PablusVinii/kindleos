@@ -11,9 +11,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="js/score-submit.js" data-game="solitaire"></script>
+    <script src="js/score-submit.js?v=1" data-game="solitaire"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
     <style>
         /* SYSTEM 7 AESTHETICS */
@@ -994,7 +994,7 @@
 
         function fetchLeaderboard() {
             const list = document.getElementById('leaderboard-list');
-            const loadingTxt = window.t ? window.t('solitaire.leaderboard.loading') : 'Loading...';
+            const loadingTxt = window.t ? window.t('solitaire.leaderboard.loading', "Loading...") : 'Loading...';
             list.innerHTML = `<div style="padding:10px;">${loadingTxt}</div>`;
 
             db.collection('leaderboard_solitaire')
@@ -1003,7 +1003,7 @@
                 .get()
                 .then(snapshot => {
                     if (snapshot.empty) {
-                        const emptyTxt = window.t ? window.t('solitaire.leaderboard.empty') : 'No scores yet.';
+                        const emptyTxt = window.t ? window.t('solitaire.leaderboard.empty', "No scores yet.") : 'No scores yet.';
                         list.innerHTML = `<div style="padding:10px;">${emptyTxt}</div>`;
                         return;
                     }
@@ -1031,7 +1031,7 @@
                 })
                 .catch(err => {
                     console.error("Error fetching leaderboard:", err);
-                    const errorTxt = window.t ? window.t('solitaire.leaderboard.error') : 'Error loading scores.';
+                    const errorTxt = window.t ? window.t('solitaire.leaderboard.error', "Error loading scores.") : 'Error loading scores.';
                     list.innerHTML = `<div style="padding:10px; color:red;">${errorTxt}</div>`;
                 });
         }

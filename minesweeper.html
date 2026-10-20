@@ -8,7 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
 
     <style>
@@ -462,12 +462,12 @@
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
-                    const syncedMsg = window.t ? window.t('ms.status.synced').replace('${email}', user.email) : "Synced: " + user.email;
+                    const syncedMsg = window.t ? window.t('ms.status.synced', "Synced: ${email}").replace('${email}', user.email) : "Synced: " + user.email;
                     document.getElementById('auth-status').innerText = syncedMsg;
                     document.getElementById('auth-status').removeAttribute('data-i18n');
                     loadGame(true); // Load Cloud
                 } else {
-                    const guestMsg = window.t ? window.t('ms.status.guest') : "Guest Mode (Local)";
+                    const guestMsg = window.t ? window.t('ms.status.guest', "Guest Mode (Local)") : "Guest Mode (Local)";
                     document.getElementById('auth-status').innerText = guestMsg;
                     document.getElementById('auth-status').removeAttribute('data-i18n');
                     loadGame(false); // Load Local
@@ -702,12 +702,12 @@
                 mode = 'flag';
                 modeBtn.classList.add('flag-mode');
                 document.getElementById('mode-icon').innerHTML = ICON_FLAG;
-                document.getElementById('mode-text').innerText = window.t ? window.t('ms.mode.flag') : 'FLAG';
+                document.getElementById('mode-text').innerText = window.t ? window.t('ms.mode.flag', "FLAG") : 'FLAG';
             } else {
                 mode = 'dig';
                 modeBtn.classList.remove('flag-mode');
                 document.getElementById('mode-icon').innerHTML = ICON_DIG;
-                document.getElementById('mode-text').innerText = window.t ? window.t('ms.mode.dig') : 'DIG';
+                document.getElementById('mode-text').innerText = window.t ? window.t('ms.mode.dig', "DIG") : 'DIG';
             }
             document.getElementById('mode-text').removeAttribute('data-i18n');
         }
@@ -821,9 +821,9 @@
             }
 
             if (win) {
-                mineDisplay.innerText = window.t ? window.t('ms.status.win') : "WIN";
+                mineDisplay.innerText = window.t ? window.t('ms.status.win', "WIN") : "WIN";
             } else {
-                mineDisplay.innerText = window.t ? window.t('ms.status.dead') : "DEAD";
+                mineDisplay.innerText = window.t ? window.t('ms.status.dead', "DEAD") : "DEAD";
             }
         }
 

@@ -273,19 +273,23 @@ The project uses a custom `i18n.js` loader.
 
 ### Variable Interpolation
 
-The `i18n.js` loader only does simple key lookup; **it does NOT interpolate variables**. Locale values use `${key}` placeholders (e.g. `"${pName}: Place ${ship} (${size})"`), but calling `window.t('key', { pName: ... })` will return the raw placeholder string unchanged. In dynamic code, fetch the template first and then replace placeholders manually:
+The `i18n.js` loader only does simple key lookup; it does **not** interpolate `${...}` placeholders. Use `window.tFormat(key, vars, fallback)` (added 2026-10-20) for any dynamic text:
 
 ```javascript
-var template = window.t ? window.t('battleship.setup.msg') : '${pName}: Place ${ship} (${size})';
-var text = template.replace('${pName}', 'You').replace('${ship}', shipName).replace('${size}', shipDef.size);
+// key: "blackjack.label.bank" -> "Bank: ${amount}"
+el.innerText = window.tFormat('blackjack.label.bank', { amount: bankroll }, 'Bank: ${amount}');
 ```
 
-Or use a small helper that replaces all `${key}` occurrences. Many existing HTML files incorrectly pass a variables object as the second argument to `window.t()`, which silently fails on the Kindle browser.
+`tFormat` takes the English fallback as its third argument, replaces **all** occurrences of each `${name}`, and is safe before translations arrive (it falls back to the English string). Do **not** call `window.t('key', { vars })` — the second argument is the fallback string, so the object is returned unchanged.
 
-### Two Related i18n Display Bugs (fixed 2026-07)
+For dynamic labels, omit `data-i18n` on the element (the loader would overwrite the value with the raw template) and render from JS. Re-render static labels on `document.addEventListener('rekindle:i18n:ready', render)`; labels refreshed every frame (e.g. Mario's HUD) need no listener. Never leave `data-i18n` on an element that you also update with `removeAttribute('data-i18n')` unless the value is rendered synchronously first.
 
-1. **Raw key shown (`blackjack.label.bank`, `hangman.status.guess`, etc.):** `window.t` is defined synchronously by `i18n.js`, but `window.rekindleTranslations` only populates after the async `fetch('locales/xx.json')` resolves. Any `window.t('some.key')` called **without a fallback** from `window.onload` (which often fires first) returns `defaultText || key` → the **raw key string**. If the code then also does `removeAttribute('data-i18n')` (a common pattern to stop the loader overwriting dynamic text), the raw key is stuck on screen permanently. **Fix:** always pass an English fallback as the second argument: `window.t('blackjack.label.bank', 'Bank: ${amount}')`. Fixed in `blackjack.html`, `hangman.html`, `jigsaw.html`, `memory.html`, `doom.html`, `connect4.html`.
-2. **Raw `${placeholder}` shown (`MODE: ${NUM}`, `Mode: ${mode}`):** never put `data-i18n="key"` on an element whose locale value contains `${...}` placeholders — `applyTranslations()` sets `innerText` to the **uninterpolated template**. The `data-i18n-args` attribute seen on some buttons is **not supported by `js/i18n.js`** (it does nothing). For dynamically-interpolated labels, omit `data-i18n` entirely and set the text in JS with manual `.replace()`. Fixed on the mode buttons in `connect4.html`, `2pconnect4.html`, `liveconnect4.html`, `doom.html`. (`livetictactoe.html` still carries the unsupported `data-i18n-args` pattern on its mode buttons — fix the same way if reported.)
+`scripts/test-i18n.js` is the guard: it rejects `data-i18n` keys whose English value contains `${...}`, `data-i18n-args`, literal `window.t('key')` calls without a fallback, and object-argument `window.t` calls.
+
+### Two Related i18n Display Bugs (fixed 2026-07, guarded 2026-10)
+
+1. **Raw key shown (`blackjack.label.bank`, `hangman.status.guess`, etc.):** `window.t` is defined synchronously by `i18n.js`, but `window.rekindleTranslations` only populates after the async `fetch('locales/xx.json')` resolves. Any `window.t('some.key')` called **without a fallback** from `window.onload` (which often fires first) returns `defaultText || key` → the **raw key string**. If the code then also does `removeAttribute('data-i18n')` (a common pattern to stop the loader overwriting dynamic text), the raw key is stuck on screen permanently. **Fix:** always pass an English fallback as the second argument, or use `tFormat`. The 2026-10 codemod added fallbacks to every literal `window.t('key')` call in the repo; keep it that way.
+2. **Raw `${placeholder}` shown (`MODE: ${NUM}`, `Mode: ${mode}`):** never put `data-i18n="key"` on an element whose locale value contains `${...}` placeholders — `applyTranslations()` sets `innerText` to the **uninterpolated template**. The `data-i18n-args` attribute is **not supported by `js/i18n.js`** (it does nothing). For dynamically-interpolated labels, omit `data-i18n` entirely and render with `tFormat`. Fixed in `blackjack`, `memory`, `hanoi`, `lightsout`, `codebreaker`, `mario`, `pet`, `texasholdem`, `pay`, `liveyahtzee`, and `livetictactoe`.
 
 ### Icons (SVG)
 Icons are stored as raw SVG strings in `icons.js`.
@@ -641,6 +645,13 @@ Fix: `evaluateChatRepetition()` in `workers/rekindle-moderate/worker.js` + the c
 *   `kindlechat.html` checks `window.rekindleChatSpamCheck()` in `sendMessage()` (before `checkRules()`) and calls `window.rekindleRecordChatMessage()` after a successful post. The client copy is localStorage-only and must stay in sync with the worker (same KEEP IN SYNC convention as `js/promo-ban.js`). `doSendMessage()` shows the worker's `result.error` for `allowed: false` so the specific reason reaches the user.
 *   Tests: `node scripts/test-chat-spam.js` replays the real flood transcript through the worker logic and the client mirror, and asserts normal conversation is untouched.
 
+## 🔐 Server Boundary Rules (2026-10-20 audit)
+
+*   **`functions/api/proxy.js` is not a general CORS proxy.** It now allows GET/HEAD only, rejects private/loopback/link-local/metadata hosts and embedded URL credentials, re-validates every redirect, forwards only `accept`/`accept-language`/`authorization`/`if-none-match`/`range`, enforces a 10 s timeout and 10 MB response cap, and sends no wildcard CORS header. Any new public API host should get a dedicated allowlisted function (see `gutenberg.js`/`reddit.js`) instead of widening the generic proxy. Do not add POST support without a concrete caller.
+*   **Mail callables require auth + an active ReKindle+ subscription.** `fetchEmails`, `moveEmail`, `modifyFlags`, `fetchEmailBody`, `sendEmail`, and `getFolders` must call `assertMailAccess(request, kind)` and `assertMailEndpoint(host, port, kind)` before opening an IMAP/SMTP connection. They rate-limit via `mail_rate_limits/{uid}/{kind}` (service-account only) and return generic errors — never the raw upstream message.
+*   **Custom auth claims must be merged, never replaced.** Identity Toolkit's `customAttributes` replaces the whole claims object. Use `mergeClaims()` (`workers/rekindle-stripe/claims.js`) or spread the existing claims before calling `setCustomUserClaims`; otherwise `ageVerified`/`moderator` are silently deleted when Pro is granted or revoked. `getSocialToken` lazily repairs a wiped `ageVerified` claim from `users/{uid}/ageVerification/latest`.
+*   **Quality gate:** `npm test` runs the i18n, compatibility, proxy-guard, claim-merge, chat-spam, and Oregon Trail checks. Both CI and the deploy workflow run it before building.
+
 ## ✅ Best Practices
 -   **Images:** Use **WebP** or **SVG**. They are fully supported and perform best.
 -   **Modals:** Always stick to the `.modal-overlay` / `.modal-box` DOM structure found in `weather.html`.
@@ -656,6 +667,8 @@ External APIs such as Reddit aggressively rate-limit shared cloud egress IPs (e.
 - Use different cache TTLs by content type (e.g., 60 s for RSS feeds, 5 min for images).
 
 Example pattern: `functions/api/reddit.js`.
+
+**Some hosts block Cloudflare egress outright — a proxy cannot fix it.** `standardebooks.org` answers every request from AS132892 (the Workers/Pages network, e.g. `2a06:98c0:3600::103`) with an Apache 403, whatever the User-Agent or headers, so `/api/proxy` and `/api/*` are dead ends for it. Relay through a Firebase function (Google Cloud egress) instead — see `firebase-functions/standardebooks.js` and [integrations.md](docs/agent/integrations.md#standard-ebooks-403s-every-cloudflare-egress-ip-2026-10-20). Same workaround family as the Akinator relay (`firebase-functions/akinator.js`).
 
 ## ⚠️ Deploying to Cloudflare Pages (do not deploy the repo root)
 
@@ -682,8 +695,8 @@ Do **not** rely on the service worker's stale-while-revalidate branch to roll a 
 
 The manual bump is also why `_deploy/` must be rebuilt (`npm run build`) before deploying — the deploy copies `_deploy/main`, so a stale build publishes old files even when the source is current.
 
-**2026-10-20 incident:** `theme.js` changed in `c5631c5` but every page still loaded `theme.js?v=18` (the v18 bump predated the change). Edge/SW caches kept serving the old theme.js to up to 7 days of traffic. Fixed by bumping all 136 pages to `?v=19`, `js/gamerules.js` to `?v=2` (its Oregon Trail rules text changed in `8ab5b20`), `icons.js` v2 → v3 on the three pages still on v2, and `sw.js` `CACHE_NAME` to `rekindle-cache-v24`.
+**2026-10-20 incident:** `theme.js` changed in `c5631c5` but every page still loaded `theme.js?v=18` (the v18 bump predated the change). Edge/SW caches kept serving the old theme.js to up to 7 days of traffic. Fixed by bumping all 137 pages to `?v=19`, `js/gamerules.js` to `?v=2` (its Oregon Trail rules text changed in `8ab5b20`), `icons.js` v2 → v3 on the three pages still on v2, and `sw.js` `CACHE_NAME` to `rekindle-cache-v25` (2026-10 re-audit also versioned the previously unversioned shared scripts).
 
 ## Local Testing Gotcha: Service Worker Forces Extensionless URLs
 
-`js/i18n.js` registers a service worker that reloads the page to the extensionless URL (`/jumpy.html` → `/jumpy`) on first load. `python3 -m http.server` then 404s, showing an "Error response" page with no `.title-text` — looks like a broken page, but isn't. Test locally with a static server that falls back to `.html` (try file, then file + '.html'), or use query params (`?lang=de`) which also bypass the reload. Production (Cloudflare Pages) serves extensionless URLs natively.
+`theme.js` registers a service worker that reloads the page to the extensionless URL (`/jumpy.html` → `/jumpy`) on first load. `python3 -m http.server` then 404s, showing an "Error response" page with no `.title-text` — looks like a broken page, but isn't. Test locally with a static server that falls back to `.html` (try file, then file + '.html'), or use query params (`?lang=de`) which also bypass the reload. Production (Cloudflare Pages) serves extensionless URLs natively.

@@ -378,7 +378,7 @@
 
         <div class="window-content" id="screen-lobby" style="display:none;">
             <h2 data-i18n="yahtzee.title">Lobby</h2>
-            <div style="font-size: 1.1rem; margin-bottom: 10px;" id="lobby-status" data-i18n="liveyahtzee.lobby.waiting">Waiting for players...</div>
+            <div style="font-size: 1.1rem; margin-bottom: 10px;" id="lobby-status">Waiting for players...</div>
             <div class="player-list" id="lobby-players"></div>
 
             <div id="host-controls" style="display:none; flex-direction: column; align-items: center;">
@@ -436,8 +436,8 @@
         </div>
     </div>
 
-    <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
+    
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
 
     <script>
@@ -620,16 +620,22 @@
             const statusDiv = document.getElementById('lobby-status');
             if (gameState.countdown > 0) {
                 const secondsLeft = Math.max(0, Math.ceil((gameState.countdown - Date.now()) / 1000));
-                statusDiv.innerText = `Starting in ${secondsLeft}s...`;
+                statusDiv.innerText = window.tFormat
+                    ? window.tFormat('liveyahtzee.lobby.starting_in', { seconds: secondsLeft }, 'Starting in ${seconds}s...')
+                    : 'Starting in ' + secondsLeft + 's...';
                 if (!countdownTimer) {
                     countdownTimer = setInterval(() => {
                         const s = Math.max(0, Math.ceil((gameState.countdown - Date.now()) / 1000));
-                        document.getElementById('lobby-status').innerText = `Starting in ${s}s...`;
+                        document.getElementById('lobby-status').innerText = window.tFormat
+                            ? window.tFormat('liveyahtzee.lobby.starting_in', { seconds: s }, 'Starting in ${seconds}s...')
+                            : 'Starting in ' + s + 's...';
                         if (s <= 0 && isHost) { clearInterval(countdownTimer); countdownTimer = null; startGame(); }
                     }, 1000);
                 }
             } else {
-                statusDiv.innerText = `Waiting for players... (${players.length})`;
+                statusDiv.innerText = window.tFormat
+                    ? window.tFormat('liveyahtzee.lobby.waiting', { count: players.length }, 'Waiting for players... (${count})')
+                    : 'Waiting for players... (' + players.length + ')';
                 if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
                 if (isHost && players.length >= 2 && gameState.countdown === 0) matchRef.update({ countdown: Date.now() + 15000 });
             }

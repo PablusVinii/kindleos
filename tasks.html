@@ -426,9 +426,9 @@
             box-shadow: none;
         }
     </style>
-    <script src="time.js"></script>
+    <script src="time.js?v=1"></script>
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
 </head>
 
 <body>
@@ -553,7 +553,7 @@
                     currentUser = user;
                     checkSyncSettings();
                 } else {
-                    document.getElementById('status-bar').innerText = window.t('status.guest');
+                    document.getElementById('status-bar').innerText = window.t('status.guest', "Guest Mode (Local)");
                     initNativeMode();
                 }
             });
@@ -594,7 +594,7 @@
                 initGoogleMode();
             } else if (setting === 'false') {
                 googleEnabled = false;
-                document.getElementById('status-bar').innerText = window.t('status.synced') + currentUser.email;
+                document.getElementById('status-bar').innerText = window.t('status.synced', "Synced: ") + currentUser.email;
                 initNativeMode();
             } else {
                 // Not set (First time logged in for this app)
@@ -616,7 +616,7 @@
                 initGoogleMode();
             } else {
                 googleEnabled = false;
-                document.getElementById('status-bar').innerText = window.t('status.synced') + currentUser.email;
+                document.getElementById('status-bar').innerText = window.t('status.synced', "Synced: ") + currentUser.email;
                 initNativeMode();
             }
         }
@@ -661,8 +661,8 @@
                             if (!location.hash.includes('error=')) {
                                 // Show connecting state
                                 document.getElementById('auth-overlay').style.display = 'flex';
-                                document.querySelector('#auth-overlay h2').innerText = window.t('auth.redirecting');
-                                document.querySelector('#auth-overlay p').innerText = window.t('auth.refreshing');
+                                document.querySelector('#auth-overlay h2').innerText = window.t('auth.redirecting', "Redirecting...");
+                                document.querySelector('#auth-overlay p').innerText = window.t('auth.refreshing', "Refreshing Google Session");
                                 oauthSignIn();
                             } else {
                                 document.getElementById('auth-overlay').style.display = 'flex';
@@ -702,8 +702,8 @@
             if (now - lastAuth < 5000) {
                 console.error("Auth loop detected.");
                 document.getElementById('auth-overlay').style.display = 'flex';
-                document.querySelector('#auth-overlay h2').innerText = window.t('auth.failed');
-                document.querySelector('#auth-overlay p').innerText = window.t('auth.retry');
+                document.querySelector('#auth-overlay h2').innerText = window.t('auth.failed', "Login Failed");
+                document.querySelector('#auth-overlay p').innerText = window.t('auth.retry', "Please try again manually.");
                 return;
             }
             sessionStorage.setItem('last_auth_attempt', now.toString());
@@ -718,7 +718,7 @@
 
         async function loadGoogleTasks(first = false) {
             const dashboard = document.getElementById('dashboard');
-            document.getElementById('status-bar').innerText = window.t('tasks.status.syncing');
+            document.getElementById('status-bar').innerText = window.t('tasks.status.syncing', "Syncing...");
             if (first) {
                 // Clear any google columns (but keep native-col hidden)
                 Array.from(dashboard.children).forEach(child => {
@@ -779,7 +779,7 @@
                 await gapi.client.tasks.tasks.insert({ tasklist: listId, resource: { title: inp.value } });
                 inp.value = '';
                 loadGoogleTasks(false);
-            } catch (e) { showModal(window.t('tasks.error.add')); }
+            } catch (e) { showModal(window.t('tasks.error.add', "Error adding task.")); }
         }
 
         async function completeGoogleTask(listId, taskId, el) {
@@ -788,7 +788,7 @@
             try {
                 await gapi.client.tasks.tasks.patch({ tasklist: listId, task: taskId, resource: { status: 'completed' } });
                 setTimeout(() => el.parentElement.remove(), 500);
-            } catch (e) { showModal(window.t('tasks.error.complete')); }
+            } catch (e) { showModal(window.t('tasks.error.complete', "Error completing task.")); }
         }
 
         // ==========================================

@@ -7,9 +7,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="js/score-submit.js" data-game="hanoi"></script>
+    <script src="js/score-submit.js?v=1" data-game="hanoi"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
 
     <style>
@@ -347,8 +347,8 @@
 
         <div class="window-content">
             <div id="status-bar">
-                <span id="moves-label" data-i18n="hanoi.label.moves" data-i18n-n="0">Moves: 0</span>
-                <span id="min-label" data-i18n="hanoi.label.min" data-i18n-n="7">Min: 7</span>
+                <span id="moves-label">Moves: 0</span>
+                <span id="min-label">Min: 7</span>
             </div>
             <canvas id="game-canvas"></canvas>
         </div>
@@ -497,7 +497,7 @@
 
         function openLeaderboard() {
             document.getElementById('leaderboard-modal').style.display = 'flex';
-            const title = window.t ? window.t('hanoi.label.top_scores_disks').replace('${n}', numDisks) : `Top Scores (${numDisks} Disks)`;
+            const title = window.t ? window.t('hanoi.label.top_scores_disks', "Top Scores (${n} Disks)").replace('${n}', numDisks) : `Top Scores (${numDisks} Disks)`;
             document.getElementById('lb-title').textContent = title;
             document.getElementById('lb-title').removeAttribute('data-i18n');
             loadLeaderboard(numDisks);
@@ -509,7 +509,7 @@
 
         async function loadLeaderboard(difficulty) {
             const list = document.getElementById('lb-content');
-            list.innerText = window.t ? window.t('hanoi.status.loading') : 'Loading...';
+            list.innerText = window.t ? window.t('hanoi.status.loading', "Loading...") : 'Loading...';
             list.removeAttribute('data-i18n');
 
             const user = auth.currentUser;
@@ -522,7 +522,7 @@
 
                     list.innerHTML = '';
                     if (snapshot.empty) {
-                        list.innerText = window.t ? window.t('hanoi.status.no_scores') : 'No scores yet!';
+                        list.innerText = window.t ? window.t('hanoi.status.no_scores', "No scores yet!") : 'No scores yet!';
                         return;
                     }
 
@@ -545,10 +545,10 @@
                     });
                 } catch (e) {
                     console.error("Error loading leaderboard:", e);
-                    list.innerText = window.t ? window.t('hanoi.status.error_loading') : "Error loading scores.";
+                    list.innerText = window.t ? window.t('hanoi.status.error_loading', "Error loading scores.") : "Error loading scores.";
                 }
             } else {
-                list.innerText = window.t ? window.t('hanoi.status.login_required') : "Log in to see scores.";
+                list.innerText = window.t ? window.t('hanoi.status.login_required', "Log in to see scores.") : "Log in to see scores.";
             }
         }
 
@@ -618,8 +618,8 @@
             const movesLabel = document.getElementById('moves-label');
             const minLabel = document.getElementById('min-label');
 
-            movesLabel.innerText = window.t ? window.t('hanoi.label.moves').replace('${n}', moves) : `Moves: ${moves}`;
-            minLabel.innerText = window.t ? window.t('hanoi.label.min').replace('${n}', minMoves) : `Min: ${minMoves}`;
+            movesLabel.innerText = window.tFormat ? window.tFormat('hanoi.label.moves', { n: moves }, 'Moves: ${n}') : `Moves: ${moves}`;
+            minLabel.innerText = window.tFormat ? window.tFormat('hanoi.label.min', { n: minMoves }, 'Min: ${n}') : `Min: ${minMoves}`;
 
             movesLabel.removeAttribute('data-i18n');
             minLabel.removeAttribute('data-i18n');
@@ -694,7 +694,7 @@
                 isWin = true;
                 saveBestMoves(numDisks, moves);
                 setTimeout(() => {
-                    const winMsg = window.t ? window.t('hanoi.msg.completed').replace('${n}', moves) : `Completed in ${moves} moves!`;
+                    const winMsg = window.t ? window.t('hanoi.msg.completed', "Completed in ${n} moves!").replace('${n}', moves) : `Completed in ${moves} moves!`;
                     document.getElementById('game-over-msg').innerText = winMsg;
                     document.getElementById('game-over-modal').style.display = 'flex';
                 }, 200);

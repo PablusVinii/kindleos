@@ -11,6 +11,8 @@ const functions = require("firebase-functions/v1");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
+const net = require("net");
+const dns = require("dns").promises;
 const { ImapFlow } = require("imapflow");
 const simpleParser = require("mailparser").simpleParser;
 const nodemailer = require("nodemailer");
@@ -46,8 +48,172 @@ const allowedOrigins = [
 // Common options for all functions
 const callOptions = {
     cors: allowedOrigins,  // Restrict to allowed origins only
-    maxInstances: 10       // Limit concurrency for IMAP connections to avoid hitting limits
+    maxInstances: 10,      // Limit concurrency for IMAP connections to avoid hitting limits
+    timeoutSeconds: 60     // Outbound IMAP/SMTP calls must not hang a function slot
 };
+
+// Mail callables are expensive (outbound IMAP/SMTP connections) and were
+// previously callable by anyone with the public Firebase config. They now
+// require Firebase auth + an active ReKindle+ subscription, are rate-limited,
+// and refuse private/link-local targets. Keep these helpers near the top so
+// every mail function uses the same rules.
+const IMAP_PORTS = [993, 143];
+const SMTP_PORTS = [465, 587];
+
+function requireAuth(request) {
+    if (!request.auth || !request.auth.uid) {
+        throw new HttpsError('unauthenticated', 'Must be signed in.');
+    }
+    return request.auth;
+}
+
+function isPrivateIPAddress(ip) {
+    if (!ip) return true;
+
+    if (net.isIPv4(ip)) {
+        const parts = ip.split('.').map(Number);
+        return parts[0] === 0 ||
+            parts[0] === 10 ||
+            parts[0] === 127 ||
+            (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) ||
+            (parts[0] === 169 && parts[1] === 254) ||
+            (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+            (parts[0] === 192 && parts[1] === 168) ||
+            (parts[0] === 198 && (parts[1] === 18 || parts[1] === 19)) ||
+            parts[0] >= 224;
+    }
+
+    if (net.isIPv6(ip)) {
+        const lower = ip.toLowerCase();
+        if (lower === '::' || lower === '::1') return true;
+        if (lower.startsWith('fc') || lower.startsWith('fd')) return true; // unique local
+        if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true; // link local
+        if (lower.startsWith('::ffff:')) return isPrivateIPAddress(lower.slice(7));
+        return false;
+    }
+
+    return false;
+}
+
+async function assertMailEndpoint(host, port, kind) {
+    if (typeof host !== 'string' || !host.trim() || host.length > 253 || /[\s/\\]/.test(host)) {
+        throw new HttpsError('invalid-argument', 'Invalid mail server host.');
+    }
+
+    const cleanHost = host.trim();
+    const numericPort = Number(port);
+    const allowedPorts = kind === 'smtp' ? SMTP_PORTS : IMAP_PORTS;
+    if (allowedPorts.indexOf(numericPort) === -1) {
+        throw new HttpsError('invalid-argument', 'Unsupported mail server port.');
+    }
+
+    if (net.isIP(cleanHost)) {
+        if (isPrivateIPAddress(cleanHost)) {
+            throw new HttpsError('permission-denied', 'Mail server address is not allowed.');
+        }
+        return;
+    }
+
+    let addresses;
+    try {
+        addresses = await dns.lookup(cleanHost, { all: true });
+    } catch (e) {
+        throw new HttpsError('invalid-argument', 'Mail server host could not be resolved.');
+    }
+    if (!addresses || !addresses.length) {
+        throw new HttpsError('invalid-argument', 'Mail server host could not be resolved.');
+    }
+    for (const entry of addresses) {
+        if (isPrivateIPAddress(entry.address)) {
+            throw new HttpsError('permission-denied', 'Mail server address is not allowed.');
+        }
+    }
+}
+
+function assertMailAuthConfig(config) {
+    if (!config || typeof config !== 'object') {
+        throw new HttpsError('invalid-argument', 'Missing mail server configuration.');
+    }
+    if (!config.auth || typeof config.auth.user !== 'string' || typeof config.auth.pass !== 'string') {
+        throw new HttpsError('invalid-argument', 'Missing mail server credentials.');
+    }
+    if (config.auth.user.length > 320 || config.auth.pass.length > 1024) {
+        throw new HttpsError('invalid-argument', 'Mail server credentials are too long.');
+    }
+}
+
+async function isUserPro(uid, email, token) {
+    if (token && token.pro === true) return true;
+    if (email === 'ukiyo@rekindle.ink') return true;
+
+    const db = admin.firestore();
+
+    try {
+        const doc = await db.collection('users').doc(uid).get();
+        if (doc.exists) {
+            const data = doc.data();
+            if (data && data.proExpiresAt) {
+                const expires = data.proExpiresAt.toMillis ? data.proExpiresAt.toMillis() : new Date(data.proExpiresAt).getTime();
+                if (expires > Date.now()) return true;
+            }
+        }
+    } catch (e) {
+        logger.warn('isUserPro user lookup failed:', e.message);
+    }
+
+    if (email) {
+        try {
+            const supporters = await db.collection('config').doc('supporters').get();
+            if (supporters.exists) {
+                const data = supporters.data() || {};
+                const entry = data[email];
+                if (entry && entry.expiresAt) {
+                    const expires = entry.expiresAt.toMillis ? entry.expiresAt.toMillis() : new Date(entry.expiresAt).getTime();
+                    if (expires > Date.now()) return true;
+                }
+            }
+        } catch (e) {
+            logger.warn('isUserPro supporters lookup failed:', e.message);
+        }
+    }
+
+    return false;
+}
+
+async function assertMailRate(uid, kind, limit, windowMs) {
+    const ref = admin.database().ref(`mail_rate_limits/${uid}/${kind}`);
+    const now = Date.now();
+    let allowed = true;
+
+    const result = await ref.transaction(function (current) {
+        if (!current || typeof current.windowStart !== 'number' || now - current.windowStart > windowMs) {
+            return { windowStart: now, count: 1 };
+        }
+        if (current.count >= limit) {
+            allowed = false;
+            return; // abort
+        }
+        return { windowStart: current.windowStart, count: current.count + 1 };
+    });
+
+    if (!result.committed || !allowed) {
+        throw new HttpsError('resource-exhausted', 'Too many mail requests. Please try again later.');
+    }
+}
+
+async function assertMailAccess(request, kind) {
+    const auth = requireAuth(request);
+    const pro = await isUserPro(auth.uid, auth.token.email, auth.token);
+    if (!pro) {
+        throw new HttpsError('permission-denied', 'ReKindle+ is required for mail.');
+    }
+    if (kind === 'smtp') {
+        await assertMailRate(auth.uid, 'smtp', 10, 60 * 60 * 1000);
+    } else {
+        await assertMailRate(auth.uid, 'imap', 30, 5 * 60 * 1000);
+    }
+    return auth;
+}
 
 // AgeVerif integration removed — replaced with self-declaration flow.
 
@@ -283,10 +449,18 @@ exports.verifyAgeSelfDeclaration = onCall(callOptions, async (request) => {
         throw new HttpsError('internal', 'Failed to update user verification status.');
     }
 
-    // Set custom claim on social project
+    // Set custom claim on social project (merge existing moderator/pro claims)
     if (socialAdminApp) {
         try {
+            let existingSocialClaims = {};
+            try {
+                const socialRecord = await socialAdminApp.auth().getUser(uid);
+                existingSocialClaims = socialRecord.customClaims || {};
+            } catch (lookupErr) {
+                if (!lookupErr.code || lookupErr.code !== 'auth/user-not-found') throw lookupErr;
+            }
             await socialAdminApp.auth().setCustomUserClaims(uid, {
+                ...existingSocialClaims,
                 ageVerified: true,
                 ageVerifiedAt: Date.now(),
                 ageVerificationCountry: countryCode,
@@ -365,11 +539,19 @@ exports.verifyAge = onCall(callOptions, async (request) => {
  * }
  */
 exports.fetchEmails = onCall(callOptions, async (request) => {
-    const { imap: imapConfig, path = 'INBOX', cursor, limit = 20 } = request.data;
+    await assertMailAccess(request, 'imap');
+
+    const { imap: imapConfig, path = 'INBOX', cursor, limit = 20 } = request.data || {};
 
     if (!imapConfig) {
         throw new HttpsError('invalid-argument', 'Missing IMAP configuration');
     }
+    assertMailAuthConfig(imapConfig);
+    await assertMailEndpoint(imapConfig.host, imapConfig.port || 993, 'imap');
+
+    const safePath = typeof path === 'string' && path ? path.substring(0, 200) : 'INBOX';
+    const safeLimit = Math.max(1, Math.min(50, Number(limit) || 20));
+    const safeCursor = Number(cursor) > 0 ? Number(cursor) : null;
 
     const client = new ImapFlow({
         host: imapConfig.host,
@@ -382,9 +564,9 @@ exports.fetchEmails = onCall(callOptions, async (request) => {
     try {
         await client.connect();
 
-        let lock = await client.getMailboxLock(path);
+        let lock = await client.getMailboxLock(safePath);
         try {
-            const status = await client.status(path, { messages: true });
+            const status = await client.status(safePath, { messages: true });
             const total = status.messages;
 
             if (total === 0) {
@@ -394,8 +576,8 @@ exports.fetchEmails = onCall(callOptions, async (request) => {
             // Calculate range
             // If cursor is provided, we fetch ending at cursor - 1
             // If not provided, we fetch ending at total
-            let endObj = cursor ? Math.max(1, cursor - 1) : total;
-            let startObj = Math.max(1, endObj - limit + 1);
+            let endObj = safeCursor ? Math.max(1, safeCursor - 1) : total;
+            let startObj = Math.max(1, endObj - safeLimit + 1);
 
             if (endObj < 1) {
                 return { success: true, messages: [], nextCursor: null };
@@ -449,7 +631,7 @@ exports.fetchEmails = onCall(callOptions, async (request) => {
         }
     } catch (err) {
         logger.error("IMAP Error", err);
-        throw new HttpsError('internal', "IMAP Error: " + err.message, err);
+        throw new HttpsError('internal', "Could not read mail from the server.");
     } finally {
         if (client) await client.logout().catch(() => { });
     }
@@ -457,8 +639,18 @@ exports.fetchEmails = onCall(callOptions, async (request) => {
 
 
 exports.moveEmail = onCall(callOptions, async (request) => {
-    const { imap: imapConfig, path, uid, destination } = request.data;
-    // ... validation ...
+    await assertMailAccess(request, 'imap');
+
+    const { imap: imapConfig, path, uid, destination } = request.data || {};
+    if (!imapConfig || !uid || !destination) {
+        throw new HttpsError('invalid-argument', 'Missing IMAP config, UID, or destination.');
+    }
+    assertMailAuthConfig(imapConfig);
+    await assertMailEndpoint(imapConfig.host, imapConfig.port || 993, 'imap');
+
+    const safePath = typeof path === 'string' && path ? path.substring(0, 200) : 'INBOX';
+    const safeDestination = String(destination).substring(0, 200);
+
     const client = new ImapFlow({
         host: imapConfig.host,
         port: imapConfig.port || 993,
@@ -469,23 +661,35 @@ exports.moveEmail = onCall(callOptions, async (request) => {
 
     try {
         await client.connect();
-        let lock = await client.getMailboxLock(path);
+        let lock = await client.getMailboxLock(safePath);
         try {
-            await client.messageMove(String(uid), destination, { uid: true });
+            await client.messageMove(String(uid), safeDestination, { uid: true });
             return { success: true };
         } finally {
             lock.release();
         }
     } catch (err) {
         logger.error("Move Error", err);
-        throw new HttpsError('internal', "Move Error: " + err.message, err);
+        throw new HttpsError('internal', "Could not move the message.");
     } finally {
         if (client) await client.logout().catch(() => { });
     }
 });
 
 exports.modifyFlags = onCall(callOptions, async (request) => {
-    const { imap: imapConfig, path, uid, addFlags, removeFlags } = request.data;
+    await assertMailAccess(request, 'imap');
+
+    const { imap: imapConfig, path, uid, addFlags, removeFlags } = request.data || {};
+    if (!imapConfig || !uid) {
+        throw new HttpsError('invalid-argument', 'Missing IMAP config or UID.');
+    }
+    assertMailAuthConfig(imapConfig);
+    await assertMailEndpoint(imapConfig.host, imapConfig.port || 993, 'imap');
+
+    const safePath = typeof path === 'string' && path ? path.substring(0, 200) : 'INBOX';
+    const safeAdd = Array.isArray(addFlags) ? addFlags.slice(0, 20).map(f => String(f).substring(0, 40)) : [];
+    const safeRemove = Array.isArray(removeFlags) ? removeFlags.slice(0, 20).map(f => String(f).substring(0, 40)) : [];
+
     const client = new ImapFlow({
         host: imapConfig.host,
         port: imapConfig.port || 993,
@@ -496,13 +700,13 @@ exports.modifyFlags = onCall(callOptions, async (request) => {
 
     try {
         await client.connect();
-        let lock = await client.getMailboxLock(path);
+        let lock = await client.getMailboxLock(safePath);
         try {
-            if (addFlags && addFlags.length) {
-                await client.messageFlagsAdd(String(uid), addFlags, { uid: true });
+            if (safeAdd.length) {
+                await client.messageFlagsAdd(String(uid), safeAdd, { uid: true });
             }
-            if (removeFlags && removeFlags.length) {
-                await client.messageFlagsRemove(String(uid), removeFlags, { uid: true });
+            if (safeRemove.length) {
+                await client.messageFlagsRemove(String(uid), safeRemove, { uid: true });
             }
             return { success: true };
         } finally {
@@ -510,7 +714,7 @@ exports.modifyFlags = onCall(callOptions, async (request) => {
         }
     } catch (err) {
         logger.error("Flag Error", err);
-        throw new HttpsError('internal', "Flag Error: " + err.message, err);
+        throw new HttpsError('internal', "Could not update message flags.");
     } finally {
         if (client) await client.logout().catch(() => { });
     }
@@ -525,11 +729,17 @@ exports.modifyFlags = onCall(callOptions, async (request) => {
  * }
  */
 exports.fetchEmailBody = onCall(callOptions, async (request) => {
-    const { imap: imapConfig, path = 'INBOX', uid } = request.data;
+    await assertMailAccess(request, 'imap');
+
+    const { imap: imapConfig, path = 'INBOX', uid } = request.data || {};
 
     if (!imapConfig || !uid) {
         throw new HttpsError('invalid-argument', 'Missing IMAP config or UID');
     }
+    assertMailAuthConfig(imapConfig);
+    await assertMailEndpoint(imapConfig.host, imapConfig.port || 993, 'imap');
+
+    const safePath = typeof path === 'string' && path ? path.substring(0, 200) : 'INBOX';
 
     const client = new ImapFlow({
         host: imapConfig.host,
@@ -541,40 +751,29 @@ exports.fetchEmailBody = onCall(callOptions, async (request) => {
 
     try {
         await client.connect();
-        let lock = await client.getMailboxLock(path);
+        let lock = await client.getMailboxLock(safePath);
         try {
             // client.fetch returns a generator, iterate to get the message
             // Convert UID to string to ensure it's treated as a UID range if numeric
             const uidStr = String(uid);
             let message;
 
-            console.log("Fetching UID:", uidStr, "in", path); // DEBUG
-
             try {
                 message = await client.fetchOne(uidStr, { source: true, uid: true });
             } catch (e) {
-                console.log("fetchOne error:", e);
+                logger.warn("fetchOne failed, falling back to sequence search:", e.message);
             }
 
             if (!message) {
                 // Try searching for the sequence number first as a fallback
-                console.log("Direct UID fetch failed. Searching for sequence number for UID:", uidStr);
                 const seq = await client.search({ uid: uidStr });
                 if (seq && seq.length > 0) {
-                    console.log("Found sequence number:", seq[0]);
                     message = await client.fetchOne(seq[0], { source: true });
                 }
             }
 
             if (!message) {
-                // List all UIDs for debugging
-                const allUids = [];
-                for await (let m of client.fetch('1:*', { uid: true })) {
-                    allUids.push(m.uid);
-                }
-                console.log("Available UIDs in folder:", allUids.slice(-10)); // Log last 10 UIDs
-
-                throw new HttpsError('not-found', "Message not found for UID: " + uidStr + " in folder: " + path);
+                throw new HttpsError('not-found', "Message not found for UID: " + uidStr + " in folder: " + safePath);
             }
 
             const parsed = await simpleParser(message.source);
@@ -606,7 +805,8 @@ exports.fetchEmailBody = onCall(callOptions, async (request) => {
         }
     } catch (err) {
         logger.error("IMAP Body Error", err);
-        throw new HttpsError('internal', "IMAP Body Error: " + err.message, err);
+        if (err instanceof HttpsError) throw err;
+        throw new HttpsError('internal', "Could not load the message.");
     } finally {
         if (client) await client.logout().catch(() => { });
     }
@@ -621,10 +821,25 @@ exports.fetchEmailBody = onCall(callOptions, async (request) => {
  * }
  */
 exports.sendEmail = onCall(callOptions, async (request) => {
-    const { smtp: smtpConfig, message } = request.data;
+    await assertMailAccess(request, 'smtp');
+
+    const { smtp: smtpConfig, message } = request.data || {};
 
     if (!smtpConfig || !message) {
         throw new HttpsError('invalid-argument', 'Missing SMTP config or message');
+    }
+    assertMailAuthConfig(smtpConfig);
+    await assertMailEndpoint(smtpConfig.host, smtpConfig.port || 465, 'smtp');
+
+    const recipients = Array.isArray(message.to) ? message.to.join(',') : String(message.to || '');
+    if (!recipients.trim() || recipients.split(',').length > 10) {
+        throw new HttpsError('invalid-argument', 'Invalid recipient list.');
+    }
+    if (String(message.subject || '').length > 200) {
+        throw new HttpsError('invalid-argument', 'Subject is too long.');
+    }
+    if (String(message.text || '').length + String(message.html || '').length > 1024 * 1024) {
+        throw new HttpsError('invalid-argument', 'Message is too large.');
     }
 
     const transporter = nodemailer.createTransport({
@@ -637,7 +852,7 @@ exports.sendEmail = onCall(callOptions, async (request) => {
     try {
         const info = await transporter.sendMail({
             from: message.from || smtpConfig.auth.user,
-            to: message.to,
+            to: recipients,
             subject: message.subject,
             text: message.text,
             html: message.html
@@ -646,7 +861,7 @@ exports.sendEmail = onCall(callOptions, async (request) => {
         return { success: true, messageId: info.messageId };
     } catch (err) {
         logger.error("SMTP Error", err);
-        throw new HttpsError('internal', "SMTP Error: " + err.message, err);
+        throw new HttpsError('internal', "Could not send the email.");
     }
 });
 
@@ -657,11 +872,15 @@ exports.sendEmail = onCall(callOptions, async (request) => {
  * }
  */
 exports.getFolders = onCall(callOptions, async (request) => {
-    const { imap: imapConfig } = request.data;
+    await assertMailAccess(request, 'imap');
+
+    const { imap: imapConfig } = request.data || {};
 
     if (!imapConfig) {
         throw new HttpsError('invalid-argument', 'Missing IMAP configuration');
     }
+    assertMailAuthConfig(imapConfig);
+    await assertMailEndpoint(imapConfig.host, imapConfig.port || 993, 'imap');
 
     const client = new ImapFlow({
         host: imapConfig.host,
@@ -689,7 +908,7 @@ exports.getFolders = onCall(callOptions, async (request) => {
         };
     } catch (err) {
         logger.error("IMAP Folder Error", err);
-        throw new HttpsError('internal', "IMAP Folder Error: " + err.message, err);
+        throw new HttpsError('internal', "Could not list mail folders.");
     } finally {
         if (client) await client.logout().catch(() => { });
     }
@@ -1004,11 +1223,39 @@ exports.getSocialToken = onCall(callOptions, async (request) => {
     const modSnap = await admin.database().ref('moderators/' + uid).once('value');
     const isModerator = modSnap.val() === true;
 
-    // Pro status from auth token claims or admin email
-    const isPro = request.auth.token.pro === true || request.auth.token.email === 'ukiyo@rekindle.ink';
+    // Pro status: claim first, then Firestore/supporters. This keeps existing
+    // subscribers working even if their token predates the claim-merge fix.
+    const isPro = await isUserPro(uid, request.auth.token.email, request.auth.token);
 
-    // Age verification status from main project auth claims
-    const isAgeVerified = request.auth.token.ageVerified === true;
+    // Age verification status from main project auth claims. Older Stripe
+    // claim writes wiped this claim, so repair it lazily from the audit doc.
+    let isAgeVerified = request.auth.token.ageVerified === true;
+    if (!isAgeVerified) {
+        try {
+            const verifyDoc = await admin.firestore()
+                .collection('users').doc(uid)
+                .collection('ageVerification').doc('latest')
+                .get();
+            if (verifyDoc.exists && verifyDoc.data().verified === true) {
+                isAgeVerified = true;
+                try {
+                    const userRecord = await admin.auth().getUser(uid);
+                    await admin.auth().setCustomUserClaims(uid, {
+                        ...(userRecord.customClaims || {}),
+                        ageVerified: true,
+                        ageVerifiedAt: Date.now(),
+                        ageVerificationCountry: verifyDoc.data().country || null,
+                        ageVerificationThreshold: verifyDoc.data().ageThreshold || null,
+                        ageVerificationMethod: 'self_declaration_repair'
+                    });
+                } catch (repairErr) {
+                    logger.warn('getSocialToken: could not repair ageVerified claim:', repairErr.message);
+                }
+            }
+        } catch (e) {
+            logger.warn('getSocialToken: age verification lookup failed:', e.message);
+        }
+    }
 
     // Resolve email (needed by social RTDB rules)
     let email = request.auth.token.email;
@@ -1177,4 +1424,21 @@ exports.akinator = onRequest(
         maxInstances: 5 // hard cost ceiling; idle cost is zero (no minInstances)
     },
     akinatorHandler
+);
+
+// ---------------------------------------------------------------------------
+// Standard Ebooks relay (reader.html's Standard Ebooks tab)
+// standardebooks.org 403s every Cloudflare egress IP (AS132892), so /api/proxy
+// cannot reach it. See firebase-functions/standardebooks.js.
+// ---------------------------------------------------------------------------
+const { standardEbooksHandler } = require("./standardebooks");
+
+exports.standardebooks = onRequest(
+    {
+        region: "us-central1",
+        memory: "256MiB",
+        timeoutSeconds: 60,
+        maxInstances: 5 // hard cost ceiling; idle cost is zero (no minInstances)
+    },
+    standardEbooksHandler
 );

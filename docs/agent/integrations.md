@@ -197,8 +197,102 @@ stubbed `window.fetch` returning a saved OPDS feed + a text excerpt (verified
 2026-10-20: 25 Dickens results, correct first title, contents modal, paragraph
 render, error state, shelf). The proxy was tested in Node against the live site
 (allowlist, 403/405/OPTIONS/HEAD, redirect-follow, cache headers all correct).
-Standard Ebooks still uses the generic `/api/proxy`; its feed parsing and EPUB
-cleaner were carried over unchanged.
+Standard Ebooks uses the Firebase relay below (not `/api/proxy`); its feed
+parsing and EPUB cleaner were carried over unchanged.
+
+### Standard Ebooks 403s every Cloudflare egress IP (2026-10-20)
+
+**Symptom:** the Standard Ebooks tab never loads. Console:
+
+```
+[Error] Failed to load resource: the server responded with a status of 403 () (proxy, line 0)
+[Error] Standard Ebooks feed error – Error: Status 403
+```
+
+**Cause:** `standardebooks.org` (plain Apache, no CDN in front) rejects requests
+that arrive from Cloudflare's egress network (AS132892 — the Workers/Pages
+range; the proxy's source IP was `2a06:98c0:3600::103`). It is **not** a
+User-Agent, header, CORS or proxy bug, so no change to `functions/api/proxy.js`
+can fix it:
+
+| Check | Result |
+| :--- | :--- |
+| Same feed URL + the proxy's exact UA from a non-Cloudflare IP | 200 |
+| `/api/proxy?url=https://example.com` | 200 |
+| `/api/proxy?url=https://standardebooks.org/...` (any path) | 403, Apache `403 Forbidden` body |
+| A second, unrelated Cloudflare Worker fetching the feed | 403 |
+| Direct request from a non-Cloudflare IP carrying `CF-Connecting-IP` | 403 (so the rule keys on Cloudflare markers, not just the IP) |
+| The same request through the Google Cloud relay | 200 |
+
+The block is on the source IP, and Cloudflare-hosted code cannot change its
+egress. (The 2026-10 hardened `/api/proxy` — header allowlist, redirect
+re-validation, 10 MB cap — makes no difference here: the upstream rejects the
+connection before headers matter.)
+
+**Fix:** `firebase-functions/standardebooks.js`, exported as `standardebooks`
+(`onRequest`, us-central1, 256 MiB, 60 s). Google Cloud egress is allowed, the
+same workaround already used for Akinator (see `firebase-functions/akinator.js`),
+without needing a TLS fingerprint — plain `fetch` works.
+
+- Contract: `GET|HEAD /?url=https%3A%2F%2Fstandardebooks.org%2F...`
+  (identical to `/api/*` so `reader.html` only swaps the base URL).
+- Allowlist: `https` only, hosts `standardebooks.org` + `www.standardebooks.org`,
+  paths `/feeds/` and `/ebooks/` only. Cover images are `<img>` loads straight
+  from standardebooks.org and never need a proxy.
+- Redirects followed (`/feeds/rss/*` 301s to `/feeds/atom/*`), 20 s feed /
+  55 s download timeout, 3 attempts on 429/5xx with backoff honouring
+  `Retry-After`.
+- Feed bodies cached per instance for 30 min; `Cache-Control: public,
+  max-age=1800` (feeds) / `86400` (downloads).
+- Per-instance token bucket (60 requests/min per IP, refill 1/s) — it is a
+  public unauthenticated relay, so a cheap abuse guard matches the Akinator
+  relay's pattern. Normal use is one feed fetch plus one request per book.
+- CORS origin allowlist: rekindle.ink, beta/lite/legacy subdomains,
+  `rekindle.pages.dev`, localhost.
+
+`reader.html`'s `proxyBaseFor()` now routes standardebooks.org to
+`https://us-central1-rekindle-dd1fa.cloudfunctions.net/standardebooks?url=`
+(hard-coded, like `akinator.html`'s `BACKEND_URL`), gutenberg.org to
+`/api/gutenberg`, and everything else to `/api/proxy`.
+
+**Deploy:** `npx firebase-tools deploy --only functions:standardebooks
+--project rekindle-dd1fa`. No Firestore/RTDB/Auth rules are involved (the relay
+is stateless). If Standard Ebooks ever allowlists Cloudflare, delete the
+function and point `proxyBaseFor()` back at `/api/proxy`.
+
+**Known limit:** Cloud Functions HTTP responses are capped at 10 MB.
+New-release EPUBs are ~0.6–1.7 MB (max `length` in the 2026-10-20 feed), so this
+is ample; a >10 MB book would fail to download through the relay.
+
+**Verified 2026-10-20:** relay returns the 64,684-byte Atom feed (15 entries,
+`application/atom+xml`) and a 1,076,225-byte EPUB; disallowed host/path/port →
+403, missing `url` → 400, `OPTIONS` → 204 with the caller's origin echoed, and
+the bucket returns 429 JSON after 60 requests. That handler behaviour was
+checked by requiring the module in Node with fake `req`/`res` objects (note:
+`req.query.url` arrives **decoded** — encoding it again fails the allowlist).
+A jsdom harness (install `jsdom` in a temp dir — there is no committed test for
+this tab) extracted `proxyBaseFor`, `fetchWithTimeout`, `escapeHtml` and the `SE`
+IIFE from reader.html and drove the **live** relay: 15 cards, first card "Moral
+Letters to Lucilius / Seneca", correct cover URL, then a real EPUB download
+saved to localforage (`PK` ZIP magic). jsdom 30 has no `fetch` (inject Node's)
+and its `FileReader` rejects undici `Blob`s (stub `blobToArrayBuffer`).
+
+## ReKindle+ custom claims (2026-10-20)
+
+`workers/rekindle-stripe/worker.js` sets the `pro` custom claim from the Stripe
+webhook. Identity Toolkit's `accounts:update.customAttributes` **replaces** the
+whole claims object, so the worker now reads `accounts:lookup` first and merges
+via `workers/rekindle-stripe/claims.js` (`mergeClaims`). The same merge is used
+by `admin/grant_pro.js`. Without it, buying or cancelling Pro deleted
+`ageVerified`/`moderator`, locking the user out of social apps.
+
+`getSocialToken` also lazily repairs a missing `ageVerified` claim from
+`users/{uid}/ageVerification/latest`, and resolves Pro from the claim, the
+`users/{uid}.proExpiresAt` document, or `config/supporters` so an existing
+subscriber is not blocked by a stale token. Deploy the Stripe worker separately
+(`cd workers/rekindle-stripe && npx wrangler deploy`), then run the
+`/sync-pro-claims` admin endpoint once to backfill claims. Unit test:
+`node scripts/test-claims.js`.
 
 ---
 

@@ -11,9 +11,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="js/score-submit.js" data-game="crossy"></script>
+    <script src="js/score-submit.js?v=1" data-game="crossy"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
 
     <style>
         :root {
@@ -684,7 +684,7 @@
             if (spriteLoaded && highScoreLoaded) {
                 const startButton = document.querySelector('#start-game-modal .sys-btn');
                 startButton.disabled = false;
-                startButton.innerText = window.t ? window.t('crossy.btn.start') : "Start Game";
+                startButton.innerText = window.t ? window.t('crossy.btn.start', "Start Game") : "Start Game";
                 startButton.removeAttribute('data-i18n');
             }
         }
@@ -737,7 +737,7 @@
             const modal = document.getElementById('leaderboard-modal');
             modal.style.display = 'block';
             const list = document.getElementById('lb-content');
-            list.innerText = window.t ? window.t('crossy.status.loading') : 'Loading...';
+            list.innerText = window.t ? window.t('crossy.status.loading', "Loading...") : 'Loading...';
             list.removeAttribute('data-i18n');
 
             const user = auth ? auth.currentUser : null;
@@ -750,7 +750,7 @@
 
                     list.innerHTML = '';
                     if (snapshot.empty) {
-                        list.innerText = window.t ? window.t('crossy.status.no_scores') : "No scores yet!";
+                        list.innerText = window.t ? window.t('crossy.status.no_scores', "No scores yet!") : "No scores yet!";
                         return;
                     }
                     let rank = 1;
@@ -772,10 +772,10 @@
                     });
                 } catch (e) {
                     console.error("Error loading leaderboard:", e);
-                    list.innerText = window.t ? window.t('crossy.status.error_loading') : "Error loading scores.";
+                    list.innerText = window.t ? window.t('crossy.status.error_loading', "Error loading scores.") : "Error loading scores.";
                 }
             } else {
-                list.innerText = window.t ? window.t('crossy.status.login_required') : "Log in to see global scores.";
+                list.innerText = window.t ? window.t('crossy.status.login_required', "Log in to see global scores.") : "Log in to see global scores.";
             }
         }
 

@@ -584,10 +584,11 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <script src="time.js?v=1"></script>
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
-    <script src="js/custom-select.js"></script>
-    <script src="js/reports.js"></script>
+    <script src="js/i18n.js?v=2"></script>
+    <script src="js/custom-select.js?v=1"></script>
+    <script src="js/reports.js?v=1"></script>
     <script src="bad_words.js?v=4"></script>
 </head>
 
@@ -990,7 +991,7 @@
                             loadingDiv.style.textAlign = 'center';
                             loadingDiv.style.padding = '10px';
                             loadingDiv.style.color = '#666';
-                            loadingDiv.innerText = window.t ? window.t('suggestions.msg.loading') || 'Loading global results...' : 'Loading global results...';
+                            loadingDiv.innerText = window.t ? window.t('suggestions.msg.loading', "Loading...") || 'Loading global results...' : 'Loading global results...';
                             loadingDiv.id = 'search-loading';
                             listEl.appendChild(loadingDiv);
                         }
@@ -1155,7 +1156,7 @@
                         div.style.fontWeight = 'bold';
                         div.style.marginTop = '10px';
                         div.style.color = '#666';
-                        div.innerText = window.t ? window.t('suggestions.label.other_tabs') || 'Other Results' : 'Other Results';
+                        div.innerText = window.t ? window.t('suggestions.label.other_tabs', "Other Results") || 'Other Results' : 'Other Results';
                         listEl.appendChild(div);
                         hasShownOtherDivider = true;
                     }
@@ -1202,13 +1203,13 @@
 
                     let statusHtml = '';
                     if (data.status === 'done') {
-                        statusHtml = `<span class="status-badge" style="background:green;">${window.t ? window.t('suggestions.tab.done').toUpperCase() : 'DONE'}</span>`;
+                        statusHtml = `<span class="status-badge" style="background:green;">${window.t ? window.t('suggestions.tab.done', "Done").toUpperCase() : 'DONE'}</span>`;
                     } else if (data.status === 'closed') {
-                        statusHtml = `<span class="status-badge" style="background:red;">${window.t ? window.t('suggestions.tab.closed').toUpperCase() : 'CLOSED'}</span>`;
+                        statusHtml = `<span class="status-badge" style="background:red;">${window.t ? window.t('suggestions.tab.closed', "Closed").toUpperCase() : 'CLOSED'}</span>`;
                     } else if (data.status === 'deferred') {
-                        statusHtml = `<span class="status-badge" style="background:orange;">${window.t ? window.t('suggestions.tab.deferred').toUpperCase() : 'DEFERRED'}</span>`;
+                        statusHtml = `<span class="status-badge" style="background:orange;">${window.t ? window.t('suggestions.tab.deferred', "Deferred").toUpperCase() : 'DEFERRED'}</span>`;
                     } else if (data.status === 'in_progress') {
-                        statusHtml = `<span class="progress-badge">${window.t ? window.t('suggestions.status.in_progress').toUpperCase() : 'IN PROGRESS'}</span>`;
+                        statusHtml = `<span class="progress-badge">${window.t ? window.t('suggestions.status.in_progress', "In Progress").toUpperCase() : 'IN PROGRESS'}</span>`;
                     } else {
                         statusHtml = `<span class="${badgeClass}" style="${badgeStyle}">${badgeText}</span>`;
                     }
@@ -1241,13 +1242,13 @@
                     <div style="font-size:0.9rem; margin-bottom:5px; height: 1.2em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                         ${escapeHtml(censoredDescription)}
                     </div>
-                    <div class="sugg-meta">${crown}by ${escapeHtml(data.authorName || (window.t ? window.t('suggestions.msg.anonymous') : 'Anon'))}</div>
+                    <div class="sugg-meta">${crown}by ${escapeHtml(data.authorName || (window.t ? window.t('suggestions.msg.anonymous', "Anonymous") : 'Anon'))}</div>
                 `;
                     listEl.appendChild(el);
                 });
 
                 if (finalSorted.length === 0) {
-                    listEl.innerHTML = `<div style="text-align:center; padding:20px;">${window.t ? window.t('suggestions.msg.empty') : 'No suggestions yet. Be the first!'}</div>`;
+                    listEl.innerHTML = `<div style="text-align:center; padding:20px;">${window.t ? window.t('suggestions.msg.empty', "No suggestions yet. Be the first!") : 'No suggestions yet. Be the first!'}</div>`;
                 }
             }
 
@@ -1266,7 +1267,7 @@
                 document.getElementById('detail-title-bar').textContent = censoredTitle;
                 document.getElementById('detail-desc').textContent = censoredDescription;
 
-                let dateStr = window.t ? window.t('suggestions.msg.unknown_date') : 'Unknown Date';
+                let dateStr = window.t ? window.t('suggestions.msg.unknown_date', "Unknown Date") : 'Unknown Date';
                 // SAFE ACCESS: No optional chaining
                 if (typeof data.createdAt === 'number') {
                     dateStr = (function(d) {
@@ -1278,15 +1279,15 @@
                 let isAuthorPro = !!supporterUsers[data.authorName];
                 let crown = isAuthorPro ? CROWN_SVG : '';
 
-                let authorHtml = `by ${escapeHtml(data.authorName || (window.t ? window.t('suggestions.msg.anonymous') : 'Anonymous'))}`;
+                let authorHtml = `by ${escapeHtml(data.authorName || (window.t ? window.t('suggestions.msg.anonymous', "Anonymous") : 'Anonymous'))}`;
                 if (isAuthorPro) authorHtml = crown + authorHtml;
 
                 document.getElementById('detail-meta').innerHTML = `${authorHtml} • ${dateStr}`;
                 if (data.device) {
-                    document.getElementById('detail-meta').innerHTML += ` • ${window.t ? window.t('suggestions.label.device') : 'Device'}: ${escapeHtml(data.device)}`;
+                    document.getElementById('detail-meta').innerHTML += ` • ${window.t ? window.t('suggestions.label.device', "Device") : 'Device'}: ${escapeHtml(data.device)}`;
                 }
                 if (data.app) {
-                    document.getElementById('detail-meta').innerHTML += ` • ${window.t ? window.t('suggestions.label.app') : 'App'}: ${escapeHtml(data.app)}`;
+                    document.getElementById('detail-meta').innerHTML += ` • ${window.t ? window.t('suggestions.label.app', "App") : 'App'}: ${escapeHtml(data.app)}`;
                 }
 
                 updateVoteBtn(data.upvotes || {});
@@ -1540,7 +1541,7 @@
                 }
 
                 if (containsBadWords(newTitle) || containsBadWords(newDesc)) {
-                    showMessage(window.t ? window.t('suggestions.msg.profanity_title') : 'Family-Friendly', window.t ? window.t('suggestions.msg.profanity') : 'Please keep suggestions and comments family-friendly.');
+                    showMessage(window.t ? window.t('suggestions.msg.profanity_title', "Family-Friendly") : 'Family-Friendly', window.t ? window.t('suggestions.msg.profanity', "Please keep suggestions and comments family-friendly.") : 'Please keep suggestions and comments family-friendly.');
                     return;
                 }
 
@@ -1634,10 +1635,10 @@
                 countSpan.textContent = count;
                 if (hasVoted) {
                     btn.classList.add('voted');
-                    btn.querySelector('span').textContent = '▼ ' + (window.t ? window.t('suggestions.btn.remove_upvote') : 'Remove Upvote');
+                    btn.querySelector('span').textContent = '▼ ' + (window.t ? window.t('suggestions.btn.remove_upvote', "Remove Upvote") : 'Remove Upvote');
                 } else {
                     btn.classList.remove('voted');
-                    btn.querySelector('span').textContent = '▲ ' + (window.t ? window.t('suggestions.btn.upvote') : 'Upvote');
+                    btn.querySelector('span').textContent = '▲ ' + (window.t ? window.t('suggestions.btn.upvote', "▲ Upvote") : 'Upvote');
                 }
             };
 
@@ -1670,7 +1671,7 @@
             // Keeping listener for now as it only affects one doc's subcollection during active viewing.)
             function loadComments(id) {
                 const list = document.getElementById('detail-comments');
-                list.innerHTML = window.t ? window.t('suggestions.msg.loading_comments') : 'Loading comments...';
+                list.innerHTML = window.t ? window.t('suggestions.msg.loading_comments', "Loading comments...") : 'Loading comments...';
                 const isOwner = currentUser && currentUser.email === 'ukiyo@rekindle.ink';
 
                 commentsRefListener = rtdb.ref('suggestions/' + id + '/comments');
@@ -1749,7 +1750,7 @@
                 if (!text || !currentSuggestionId || !currentUser) return;
 
                 if (containsBadWords(text)) {
-                    showMessage(window.t ? window.t('suggestions.msg.profanity_title') : 'Family-Friendly', window.t ? window.t('suggestions.msg.profanity') : 'Please keep suggestions and comments family-friendly.');
+                    showMessage(window.t ? window.t('suggestions.msg.profanity_title', "Family-Friendly") : 'Family-Friendly', window.t ? window.t('suggestions.msg.profanity', "Please keep suggestions and comments family-friendly.") : 'Please keep suggestions and comments family-friendly.');
                     return;
                 }
 
@@ -1868,7 +1869,7 @@
                 }
 
                 if (containsBadWords(title) || containsBadWords(desc)) {
-                    showMessage(window.t ? window.t('suggestions.msg.profanity_title') : 'Family-Friendly', window.t ? window.t('suggestions.msg.profanity') : 'Please keep suggestions and comments family-friendly.');
+                    showMessage(window.t ? window.t('suggestions.msg.profanity_title', "Family-Friendly") : 'Family-Friendly', window.t ? window.t('suggestions.msg.profanity', "Please keep suggestions and comments family-friendly.") : 'Please keep suggestions and comments family-friendly.');
                     return;
                 }
 

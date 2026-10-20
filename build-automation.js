@@ -46,6 +46,99 @@ const FORBIDDEN_IN_DEPLOY = [
     'rtdb-rules.json', 'firestore.rules', 'workers', 'scripts', 'admin'
 ];
 
+// DOM APIs used by the app that WebKit ~534 (Kobo / pre-Chromium Kindle)
+// does not provide. Core-js only polyfills language built-ins, so these must
+// run before any page script. Without them the home page throws on
+// querySelectorAll(...).forEach / Element.remove() / classList / CustomEvent.
+const OLD_BROWSER_DOM_SHIMS = `
+<script>
+    (function () {
+        if (window.NodeList && !NodeList.prototype.forEach) { NodeList.prototype.forEach = Array.prototype.forEach; }
+        if (window.HTMLCollection && !HTMLCollection.prototype.forEach) { HTMLCollection.prototype.forEach = Array.prototype.forEach; }
+
+        if (window.Element && !Element.prototype.remove) {
+            Element.prototype.remove = function () { if (this.parentNode) this.parentNode.removeChild(this); };
+        }
+
+        if (window.Element) {
+            if (!Element.prototype.matches) {
+                Element.prototype.matches = Element.prototype.webkitMatchesSelector || Element.prototype.mozMatchesSelector || Element.prototype.msMatchesSelector || Element.prototype.oMatchesSelector;
+            }
+            if (!Element.prototype.closest) {
+                Element.prototype.closest = function (selector) {
+                    var el = this;
+                    while (el && el.nodeType === 1) {
+                        if (el.matches && el.matches(selector)) return el;
+                        el = el.parentElement || el.parentNode;
+                    }
+                    return null;
+                };
+            }
+        }
+
+        if (window.DOMTokenList) {
+            var probe = document.createElement('div');
+
+            var supportsToggleForce = false;
+            try {
+                probe.classList.toggle('rekindle-probe', false);
+                supportsToggleForce = !probe.classList.contains('rekindle-probe');
+            } catch (e) { supportsToggleForce = false; }
+            if (!supportsToggleForce) {
+                DOMTokenList.prototype.toggle = function (token, force) {
+                    if (arguments.length < 2) {
+                        if (this.contains(token)) { this.remove(token); return false; }
+                        this.add(token);
+                        return true;
+                    }
+                    if (force) { this.add(token); return true; }
+                    this.remove(token);
+                    return false;
+                };
+            }
+
+            var supportsMultiToken = false;
+            try {
+                probe.classList.add('rekindle-probe-a', 'rekindle-probe-b');
+                supportsMultiToken = probe.classList.contains('rekindle-probe-a') && probe.classList.contains('rekindle-probe-b');
+            } catch (e) { supportsMultiToken = false; }
+            if (!supportsMultiToken) {
+                var nativeAdd = DOMTokenList.prototype.add;
+                var nativeRemove = DOMTokenList.prototype.remove;
+                DOMTokenList.prototype.add = function () {
+                    for (var i = 0; i < arguments.length; i++) nativeAdd.call(this, arguments[i]);
+                };
+                DOMTokenList.prototype.remove = function () {
+                    for (var i = 0; i < arguments.length; i++) nativeRemove.call(this, arguments[i]);
+                };
+            }
+        }
+
+        try { new window.CustomEvent('rekindle-probe'); } catch (e) {
+            var CustomEventShim = function (event, params) {
+                params = params || { bubbles: false, cancelable: false, detail: null };
+                var evt = document.createEvent('CustomEvent');
+                evt.initCustomEvent(event, params.bubbles, params.cancelable, params.detail);
+                return evt;
+            };
+            CustomEventShim.prototype = window.Event.prototype;
+            window.CustomEvent = CustomEventShim;
+        }
+
+        if (!window.requestAnimationFrame) {
+            window.requestAnimationFrame = window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || function (cb) {
+                return setTimeout(function () { cb(Date.now()); }, 16);
+            };
+            window.cancelAnimationFrame = window.webkitCancelAnimationFrame || window.mozCancelAnimationFrame || function (id) { clearTimeout(id); };
+        }
+
+        if (!window.performance) { window.performance = {}; }
+        if (!window.performance.now) {
+            window.performance.now = window.performance.webkitNow || function () { return Date.now(); };
+        }
+    })();
+</script>`;
+
 async function assertNoSecretsInDeploy() {
     const problems = [];
     for (const dir of [MAIN_DIR, LITE_DIR, LEGACY_DIR]) {
@@ -59,6 +152,26 @@ async function assertNoSecretsInDeploy() {
         console.error("\n🚨 BUILD ABORTED — credentials would have been published:");
         problems.forEach(p => console.error("   " + p));
         throw new Error("Refusing to build a deploy directory containing secrets.");
+    }
+}
+
+// Deployment routing lives in the main entry pages (it must run before any
+// other asset is fetched). Keep the two required routes explicit here so a
+// future edit cannot silently send Kindles or Kobos to the wrong build.
+const DEVICE_ROUTE_CHECKS = [
+    { label: 'Kobo -> legacy', regex: /isKobo[\s\S]*?legacy\.rekindle\.ink/ },
+    { label: 'pre-Chromium Kindle -> lite', regex: /isKindle[\s\S]*?lite\.rekindle\.ink/ }
+];
+
+async function assertDeviceRouting() {
+    for (const name of ['index.html', 'index_old.html']) {
+        const file = path.join(MAIN_DIR, name);
+        if (!(await fs.pathExists(file))) continue;
+        const html = await fs.readFile(file, 'utf8');
+        const missing = DEVICE_ROUTE_CHECKS.filter(check => !check.regex.test(html));
+        if (missing.length) {
+            throw new Error(`Device routing missing from ${file}: ${missing.map(check => check.label).join(', ')}`);
+        }
     }
 }
 
@@ -138,7 +251,10 @@ async function processCss(cssContent) {
         const result = await postcss([
             postcssPresetEnv({
                 stage: 3,
-                browsers: 'Chrome 44',
+                // Lite now targets pre-Chromium Kindles (Mesquite / WebKit ~534).
+                // Chrome 12 makes autoprefixer emit the -webkit-box-* flexbox
+                // properties those engines need, not just display:-webkit-box.
+                browsers: 'Chrome 12',
                 features: {
                     'nesting-rules': true,
                     'custom-properties': { preserve: false } // Force replacement of variables
@@ -152,7 +268,7 @@ async function processCss(cssContent) {
         // Using strict global replace
         const flexRegex = /display:\s*flex/gi;
         if (processedCss.match(flexRegex)) {
-            console.log("    [Legacy CSS] Injecting -webkit-box fallbacks...");
+            console.log("    [Lite CSS] Injecting -webkit-box fallbacks...");
             processedCss = processedCss.replace(flexRegex, 'display: -webkit-box; display: flex');
         }
 
@@ -223,13 +339,19 @@ async function downloadAndTranspileLib(url, baseDir, customFilename = null, tran
     return `libs/${filename}`;
 }
 
-async function transpileJs(code) {
+// Lite is the build served to pre-Chromium Kindles (Mesquite / WebKit ~534).
+// Those engines have no native Promise and cannot parse ES6 syntax such as
+// arrow functions, template literals, `let`/`const` or classes. App code must
+// therefore be fully down-levelled to ES5; the downloaded polyfill libraries
+// are already ES5, so they keep the cheaper Chrome 44 target.
+async function transpileJs(code, forceEs5 = false) {
     try {
         const result = await babel.transformAsync(code, {
             presets: [['@babel/preset-env', {
                 targets: "chrome 44",
                 modules: false,
                 useBuiltIns: false, // We use an external polyfill bundle
+                forceAllTransforms: forceEs5,
                 debug: false
             }]],
             plugins: ['@babel/plugin-transform-async-to-generator'], // Ensure async/await is transformed
@@ -306,8 +428,11 @@ async function transpileHtml(htmlContent, filename = '') {
                 for (const [key, rule] of Object.entries(LIBRARY_REPLACEMENTS)) {
                     if (rule.check(src)) {
                         const { url, name } = rule.replace(src);
-                        // Download AND TRANSPILE to _deploy/lite/libs
-                        const localPath = await downloadAndTranspileLib(url, LITE_DIR, name, transpileJs);
+                        // Download AND TRANSPILE to _deploy/lite/libs.
+                        // Force ES5 here too: pre-Chromium Kindles cannot parse these
+                        // libraries, and the backtick obfuscation below is only safe
+                        // once Babel has rewritten template literals to concat().
+                        const localPath = await downloadAndTranspileLib(url, LITE_DIR, name, (code) => transpileJs(code, true));
                         console.log(`  [${key}] Localized: ${src} -> ${localPath}`);
                         $(el).attr('src', localPath);
                         break;
@@ -367,7 +492,8 @@ async function transpileHtml(htmlContent, filename = '') {
                     }
                 }
 
-                const transpiled = await transpileJs(code);
+                // forceEs5: this inline script must parse on Mesquite (pre-Chromium Kindle).
+                const transpiled = await transpileJs(code, true);
                 $script.html(transpiled);
             }
         }
@@ -442,9 +568,21 @@ async function transpileHtml(htmlContent, filename = '') {
 
         <!-- 2b. Fetch Polyfill -->
         <script src="${fetchPolyPath}"></script>
+
+        <!-- 2c. DOM shims (NodeList.forEach, Element.remove, classList, CustomEvent) -->
+        ${OLD_BROWSER_DOM_SHIMS}
         
-        <!-- 3. Kobo-Specific Shims & Fixes -->
+        <!-- 3. Old e-reader shims (pre-Chromium Kindle / Kobo) -->
         <script>
+            // Mesquite may not expose a console object at all. The app logs in
+            // several startup paths, so make logging a no-op rather than crash.
+            if (!window.console) { window.console = {}; }
+            if (!window.console.log) { window.console.log = function() {}; }
+            if (!window.console.warn) { window.console.warn = function() {}; }
+            if (!window.console.error) { window.console.error = function() {}; }
+            if (!window.console.info) { window.console.info = function() {}; }
+            if (!window.console.debug) { window.console.debug = function() {}; }
+
             window.isLiteVersion = true;
             
             // StructuredClone Polyfill (Simple JSON fallback)
@@ -453,7 +591,7 @@ async function transpileHtml(htmlContent, filename = '') {
             }
 
             // Window.open / Target Blank Fix
-            // Kobo doesn't support multiple tabs well. Redirect _blank to self or just handle window.open.
+            // E-ink browsers don't support multiple tabs well. Redirect _blank to self.
             var originalOpen = window.open;
             window.open = function(url, target, features) {
                 if (target === '_blank' || !target) {
@@ -463,23 +601,28 @@ async function transpileHtml(htmlContent, filename = '') {
                 return originalOpen(url, target, features);
             };
 
-            // Error.cause Polyfill (Minimal)
             // Array.at / String.at should be covered by CoreJS, but just in case:
             if (![].at) { Array.prototype.at = function(n) { n = Math.trunc(n) || 0; if (n < 0) n += this.length; if (n < 0 || n >= this.length) return undefined; return this[n]; }; }
             if (!"".at) { String.prototype.at = function(n) { n = Math.trunc(n) || 0; if (n < 0) n += this.length; if (n < 0 || n >= this.length) return undefined; return this[n]; }; }
             
-            // Promise.any fallback (Simple)
+            // Promise.any fallback (ES5 - this shim is injected after Babel runs,
+            // so it must not contain arrow functions or let/const).
             if (!Promise.any) {
                 Promise.any = function(promises) {
-                    return new Promise((resolve, reject) => {
+                    return new Promise(function(resolve, reject) {
                         promises = Array.from(promises);
-                        let errors = [];
-                        let count = 0;
-                        promises.forEach(p => {
-                            Promise.resolve(p).then(resolve).catch(e => {
+                        var errors = [];
+                        var count = 0;
+                        promises.forEach(function(p) {
+                            Promise.resolve(p).then(resolve).catch(function(e) {
                                 errors.push(e);
                                 count++;
-                                if (count === promises.length) reject(new AggregateError(errors, "All promises were rejected"));
+                                if (count === promises.length) {
+                                    var err = new Error("All promises were rejected");
+                                    err.name = "AggregateError";
+                                    err.errors = errors;
+                                    reject(err);
+                                }
                             });
                         });
                     });
@@ -512,7 +655,7 @@ async function transpileHtml(htmlContent, filename = '') {
         <div id="lite-info-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center;" onclick="this.style.display='none'">
             <div class="modal-box" onclick="event.stopPropagation()" style="background:white; border:2px solid black; padding:20px; width:300px; max-width:80%; text-align:center; box-shadow:4px 4px 0 black; font-family:sans-serif;">
                 <h3 style="margin-top:0; border-bottom:2px solid black; padding-bottom:10px;">Lite Version</h3>
-                <p style="margin:15px 0;">This is a lightweight version of ReKindle designed for older devices.</p>
+                <p style="margin:15px 0;">This is a lightweight version of ReKindle designed for older e-readers, including pre-Chromium Kindles.</p>
                 <p style="margin:15px 0; font-size:0.9em;">ReKindle apps and games are not regularly tested on these browsers and often won't work, proceed with caution.</p>
                 <button style="background:white; border:2px solid black; padding:8px 20px; font-weight:bold; cursor:pointer; box-shadow:2px 2px 0 black;" onclick="document.getElementById('lite-info-modal').style.display='none'">OK</button>
             </div>
@@ -529,7 +672,7 @@ async function transpileHtml(htmlContent, filename = '') {
             <div class="modal-box" onclick="event.stopPropagation()" style="background:white; border:2px solid black; padding:20px; width:300px; text-align:center; box-shadow:4px 4px 0 black; font-family:sans-serif;">
                 <h3 style="margin-top:0; border-bottom:2px solid black; padding-bottom:10px;">Warning</h3>
                 <p style="margin:20px 0;">This app requires modern features and most likely won't work on this device.</p>
-                <div style="display:flex; justify-content:center; gap:10px;">
+                <div style="display:grid; grid-auto-flow:column; justify-content:center; gap:10px;">
                     <button class="sys-btn" onclick="document.getElementById('es6-warning-modal').style.display='none'" style="background:white; border:2px solid black; padding:8px 20px; font-weight:bold; cursor:pointer; box-shadow:2px 2px 0 black;">Back</button>
                     <button id="es6-proceed-btn" class="sys-btn" style="background:white; border:2px solid black; padding:8px 20px; font-weight:bold; cursor:pointer; box-shadow:2px 2px 0 black;">Proceed Anyway</button>
                 </div>
@@ -623,7 +766,7 @@ async function transpileHtml(htmlContent, filename = '') {
             console.log("  [Pixel] Injecting Grid -> Flexbox fixes...");
             const pixelParams = `
             .gallery-grid { display: flex !important; flex-wrap: wrap !important; justify-content: center !important; gap: 0 !important; }
-            .gallery-item { width: 130px !important; height: 156px !important; margin: 10px !important; aspect-ratio: auto !important; }
+            .gallery-item { width: 130px !important; height: 156px !important; margin: 10px !important; }
         `;
             finalHtml = finalHtml.replace('</style>', pixelParams + '</style>');
         }
@@ -723,7 +866,7 @@ async function transpileHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Mini Crossword</title>')) {
             console.log("  [Mini Crossword] Injecting 5x5 Grid Fixes...");
             const miniCss = `
-            #grid-container { display: flex !important; flex-wrap: wrap !important; width: 100% !important; max-width: 400px !important; height: auto !important; aspect-ratio: 1/1; gap: 0 !important; }
+            #grid-container { display: flex !important; flex-wrap: wrap !important; width: 100% !important; max-width: 400px !important; height: 100vw !important; max-height: 400px !important; }
             .cell { width: 20% !important; height: 20% !important; margin: 0 !important; box-sizing: border-box; flex: none !important; border: 1px solid #999; }
         `;
             finalHtml = finalHtml.replace('</style>', miniCss + '</style>');
@@ -784,7 +927,7 @@ async function transpileHtml(htmlContent, filename = '') {
             #board-container { display: flex !important; flex-direction: column !important; }
             .row { display: flex !important; width: 100% !important; justify-content: center !important; margin-bottom: 4px !important; }
             .row:last-child { margin-bottom: 0 !important; }
-            .tile { flex: 1 !important; margin-right: 4px !important; height: auto !important; aspect-ratio: 1/1 !important; }
+            .tile { flex: 1 !important; margin-right: 4px !important; height: 48px !important; }
             .tile:last-child { margin-right: 0 !important; }
         `;
             finalHtml = finalHtml.replace('</style>', nerdleCss + '</style>');
@@ -832,7 +975,7 @@ async function transpileHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Scrabble</title>')) {
             console.log("  [Scrabble] Injecting Flexbox Layout fixes...");
             const scrabbleCss = `
-            #board { display: flex !important; flex-wrap: wrap !important; width: 100% !important; aspect-ratio: 1/1 !important; }
+            #board { display: flex !important; flex-wrap: wrap !important; width: 100% !important; height: 100vw !important; max-height: 400px !important; }
             .sq { width: 6.66% !important; height: 6.66% !important; flex: none !important; margin: 0 !important; box-sizing: border-box !important; }
         `;
             finalHtml = finalHtml.replace('</style>', scrabbleCss + '</style>');
@@ -1031,7 +1174,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
             $(el).html(css);
         }
 
-        // 5. INJECT POLYFILLS (Same as Lite)
+        // 5. INJECT POLYFILLS
         // Core-JS 2.6.12 Shim (Includes Regenerator + CoreJS) - Best for Legacy
         const coreJsPath = await downloadAndTranspileLib("https://cdn.jsdelivr.net/npm/core-js@2.6.12/client/shim.min.js", LEGACY_DIR, "core-js-shim.min.js", transpileLegacyJs);
         const urlPolyPath = await downloadAndTranspileLib("https://cdn.jsdelivr.net/npm/url-search-params-polyfill@8.1.1/index.js", LEGACY_DIR, "url-search-params-polyfill.js", transpileLegacyJs);
@@ -1041,9 +1184,57 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         <script src="${coreJsPath}"></script>
         <script src="${urlPolyPath}"></script>
         <script src="${fetchPolyPath}"></script>
+        ${OLD_BROWSER_DOM_SHIMS}
         <script>
+            // Old e-reader browsers may not expose a console object at all.
+            if (!window.console) { window.console = {}; }
+            if (!window.console.log) { window.console.log = function() {}; }
+            if (!window.console.warn) { window.console.warn = function() {}; }
+            if (!window.console.error) { window.console.error = function() {}; }
+            if (!window.console.info) { window.console.info = function() {}; }
+            if (!window.console.debug) { window.console.debug = function() {}; }
+
             window.isLegacyVersion = true;
             if (!window.structuredClone) { window.structuredClone = function(obj) { return JSON.parse(JSON.stringify(obj)); }; }
+
+            // Kobo's stock browser is the primary target for the Legacy build.
+            // It handles _blank badly (single-window browser), so send the
+            // navigation to the current window instead.
+            var originalOpen = window.open;
+            window.open = function(url, target, features) {
+                if (target === '_blank' || !target) {
+                    window.location.href = url;
+                    return null;
+                }
+                return originalOpen(url, target, features);
+            };
+
+            // Array.at / String.at (ES2022) are not covered by the core-js 2 shim.
+            if (![].at) { Array.prototype.at = function(n) { n = Math.trunc(n) || 0; if (n < 0) n += this.length; if (n < 0 || n >= this.length) return undefined; return this[n]; }; }
+            if (!"".at) { String.prototype.at = function(n) { n = Math.trunc(n) || 0; if (n < 0) n += this.length; if (n < 0 || n >= this.length) return undefined; return this[n]; }; }
+
+            // Promise.any (ES2021) fallback.
+            if (!Promise.any) {
+                Promise.any = function(promises) {
+                    return new Promise(function(resolve, reject) {
+                        promises = Array.from(promises);
+                        var errors = [];
+                        var count = 0;
+                        promises.forEach(function(p) {
+                            Promise.resolve(p).then(resolve).catch(function(e) {
+                                errors.push(e);
+                                count++;
+                                if (count === promises.length) {
+                                    var err = new Error("All promises were rejected");
+                                    err.name = "AggregateError";
+                                    err.errors = errors;
+                                    reject(err);
+                                }
+                            });
+                        });
+                    });
+                };
+            }
         </script>
         `);
 
@@ -1063,7 +1254,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         <div id="lite-info-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center;" onclick="this.style.display='none'">
             <div class="modal-box" onclick="event.stopPropagation()" style="background:white; border:2px solid black; padding:20px; width:300px; max-width:80%; text-align:center; box-shadow:4px 4px 0 black; font-family:sans-serif;">
                 <h3 style="margin-top:0; border-bottom:2px solid black; padding-bottom:10px;">Legacy Version</h3>
-                <p style="margin:15px 0;">This version is designed for extremely old devices (Chrome 12+).</p>
+                <p style="margin:15px 0;">This version is designed for Kobo e-readers and other older devices.</p>
                 <p style="margin:15px 0; font-size:0.9em;">Some apps are hidden or disabled due to hardware limitations.</p>
                 <button style="background:white; border:2px solid black; padding:8px 20px; font-weight:bold; cursor:pointer; box-shadow:2px 2px 0 black;" onclick="document.getElementById('lite-info-modal').style.display='none'">OK</button>
             </div>
@@ -1078,7 +1269,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
             <div class="modal-box" onclick="event.stopPropagation()" style="background:white; border:2px solid black; padding:20px; width:300px; text-align:center; box-shadow:4px 4px 0 black; font-family:sans-serif;">
                 <h3 style="margin-top:0; border-bottom:2px solid black; padding-bottom:10px;">Warning</h3>
                 <p style="margin:20px 0;">This app requires newer features and will not work on this device.</p>
-                <div style="display:flex; justify-content:center; gap:10px;">
+                <div style="display:grid; grid-auto-flow:column; justify-content:center; gap:10px;">
                     <button class="sys-btn" onclick="document.getElementById('es6-warning-modal').style.display='none'" style="background:white; border:2px solid black; padding:8px 20px; font-weight:bold; cursor:pointer; box-shadow:2px 2px 0 black;">Back</button>
                     <button id="es6-proceed-btn" class="sys-btn" style="background:white; border:2px solid black; padding:8px 20px; font-weight:bold; cursor:pointer; box-shadow:2px 2px 0 black;">Proceed Anyway</button>
                 </div>
@@ -1191,7 +1382,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
             console.log("  [Pixel] Injecting Grid -> Flexbox fixes...");
             let pixelParams = `
             .gallery-grid { display: flex !important; flex-wrap: wrap !important; justify-content: center !important; gap: 0 !important; }
-            .gallery-item { width: 130px !important; height: 156px !important; margin: 10px !important; aspect-ratio: auto !important; }
+            .gallery-item { width: 130px !important; height: 156px !important; margin: 10px !important; }
         `;
             finalHtml = finalHtml.replace('</style>', pixelParams + '</style>');
         }
@@ -1286,7 +1477,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Mini Crossword</title>')) {
             console.log("  [Mini Crossword] Injecting 5x5 Grid Fixes...");
             let miniCss = `
-            #grid-container { display: flex !important; flex-wrap: wrap !important; width: 100% !important; max-width: 400px !important; height: auto !important; aspect-ratio: 1/1; gap: 0 !important; }
+            #grid-container { display: flex !important; flex-wrap: wrap !important; width: 100% !important; max-width: 400px !important; height: 100vw !important; max-height: 400px !important; }
             .cell { width: 20% !important; height: 20% !important; margin: 0 !important; box-sizing: border-box; flex: none !important; border: 1px solid #999; }
         `;
             finalHtml = finalHtml.replace('</style>', miniCss + '</style>');
@@ -1341,7 +1532,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
             #board-container { display: flex !important; flex-direction: column !important; }
             .row { display: flex !important; width: 100% !important; justify-content: center !important; margin-bottom: 4px !important; }
             .row:last-child { margin-bottom: 0 !important; }
-            .tile { flex: 1 !important; margin-right: 4px !important; height: auto !important; aspect-ratio: 1/1 !important; }
+            .tile { flex: 1 !important; margin-right: 4px !important; height: 48px !important; }
             .tile:last-child { margin-right: 0 !important; }
         `;
             finalHtml = finalHtml.replace('</style>', nerdleCss + '</style>');
@@ -1369,7 +1560,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Scrabble</title>')) {
             console.log("  [Scrabble] Injecting Flexbox Layout fixes...");
             const scrabbleCss = `
-            #board { display: flex !important; flex-wrap: wrap !important; width: 100% !important; aspect-ratio: 1/1 !important; }
+            #board { display: flex !important; flex-wrap: wrap !important; width: 100% !important; height: 100vw !important; max-height: 400px !important; }
             .sq { width: 6.66% !important; height: 6.66% !important; flex: none !important; margin: 0 !important; box-sizing: border-box !important; }
         `;
             finalHtml = finalHtml.replace('</style>', scrabbleCss + '</style>');
@@ -1525,6 +1716,10 @@ async function run() {
         await fs.outputFile(file, minified);
     }
 
+    // 2.8 Fail fast if the entry-page device router regressed.
+    await assertDeviceRouting();
+    console.log("📱 Device routing OK: pre-Chromium Kindle -> Lite, Kobo -> Legacy.");
+
     // 3. Process Lite HTML Files
     console.log("🛠️  Transpiling Lite Version...");
     const files = glob.sync(`${LITE_DIR}/**/*.html`, { nodir: true });
@@ -1543,7 +1738,8 @@ async function run() {
         // But to be safe, we transpile everything except obvious libraries if needed
         // For now, transpile all to ensure top-level await etc is handled.
         const code = await fs.readFile(file, 'utf8');
-        const processed = await transpileJs(code);
+        // forceEs5: Lite is the pre-Chromium Kindle (Mesquite) build.
+        const processed = await transpileJs(code, true);
         await fs.outputFile(file, processed);
     }
 

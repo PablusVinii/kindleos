@@ -218,7 +218,7 @@
             box-shadow: none;
         }
     </style>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="theme.js?v=19"></script>
 </head>
 
@@ -291,7 +291,7 @@
                 clearTimeout(cpuTimer);
                 cpuTimer = null;
             }
-            document.getElementById('status-bar').innerText = window.t ? window.t('tictactoe.turn.x') : "Your Turn (X)";
+            document.getElementById('status-bar').innerText = window.t ? window.t('tictactoe.turn.x', "Player X's Turn") : "Your Turn (X)";
             renderBoard();
             resizeBoard();
         }
@@ -337,7 +337,7 @@
             }
 
             currentPlayer = CPU;
-            document.getElementById('status-bar').innerText = window.t ? window.t('tictactoe.turn.o') : "CPU Thinking...";
+            document.getElementById('status-bar').innerText = window.t ? window.t('tictactoe.turn.o', "Player O's Turn") : "CPU Thinking...";
             renderBoard();
 
             cpuTimer = setTimeout(function () {
@@ -354,7 +354,7 @@
                         return;
                     }
                     currentPlayer = HUMAN;
-                    document.getElementById('status-bar').innerText = window.t ? window.t('tictactoe.turn.x') : "Your Turn (X)";
+                    document.getElementById('status-bar').innerText = window.t ? window.t('tictactoe.turn.x', "Player X's Turn") : "Your Turn (X)";
                     renderBoard();
                 }
             }, 600);
@@ -371,13 +371,13 @@
                 cpuTimer = null;
             }
             if (winner === 'draw') {
-                document.getElementById('status-bar').innerText = window.t ? window.t('tictactoe.msg.draw') : "Draw!";
+                document.getElementById('status-bar').innerText = window.t ? window.t('tictactoe.msg.draw', "Draw!") : "Draw!";
         } else if (winner === HUMAN) {
-            const template = window.t ? window.t('tictactoe.msg.win') : "${player} Wins!";
+            const template = window.t ? window.t('tictactoe.msg.win', "${player} Wins!") : "${player} Wins!";
             document.getElementById('status-bar').innerText = template.replace('${player}', HUMAN);
             highlightWin(winLine);
         } else {
-            document.getElementById('status-bar').innerText = window.t ? window.t('tictactoe.msg.lose') : "CPU Wins!";
+            document.getElementById('status-bar').innerText = window.t ? window.t('tictactoe.msg.lose', "CPU Wins!") : "CPU Wins!";
             highlightWin(winLine);
         }
             renderBoard();

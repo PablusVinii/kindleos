@@ -11,11 +11,11 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="js/score-submit.js" data-game="wordle"></script>
+    <script src="js/score-submit.js?v=1" data-game="wordle"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     
-    <script src="time.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="time.js?v=1"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
 
     <style>
@@ -436,7 +436,7 @@
             color: white;
         }
     </style>
-    <script src="js/i18n.js"></script>
+    
     <script src="theme.js?v=19"></script>
 </head>
 
@@ -788,9 +788,9 @@
                     } else {
                         // Daily
                         if (isWin) {
-                            showMessage(window.t ? window.t('wordle.msg.win') : "Splendid!");
+                            showMessage(window.t ? window.t('wordle.msg.win', "Splendid!") : "Splendid!");
                         } else {
-                            const message = window.t ? window.t('wordle.msg.lose').replace('${word}', activeState.targetWord) : "The word was " + activeState.targetWord;
+                            const message = window.t ? window.t('wordle.msg.lose', "The word was ${word}").replace('${word}', activeState.targetWord) : "The word was " + activeState.targetWord;
                             showMessage(message, 5000);
                         }
                     }
@@ -876,7 +876,7 @@
 
         async function startNewUnlimitedGame(retryCount = 0) {
             if (retryCount > 3) {
-                showMessage(window.t ? window.t('wordle.error.network') : "Network Error. Try again later.", 5000);
+                showMessage(window.t ? window.t('wordle.error.network', "Network Error. Try again later.") : "Network Error. Try again later.", 5000);
                 return;
             }
 
@@ -886,7 +886,7 @@
             state.unlimited.gameOver = false;
             state.unlimited.targetWord = "";
 
-            showMessage(window.t ? window.t('wordle.status.loading_nyt') : "Loading Random Past Word...");
+            showMessage(window.t ? window.t('wordle.status.loading_nyt', "Loading NYT Word...") : "Loading Random Past Word...");
 
             try {
                 // 1. Pick a random date between Launch (June 19, 2021) and Yesterday
@@ -942,7 +942,7 @@
 
                 const nytUrl = `https://www.nytimes.com/svc/wordle/v2/${dateStr}.json`;
 
-                showMessage(window.t ? window.t('wordle.status.loading_nyt') : "Loading NYT Word...");
+                showMessage(window.t ? window.t('wordle.status.loading_nyt', "Loading NYT Word...") : "Loading NYT Word...");
                 const response = await fetchWithProxy(nytUrl);
 
                 const data = await response.json();
@@ -1150,7 +1150,7 @@
             const activeState = state[currentMode];
 
             if (activeState.currentGuess.length !== WORD_LENGTH) {
-                showMessage(window.t ? window.t('wordle.msg.too_short') : "Not enough letters");
+                showMessage(window.t ? window.t('wordle.msg.too_short', "Not enough letters") : "Not enough letters");
                 return;
             }
 
@@ -1187,13 +1187,13 @@
                     showMessage("Splendid! Click to play again.", 5000);
                     showPlayAgainButton();
                 } else {
-                    showMessage(window.t ? window.t('wordle.msg.win') : "Splendid!");
+                    showMessage(window.t ? window.t('wordle.msg.win', "Splendid!") : "Splendid!");
                 }
                 setTimeout(() => showStatsModal(), 1500);
             } else if (activeState.guesses.length >= MAX_GUESSES) {
                 activeState.gameOver = true;
                 updateStats(false, activeState.guesses.length);
-                const message = window.t ? window.t('wordle.msg.lose').replace('${word}', activeState.targetWord) : "The word was " + activeState.targetWord;
+                const message = window.t ? window.t('wordle.msg.lose', "The word was ${word}").replace('${word}', activeState.targetWord) : "The word was " + activeState.targetWord;
                 showMessage(message, 5000);
                 if (currentMode === 'unlimited') {
                     showPlayAgainButton();

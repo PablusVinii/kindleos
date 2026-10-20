@@ -1,3 +1,5 @@
+import { mergeClaims } from './claims.js';
+
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
@@ -1094,9 +1096,48 @@ async function bulkSyncSupporters(env, users) {
     return { status: 'success', count: Object.keys(fields).length };
 }
 
+// --- GET FIREBASE CUSTOM CLAIMS ---
+// `accounts:update.customAttributes` replaces the whole claims object, so we
+// must read the current claims and merge before writing.
+async function getFirebaseCustomClaims(env, uid) {
+    const token = await getGoogleAccessToken(env);
+    const projectId = env.FIREBASE_PROJECT_ID;
+    const url = `https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts:lookup`;
+
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ localId: [uid] })
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Custom Claims Lookup Error ${res.status}: ${text}`);
+    }
+
+    const data = await res.json();
+    const users = data.users || [];
+    if (!users.length) return {};
+
+    const raw = users[0].customAttributes;
+    if (!raw) return {};
+
+    try {
+        return JSON.parse(raw) || {};
+    } catch (e) {
+        throw new Error('Could not parse existing custom claims.');
+    }
+}
+
 // --- SET FIREBASE CUSTOM CLAIMS ---
 // Uses the Identity Toolkit REST API to set custom claims on a user's auth token
-async function setFirebaseCustomClaims(env, uid, claims) {
+async function setFirebaseCustomClaims(env, uid, claims, options) {
+    const replace = options && options.replace === true;
+    const existing = replace ? {} : await getFirebaseCustomClaims(env, uid);
+    const merged = mergeClaims(existing, claims);
     const token = await getGoogleAccessToken(env);
     const projectId = env.FIREBASE_PROJECT_ID;
 
@@ -1111,7 +1152,7 @@ async function setFirebaseCustomClaims(env, uid, claims) {
         },
         body: JSON.stringify({
             localId: uid,
-            customAttributes: JSON.stringify(claims)
+            customAttributes: JSON.stringify(merged)
         })
     });
 

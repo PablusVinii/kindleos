@@ -11,9 +11,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="js/score-submit.js" data-game="spellingbee"></script>
+    <script src="js/score-submit.js?v=1" data-game="spellingbee"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
 
     <style>
@@ -497,7 +497,7 @@
             box-shadow: none;
         }
     </style>
-    <script src="time.js"></script>
+    <script src="time.js?v=1"></script>
     <script src="theme.js?v=19"></script>
 </head>
 
@@ -660,13 +660,13 @@
             const btnsEl = document.getElementById('modal-btns');
             messageEl.textContent = msg;
             if (isConfirm) {
-                const cancelTxt = window.t ? window.t('spellbound.btn.cancel') : 'Cancel';
-                const okTxt = window.t ? window.t('spellbound.btn.ok') : 'OK';
+                const cancelTxt = window.t ? window.t('spellbound.btn.cancel', "Cancel") : 'Cancel';
+                const okTxt = window.t ? window.t('spellbound.btn.ok', "OK") : 'OK';
                 btnsEl.innerHTML = `<button class="modal-btn" id="modal-cancel">${cancelTxt}</button><button class="modal-btn" id="modal-ok">${okTxt}</button>`;
                 document.getElementById('modal-cancel').onclick = () => { overlay.style.display = 'none'; if (callback) callback(false); };
                 document.getElementById('modal-ok').onclick = () => { overlay.style.display = 'none'; if (callback) callback(true); };
             } else {
-                const okTxt = window.t ? window.t('spellbound.btn.ok') : 'OK';
+                const okTxt = window.t ? window.t('spellbound.btn.ok', "OK") : 'OK';
                 btnsEl.innerHTML = `<button class="modal-btn" onclick="hideModal()">${okTxt}</button>`;
             }
             overlay.style.display = 'flex';
@@ -802,7 +802,7 @@
 
         function confirmNewGame() {
             if (currentMode !== 'unlimited') return; // Cannot restart daily
-            showModal(window.t ? window.t('spellbound.modal.new.text') : "Generate a brand new puzzle? Current progress will be saved.", true, (confirmed) => {
+            showModal(window.t ? window.t('spellbound.modal.new.text', "Generate a brand new puzzle? Current progress will be saved.") : "Generate a brand new puzzle? Current progress will be saved.", true, (confirmed) => {
                 if(confirmed) {
                     startNewUnlimitedGame();
                 }
@@ -812,7 +812,7 @@
         async function startNewUnlimitedGame() {
             const overlay = document.getElementById('loading-overlay');
             overlay.style.display = 'flex';
-            document.getElementById('loading-msg').innerText = window.t ? window.t('spellbound.loading.dict') : "Generating puzzle...";
+            document.getElementById('loading-msg').innerText = window.t ? window.t('spellbound.loading.dict', "Downloading dictionary (200KB)...") : "Generating puzzle...";
             setTimeout(() => generatePuzzleFromDict(), 50); 
         }
 
@@ -830,7 +830,7 @@
             saveState(); 
             loadModeState();
 
-            showToast(window.t ? window.t('spellbound.toast.ready') : "Puzzle Ready!");
+            showToast(window.t ? window.t('spellbound.toast.ready', "Puzzle Ready!") : "Puzzle Ready!");
             document.getElementById('loading-overlay').style.display = 'none';
         }
 
@@ -841,7 +841,7 @@
             try {
                 if (state.daily.puzzle) return; // Already fetched
 
-                msg.innerText = window.t ? window.t('spellbound.loading.dict') : "Connecting to NYT...";
+                msg.innerText = window.t ? window.t('spellbound.loading.dict', "Downloading dictionary (200KB)...") : "Connecting to NYT...";
                 
                 // Fetch via CORS Proxy
                 const targetUrl = encodeURIComponent(NYT_URL);
@@ -868,7 +868,7 @@
                 // NYT script often ends with semicolon
                 if (jsonStr.endsWith(';')) jsonStr = jsonStr.slice(0, -1);
 
-                msg.innerText = window.t ? window.t('spellbound.loading.pangrams') : "Parsing puzzle data...";
+                msg.innerText = window.t ? window.t('spellbound.loading.pangrams', "Mining pangrams...") : "Parsing puzzle data...";
                 const data = JSON.parse(jsonStr);
                 const today = data.today;
 
@@ -893,7 +893,7 @@
             } catch (e) {
                 console.error("NYT Fetch failed: ", e);
                 overlay.style.display = 'none';
-                showModal(window.t ? window.t('spellbound.error.generate') : "Failed to fetch NYT daily puzzle. Check internet connection.");
+                showModal(window.t ? window.t('spellbound.error.generate', "Failed to generate puzzle. Check internet connection.") : "Failed to fetch NYT daily puzzle. Check internet connection.");
             }
         }
 
@@ -905,7 +905,7 @@
                 let words = cachedDictionary;
 
                 if (!words) {
-                    msg.innerText = window.t ? window.t('spellbound.loading.dict') : "Downloading dictionary (200KB)...";
+                    msg.innerText = window.t ? window.t('spellbound.loading.dict', "Downloading dictionary (200KB)...") : "Downloading dictionary (200KB)...";
                     const res = await fetch(DICT_URL);
                     const text = await res.text();
                     words = text.split('\n')
@@ -915,7 +915,7 @@
                     cachedDictionary = words;
                 }
 
-                msg.innerText = window.t ? window.t('spellbound.loading.pangrams') : "Mining pangrams...";
+                msg.innerText = window.t ? window.t('spellbound.loading.pangrams', "Mining pangrams...") : "Mining pangrams...";
 
                 // 1. Find Pangrams (Words with exactly 7 unique letters)
                 const pangrams = words.filter(w => new Set(w).size === 7);
@@ -932,7 +932,7 @@
                 const center = uniqueChars[Math.floor(Math.random() * 7)];
                 const outers = uniqueChars.filter(c => c !== center);
 
-                msg.innerText = window.t ? window.t('spellbound.loading.validation') : "Validating words...";
+                msg.innerText = window.t ? window.t('spellbound.loading.validation', "Validating words...") : "Validating words...";
 
                 // 5. Find all valid words
                 const validWords = words.filter(w => {
@@ -960,7 +960,7 @@
             } catch (e) {
                 console.error(e);
                 overlay.style.display = 'none';
-                showModal(window.t ? window.t('spellbound.error.generate') : "Failed to generate puzzle. Check internet connection.");
+                showModal(window.t ? window.t('spellbound.error.generate', "Failed to generate puzzle. Check internet connection.") : "Failed to generate puzzle. Check internet connection.");
             }
         }
 
@@ -1128,17 +1128,17 @@
             updateInputDisplay();
 
             if (word.length < 4) {
-                showToast(window.t ? window.t('spellbound.toast.short') : "Too short");
+                showToast(window.t ? window.t('spellbound.toast.short', "Too short") : "Too short");
                 return;
             }
 
             if (!word.includes(currentPuzzle.center)) {
-                showToast(window.t ? window.t('spellbound.toast.center') : "Must use center letter");
+                showToast(window.t ? window.t('spellbound.toast.center', "Must use center letter") : "Must use center letter");
                 return;
             }
 
             if (found.includes(word)) {
-                showToast(window.t ? window.t('spellbound.toast.found') : "Already found");
+                showToast(window.t ? window.t('spellbound.toast.found', "Already found") : "Already found");
                 return;
             }
 
@@ -1165,10 +1165,10 @@
                 
                 let toastMsg = "";
                 if (isPangram) {
-                    const pangramTxt = window.t ? window.t('spellbound.toast.pangram') : "Pangram! +${points}";
+                    const pangramTxt = window.t ? window.t('spellbound.toast.pangram', "Pangram! +${points}") : "Pangram! +${points}";
                     toastMsg = pangramTxt.replace('${points}', points);
                 } else {
-                    const niceTxt = window.t ? window.t('spellbound.toast.nice') : "Nice! +${points}";
+                    const niceTxt = window.t ? window.t('spellbound.toast.nice', "Nice! +${points}") : "Nice! +${points}";
                     toastMsg = niceTxt.replace('${points}', points);
                 }
 
@@ -1186,7 +1186,7 @@
                 updateScoreDisplay();
                 renderFoundWords();
             } else {
-                showToast(window.t ? window.t('spellbound.toast.invalid') : "Not in word list");
+                showToast(window.t ? window.t('spellbound.toast.invalid', "Not in word list") : "Not in word list");
             }
         }
 

@@ -9,9 +9,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="js/score-submit.js" data-game="circle"></script>
+    <script src="js/score-submit.js?v=1" data-game="circle"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
 
     <style>
         :root {
@@ -497,14 +497,14 @@
             const meanR = sumR / radii.length;
 
             if (meanR < MIN_RADIUS) {
-                document.getElementById('result-text').innerText = window.t ? window.t('circle.msg.too_small') : 'Draw a bigger circle!';
+                document.getElementById('result-text').innerText = window.t ? window.t('circle.msg.too_small', "Draw a bigger circle!") : 'Draw a bigger circle!';
                 document.getElementById('retry-btn').style.display = 'inline-block';
                 hasResult = true;
                 return;
             }
 
             if (points.length < MIN_POINTS) {
-                document.getElementById('result-text').innerText = window.t ? window.t('circle.msg.slow_down') : 'Slow down!';
+                document.getElementById('result-text').innerText = window.t ? window.t('circle.msg.slow_down', "Slow down!") : 'Slow down!';
                 document.getElementById('retry-btn').style.display = 'inline-block';
                 hasResult = true;
                 return;
@@ -515,7 +515,7 @@
             const last = points[points.length - 1];
             const loopDist = Math.sqrt(Math.pow(last.x - first.x, 2) + Math.pow(last.y - first.y, 2));
             if (loopDist > meanR * CLOSE_THRESHOLD) {
-                document.getElementById('result-text').innerText = window.t ? window.t('circle.msg.not_closed') : 'Close the loop! End near where you started.';
+                document.getElementById('result-text').innerText = window.t ? window.t('circle.msg.not_closed', "Close the loop! End near where you started.") : 'Close the loop! End near where you started.';
                 document.getElementById('retry-btn').style.display = 'inline-block';
                 hasResult = true;
                 return;
@@ -551,7 +551,7 @@
 
             // Show result
             document.getElementById('score').innerText = score.toFixed(1) + '%';
-            const resultMsg = window.t ? window.t('circle.msg.result').replace('{score}', score.toFixed(1)) : 'Your circle is ' + score.toFixed(1) + '% perfect!';
+            const resultMsg = window.t ? window.t('circle.msg.result', "Your circle is {score}% perfect!").replace('{score}', score.toFixed(1)) : 'Your circle is ' + score.toFixed(1) + '% perfect!';
             document.getElementById('result-text').innerText = resultMsg;
             document.getElementById('instruction-text').style.display = 'none';
             document.getElementById('retry-btn').style.display = 'inline-block';
@@ -612,7 +612,7 @@
             const modal = document.getElementById('leaderboard-modal');
             modal.style.display = 'block';
             const list = document.getElementById('lb-content');
-            list.innerText = window.t ? window.t('circle.status.loading') : 'Loading...';
+            list.innerText = window.t ? window.t('circle.status.loading', "Loading...") : 'Loading...';
             list.removeAttribute('data-i18n');
 
             const user = auth.currentUser;
@@ -625,7 +625,7 @@
 
                     list.innerHTML = '';
                     if (snapshot.empty) {
-                        list.innerText = window.t ? window.t('circle.status.no_scores') : 'No scores yet!';
+                        list.innerText = window.t ? window.t('circle.status.no_scores', "No scores yet!") : 'No scores yet!';
                         return;
                     }
                     let rank = 1;
@@ -648,10 +648,10 @@
                     });
                 } catch (e) {
                     console.error('Error loading leaderboard:', e);
-                    list.innerText = window.t ? window.t('circle.status.error_loading') : 'Error loading scores.';
+                    list.innerText = window.t ? window.t('circle.status.error_loading', "Error loading scores.") : 'Error loading scores.';
                 }
             } else {
-                list.innerText = window.t ? window.t('circle.status.login_required') : 'Log in to see global scores.';
+                list.innerText = window.t ? window.t('circle.status.login_required', "Log in to see global scores.") : 'Log in to see global scores.';
             }
         }
     </script>

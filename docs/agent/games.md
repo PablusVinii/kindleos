@@ -301,6 +301,53 @@ different game is open.
 - No animation for the Same Page countdown: Ready → 3 → 2 → 1 → prompt are four
   explicit taps, not a timer, so a slow e-ink refresh cannot desync the players.
 
+### Visual redesign — "ReKindle editorial" hub (2026-10-20)
+
+The 2026-10 first version read as a wall of heavy boxes: a grey crew panel with
+full-width inputs at the top, ten identical tiles with 2px borders + 2px shadows,
+tiny 0.6-0.7rem blurbs, a large grey how-to block and four boxed stat cells per
+game. It fit the System 7 *chrome* but not the ReKindle *page* language (see
+`weather.html`/`reader.html`/`index.html`: hairline rules, one strong window,
+uppercase letterspaced micro-labels, Georgia prose, generous white space).
+
+What changed (all inside `cargames.html`; **no new i18n keys**, every label
+reuses the existing `cargames.*` keys):
+
+- **Hub order is games-first**: `Pick a game` is the first block (large `sec-title lg`
+  with a `01–10` meta), then the ten numbered tiles, then `CREW`. Crew is a
+  two-column grid of 48px fields with a wash-coloured number cell; Add/Remove are
+  compact 1px secondary buttons. With two players everything fits a 600×800
+  window without scrolling.
+- **Tiles are a printed catalogue, not cards**: 1px border, no shadow, 76px min
+  height, a small grey `01`-`10` index in the corner, bold name + Georgia blurb.
+  The old 42px monogram boxes (42/AZ/ABC…) are gone; the number is the identity.
+- **Game view**: compact 48px `‹ ALL GAMES` button, a `game-head` with a 2.2rem
+  grey catalogue watermark (`#game-index`, set in `showGame`), and a light
+  left-ruled how-to (3px rule, Georgia 0.8rem) instead of the grey box.
+- **Scoreboard strip**: `.stat-row` is a single band with 2px top/bottom rules and
+  1px vertical dividers; no per-stat boxes or shadows.
+- **Button hierarchy**: `.btn.primary` (black) for the forward action, `.btn.ghost`
+  (1px, no shadow) for tertiary actions, default white for the rest. Action rows
+  use `.btn-row` / `.two` / `.three` CSS **grids** (flex `gap` is banned on
+  Chromium 75); the old `.row` flex wrapper is gone.
+- **Compact game window**: `showGame()` adds `.window.compact-view` and `showHub()`
+  removes it — `height:auto; max-height:90vh` with the content child
+  `flex:0 1 auto; min-height:0`, so Rhyme/Same Page no longer leave half a page of
+  white below the buttons. Long panels (Bingo) still fill 90vh and scroll.
+- **Small touches**: Alphabet gets a bordered `.meter` fill (`#alpha-meter`, set in
+  `renderAlphabet`), Crew numbers are zero-padded (`01`), and the back button is a
+  full 48px touch target. `showHub()` focuses the last-played tile with
+  `focus({preventScroll:true})` so returning from the bottom of the catalogue does
+  not jump the hub away from its heading. `renderCricketLog()` strips a trailing
+  `+N` from the translated button label before appending the score (the en label
+  is already "Car +1", which used to render as "Car +1 +1").
+
+Verification: rendered with WebKit at 400×700, 600×800 and 800×1000 (scale 1) and
+driven headlessly — every tile opens, Back returns, cricket add/undo/out, alphabet
+meter, bingo marks, plate word, Same Page four-tap reveal and WYR tally all pass
+with 0 JS errors; `npm test` (compat + i18n) passes. Only `en.json` carries the 128
+`cargames.*` keys, so other locales fall back to the HTML English (pre-existing).
+
 ### Testing without a browser
 `jsdom` (installed in a temp dir, not the repo), `runScripts:'dangerously'`, then
 drive it: click every tile, assert each panel opens and Back returns, then per game

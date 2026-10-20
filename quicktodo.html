@@ -467,10 +467,10 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://apis.google.com/js/api.js"></script>
     <script src="theme.js?v=19"></script>
-    <script src="pro-gate.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="pro-gate.js?v=1"></script>
+    <script src="js/i18n.js?v=2"></script>
     <link rel="stylesheet" href="css/custom-select.css">
-    <script src="js/custom-select.js"></script>
+    <script src="js/custom-select.js?v=1"></script>
 </head>
 
 <body>
@@ -569,7 +569,7 @@
         </div>
     </div>
 
-    <script src="https://apis.google.com/js/api.js"></script>
+    
     <script>
         // --- CONFIG ---
         const WORKER_URL = "https://rekindle-ocr.timjarnott.workers.dev/";
@@ -793,8 +793,8 @@
                                 // Auto-login logic
                                 if (!location.hash.includes('error=')) {
                                     document.getElementById('auth-overlay').style.display = 'flex';
-                                    document.querySelector('#auth-overlay h3').innerText = window.t ? window.t('status.redirecting') : "Redirecting...";
-                                    document.querySelector('#auth-overlay p').innerText = window.t ? window.t('status.refreshing') : "Refreshing Google Session";
+                                    document.querySelector('#auth-overlay h3').innerText = window.t ? window.t('status.redirecting', "Redirecting...") : "Redirecting...";
+                                    document.querySelector('#auth-overlay p').innerText = window.t ? window.t('status.refreshing', "Refreshing...") : "Refreshing Google Session";
                                     oauthSignIn();
                                 } else {
                                     document.getElementById('auth-overlay').style.display = 'flex';
@@ -852,8 +852,8 @@
             if (now - lastAuth < 5000) {
                 console.error("Auth loop detected.");
                 document.getElementById('auth-overlay').style.display = 'flex';
-                document.querySelector('#auth-overlay h3').innerText = window.t ? window.t('status.login_failed') : "Login Failed";
-                document.querySelector('#auth-overlay p').innerText = window.t ? window.t('status.try_again') : "Please try again manually.";
+                document.querySelector('#auth-overlay h3').innerText = window.t ? window.t('status.login_failed', "Login Failed") : "Login Failed";
+                document.querySelector('#auth-overlay p').innerText = window.t ? window.t('status.try_again', "Please try again.") : "Please try again manually.";
                 return;
             }
             sessionStorage.setItem('last_auth_attempt', now.toString());

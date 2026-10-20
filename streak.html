@@ -384,9 +384,9 @@
             margin-left: 10px;
         }
     </style>
-    <script src="time.js"></script>
+    <script src="time.js?v=1"></script>
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
 </head>
 
 <body>
@@ -476,12 +476,12 @@
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
-                    document.getElementById('status-bar').innerText = window.t('status.synced') + user.email;
+                    document.getElementById('status-bar').innerText = window.t('status.synced', "Synced: ") + user.email;
                     // Load Cache immediately
                     loadCachedData();
                     loadCloudData();
                 } else {
-                    document.getElementById('status-bar').innerText = window.t('status.guest');
+                    document.getElementById('status-bar').innerText = window.t('status.guest', "Guest Mode (Local)");
                     loadLocalData();
                 }
             });
@@ -653,7 +653,7 @@
 
             const headerName = document.createElement('div');
             headerName.className = 'habit-name-col';
-            headerName.innerText = window.t('streak.col.habit');
+            headerName.innerText = window.t('streak.col.habit', "HABIT");
             headerRow.appendChild(headerName);
 
             const headerDays = document.createElement('div');
@@ -683,7 +683,7 @@
                 empty.style.padding = "20px";
                 empty.style.textAlign = "center";
                 empty.style.fontStyle = "italic";
-                empty.innerText = window.t('streak.msg.empty');
+                empty.innerText = window.t('streak.msg.empty', "No habits yet. Add one below.");
                 container.appendChild(empty);
                 return;
             }

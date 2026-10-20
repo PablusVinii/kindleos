@@ -6,9 +6,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="js/score-submit.js" data-game="blockblast"></script>
+    <script src="js/score-submit.js?v=1" data-game="blockblast"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
     <style>
         /* SYSTEM 7 AESTHETICS */
@@ -589,7 +589,7 @@
             const modal = document.getElementById('leaderboard-modal');
             modal.style.display = 'block';
             const list = document.getElementById('lb-content');
-            const loadingTxt = window.t ? window.t('blockblast.leaderboard.loading') : 'Loading...';
+            const loadingTxt = window.t ? window.t('blockblast.leaderboard.loading', "Loading...") : 'Loading...';
             list.innerHTML = loadingTxt;
 
             if (auth.currentUser) {
@@ -620,10 +620,10 @@
                     });
                 } catch (e) {
                     console.error("Error loading leaderboard:", e);
-                    list.innerHTML = window.t ? window.t('blockblast.leaderboard.error') : "Error loading scores.";
+                    list.innerHTML = window.t ? window.t('blockblast.leaderboard.error', "Error loading scores.") : "Error loading scores.";
                 }
             } else {
-                list.innerHTML = window.t ? window.t('blockblast.leaderboard.login') : "Log in to see global scores.";
+                list.innerHTML = window.t ? window.t('blockblast.leaderboard.login', "Log in to see global scores.") : "Log in to see global scores.";
             }
         }
 

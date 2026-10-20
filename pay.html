@@ -238,7 +238,7 @@
             transform: translate(2px, 2px);
         }
     </style>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="theme.js?v=19"></script>
 </head>
 
@@ -335,9 +335,7 @@
             </div>
 
             <div id="logged-in-msg" class="auth-section" style="display:none;">
-                <span data-i18n="pay.auth.logged_in_as" data-i18n-args="{&quot;email&quot;: &quot;...&quot;}"
-                    id="logged-in-text">Logged in
-                    as <span id="user-email" style="font-weight:bold;">...</span></span>
+                <span id="logged-in-text">Logged in as <span id="user-email" style="font-weight:bold;">...</span></span>
                 <br>
                 <button class="secondary-btn" style="font-size:0.75rem; padding: 4px 8px; margin-top:5px;"
                     onclick="doLogout()" data-i18n="pay.btn.logout">Log Out</button>
@@ -410,7 +408,7 @@
             } else {
                 // Offline fallback - cannot subscribe
                 const hint = document.getElementById('guest-hint');
-                hint.innerText = window.t ? window.t('pay.msg.offline') : "Offline Mode - Cannot Subscribe";
+                hint.innerText = window.t ? window.t('pay.msg.offline', "Offline Mode - Cannot Subscribe") : "Offline Mode - Cannot Subscribe";
                 hint.style.display = 'block';
                 document.getElementById('payment-section').style.display = 'none';
             }
@@ -421,17 +419,27 @@
             // const qrPlaceholder = document.getElementById('qr-placeholder'); // Removed
             const authContainer = document.getElementById('auth-container');
             const loggedInMsg = document.getElementById('logged-in-msg');
-            const userEmailSpan = document.getElementById('user-email');
 
             if (user) {
                 // LOGGED IN
                 authContainer.style.display = 'none';
                 loggedInMsg.style.display = 'block';
-                if (userEmailSpan) userEmailSpan.innerText = user.email;
                 const loggedInText = document.getElementById('logged-in-text');
-                if (loggedInText && window.t) {
-                    var rawText = window.t('pay.auth.logged_in_as') || "Logged in as ${email}";
-                    loggedInText.innerHTML = rawText.replace('${email}', `<span id="user-email" style="font-weight:bold;">${user.email}</span>`);
+                if (loggedInText) {
+                    // Rebuild from the locale template without innerHTML, so the
+                    // email can never be interpreted as markup.
+                    var template = window.t ? window.t('pay.auth.logged_in_as', 'Logged in as ${email}') : 'Logged in as ${email}';
+                    var parts = template.split('${email}');
+                    loggedInText.textContent = '';
+                    loggedInText.appendChild(document.createTextNode(parts[0] || 'Logged in as '));
+                    var emailEl = document.createElement('span');
+                    emailEl.id = 'user-email';
+                    emailEl.style.fontWeight = 'bold';
+                    emailEl.textContent = user.email || '';
+                    loggedInText.appendChild(emailEl);
+                    if (parts.length > 1) {
+                        loggedInText.appendChild(document.createTextNode(parts.slice(1).join('${email}')));
+                    }
                 }
                 document.getElementById('already-subscribed-hint').style.display = 'none';
 
@@ -498,12 +506,13 @@
                     }
 
                     if (subType === 'lifetime') {
-                        document.getElementById('pay-expiry-date').innerText = window.t ? window.t('pay.status.lifetime') : "Lifetime Membership";
+                        document.getElementById('pay-expiry-date').innerText = window.t ? window.t('pay.status.lifetime', "Lifetime Membership") : "Lifetime Membership";
                     } else {
                         const dateStr = new Date(expires).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
                         const key = subType === 'recurring' ? 'pay.status.renews' : 'pay.status.expires';
+                        const template = subType === 'recurring' ? 'Renews: ${date}' : 'Expires: ${date}';
                         const fallback = (subType === 'recurring' ? "Renews: " : "Expires: ") + dateStr;
-                        document.getElementById('pay-expiry-date').innerText = window.t ? window.t(key).replace('${date}', dateStr) : fallback;
+                        document.getElementById('pay-expiry-date').innerText = window.t ? window.t(key, template).replace('${date}', dateStr) : fallback;
                     }
 
                     // Success achieved, stop verifying
@@ -542,7 +551,7 @@
             qrImg.src = '';
             qrImg.alt = 'Generating link...';
             fallbackLink.href = '#';
-            fallbackLink.innerText = window.t ? window.t('pay.link.loading') : 'Generating link...';
+            fallbackLink.innerText = window.t ? window.t('pay.link.loading', "Generating link...") : 'Generating link...';
             fallbackContainer.style.display = 'block';
 
             try {
@@ -569,7 +578,7 @@
                 qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.url)}`;
                 qrImg.alt = 'Payment QR Code';
                 fallbackLink.href = data.url;
-                fallbackLink.innerText = window.t ? window.t('pay.link.standard') : 'Pay via Standard Link';
+                fallbackLink.innerText = window.t ? window.t('pay.link.standard', "Pay via Standard Link") : 'Pay via Standard Link';
             } catch (err) {
                 console.error('Failed to create checkout session:', err);
                 qrImg.alt = 'Error generating link';
@@ -595,9 +604,9 @@
 
             // Update Label
             const labels = {
-                monthly: window.t ? window.t('pay.display.monthly') : "Monthly Subscription",
-                yearly: window.t ? window.t('pay.display.yearly') : "Yearly Subscription",
-                lifetime: window.t ? window.t('pay.display.lifetime') : "One-Time Payment"
+                monthly: window.t ? window.t('pay.display.monthly', "Monthly Subscription") : "Monthly Subscription",
+                yearly: window.t ? window.t('pay.display.yearly', "Yearly Subscription") : "Yearly Subscription",
+                lifetime: window.t ? window.t('pay.display.lifetime', "One-Time Payment") : "One-Time Payment"
             };
             document.getElementById('price-display').innerText = labels[plan];
 
@@ -610,7 +619,7 @@
                     qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(sessionUrlCache[plan])}`;
                     qrImg.alt = 'Payment QR Code';
                     fallbackLink.href = sessionUrlCache[plan];
-                    fallbackLink.innerText = window.t ? window.t('pay.link.standard') : 'Pay via Standard Link';
+                    fallbackLink.innerText = window.t ? window.t('pay.link.standard', "Pay via Standard Link") : 'Pay via Standard Link';
                 } else {
                     createCheckoutSession(plan);
                 }

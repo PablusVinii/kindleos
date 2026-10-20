@@ -261,7 +261,7 @@
         }
     </style>
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
 </head>
 
 <body>
@@ -293,11 +293,11 @@
             const btnsEl = document.getElementById('modal-btns');
             messageEl.textContent = msg;
             if (isConfirm) {
-                btnsEl.innerHTML = `<button class="modal-btn" id="modal-cancel">${window.t ? window.t('reddit.btn.cancel') : 'Cancel'}</button><button class="modal-btn" id="modal-ok">${window.t ? window.t('msg.ok') : 'OK'}</button>`;
+                btnsEl.innerHTML = `<button class="modal-btn" id="modal-cancel">${window.t ? window.t('reddit.btn.cancel', "Cancel") : 'Cancel'}</button><button class="modal-btn" id="modal-ok">${window.t ? window.t('msg.ok', "OK") : 'OK'}</button>`;
                 document.getElementById('modal-cancel').onclick = () => { overlay.style.display = 'none'; if (callback) callback(false); };
                 document.getElementById('modal-ok').onclick = () => { overlay.style.display = 'none'; if (callback) callback(true); };
             } else {
-                btnsEl.innerHTML = `<button class="modal-btn" onclick="hideModal()">${window.t ? window.t('msg.ok') : 'OK'}</button>`;
+                btnsEl.innerHTML = `<button class="modal-btn" onclick="hideModal()">${window.t ? window.t('msg.ok', "OK") : 'OK'}</button>`;
             }
             overlay.style.display = 'flex';
         }
@@ -461,7 +461,7 @@
             };
 
             if (confirmAction) {
-                showModal(window.t ? window.t('napkin.modal.clear.title') : "Clear canvas?", true, (confirmed) => {
+                showModal(window.t ? window.t('napkin.modal.clear.title', "Clear canvas?") : "Clear canvas?", true, (confirmed) => {
                     if (confirmed) reallyClear();
                 });
             } else {

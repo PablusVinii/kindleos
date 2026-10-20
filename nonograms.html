@@ -8,7 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
 
     <style>
@@ -259,7 +259,6 @@
         .level-preview {
             width: 100%;
             height: auto;
-            aspect-ratio: 1/1;
             image-rendering: pixelated;
             border: 1px solid #ccc;
             background: white;
@@ -720,17 +719,17 @@
                 auth.onAuthStateChanged(user => {
                     if (user) {
                         currentUser = user;
-                        authStatus.innerText = window.t ? window.t('nonograms.status.synced').replace('${email}', user.email) : "Synced: " + user.email;
+                        authStatus.innerText = window.t ? window.t('nonograms.status.synced', "Synced: ${email}").replace('${email}', user.email) : "Synced: " + user.email;
                         authStatus.removeAttribute('data-i18n');
                         loadCloudProgress();
                     } else {
-                        authStatus.innerText = window.t ? window.t('nonograms.status.guest') : "Guest Mode";
+                        authStatus.innerText = window.t ? window.t('nonograms.status.guest', "Guest Mode") : "Guest Mode";
                         authStatus.removeAttribute('data-i18n');
                         loadLocalProgress();
                     }
                 });
             } else {
-                authStatus.innerText = window.t ? window.t('nonograms.status.local') : "Local Mode";
+                authStatus.innerText = window.t ? window.t('nonograms.status.local', "Local Mode") : "Local Mode";
                 authStatus.removeAttribute('data-i18n');
                 loadLocalProgress();
             }
@@ -748,7 +747,7 @@
 
         async function fetchPuzzles() {
             const msg = document.getElementById('loading-msg');
-            msg.innerText = window.t ? window.t('nonograms.status.fetching') : "Fetching puzzles...";
+            msg.innerText = window.t ? window.t('nonograms.status.fetching', "Fetching puzzles...") : "Fetching puzzles...";
             msg.removeAttribute('data-i18n');
             try {
                 // Plain fetch: allow HTTP / service-worker caching of the large puzzle JSON
@@ -796,7 +795,7 @@
 
             } catch (e) {
                 console.error(e);
-                msg.innerText = window.t ? window.t('nonograms.status.error').replace('${msg}', e.message) : "Error loading puzzles: " + e.message;
+                msg.innerText = window.t ? window.t('nonograms.status.error', "Error loading puzzles: ${msg}").replace('${msg}', e.message) : "Error loading puzzles: " + e.message;
                 msg.style.color = "red";
                 msg.removeAttribute('data-i18n');
             }
@@ -811,10 +810,10 @@
 
                 if (list.length === 0) {
                     btn.disabled = true;
-                    if (statusSpan) statusSpan.innerText = window.t ? window.t('nonograms.status.zero_found') : "(0 Found)";
+                    if (statusSpan) statusSpan.innerText = window.t ? window.t('nonograms.status.zero_found', "(0 Found)") : "(0 Found)";
                 } else {
                     btn.disabled = false;
-                    if (statusSpan) statusSpan.innerText = window.t ? window.t('nonograms.status.puzzles_found').replace('${n}', list.length) : `(${list.length} Puzzles)`;
+                    if (statusSpan) statusSpan.innerText = window.t ? window.t('nonograms.status.puzzles_found', "(${n} Puzzles)").replace('${n}', list.length) : `(${list.length} Puzzles)`;
                 }
                 if (statusSpan) statusSpan.removeAttribute('data-i18n');
             }
@@ -851,14 +850,14 @@
                 const pId = puzzle.id;
                 const pData = progress[pId] || {};
 
-                let statusText = window.t ? window.t('nonograms.status.new') : "New";
+                let statusText = window.t ? window.t('nonograms.status.new', "New") : "New";
                 let statusClass = "";
 
                 if (pData.solved) {
-                    statusText = window.t ? window.t('nonograms.status.solved') : "Solved";
+                    statusText = window.t ? window.t('nonograms.status.solved', "Solved") : "Solved";
                     statusClass = "solved";
                 } else if (pData.grid && pData.grid.some(c => c !== 0)) {
-                    statusText = window.t ? window.t('nonograms.status.resume') : "Resume";
+                    statusText = window.t ? window.t('nonograms.status.resume', "Resume") : "Resume";
                     statusClass = "progress";
                 }
 
@@ -897,7 +896,7 @@
                 // Info Container
                 const info = document.createElement('div');
                 info.className = 'level-info';
-                const puzzleTitle = puzzle.title || (window.t ? window.t('nonograms.label.puzzle') + ' ' + (index + 1) : `Puzzle ${index + 1}`);
+                const puzzleTitle = puzzle.title || (window.t ? window.t('nonograms.label.puzzle', "Puzzle") + ' ' + (index + 1) : `Puzzle ${index + 1}`);
                 info.innerHTML = `
                     <div class="level-title">${puzzleTitle}</div>
                     <div class="level-status">${statusText}</div>
@@ -912,7 +911,7 @@
 
         function startPuzzle(puzzle) {
             currentPuzzle = puzzle;
-            document.getElementById('puzzle-title').innerText = puzzle.title || (window.t ? window.t('nonograms.label.puzzle') : "Puzzle");
+            document.getElementById('puzzle-title').innerText = puzzle.title || (window.t ? window.t('nonograms.label.puzzle', "Puzzle") : "Puzzle");
             document.getElementById('puzzle-title').removeAttribute('data-i18n');
 
             // Load state or init new
@@ -1115,8 +1114,8 @@
                 }
                 if (!validateLine(line, rowClues[r])) {
                     if (manual) {
-                        const title = window.t ? window.t('nonograms.msg.incorrect_title') : "Incorrect";
-                        const msg = window.t ? window.t('nonograms.msg.incorrect_row').replace('${n}', r + 1) : `Row ${r + 1} does not match.`;
+                        const title = window.t ? window.t('nonograms.msg.incorrect_title', "Incorrect") : "Incorrect";
+                        const msg = window.t ? window.t('nonograms.msg.incorrect_row', "Row ${n} does not match.").replace('${n}', r + 1) : `Row ${r + 1} does not match.`;
                         showMsg(title, msg);
                     }
                     return;
@@ -1130,8 +1129,8 @@
                 }
                 if (!validateLine(line, colClues[c])) {
                     if (manual) {
-                        const title = window.t ? window.t('nonograms.msg.incorrect_title') : "Incorrect";
-                        const msg = window.t ? window.t('nonograms.msg.incorrect_col').replace('${n}', c + 1) : `Column ${c + 1} does not match.`;
+                        const title = window.t ? window.t('nonograms.msg.incorrect_title', "Incorrect") : "Incorrect";
+                        const msg = window.t ? window.t('nonograms.msg.incorrect_col', "Column ${n} does not match.").replace('${n}', c + 1) : `Column ${c + 1} does not match.`;
                         showMsg(title, msg);
                     }
                     return;
@@ -1166,7 +1165,7 @@
 
         // --- MODALS ---
         function showMsg(title, msg) {
-            document.getElementById('msg-title').innerText = title || (window.t ? window.t('nonograms.modal.msg_title') : "Status");
+            document.getElementById('msg-title').innerText = title || (window.t ? window.t('nonograms.modal.msg_title', "Status") : "Status");
             document.getElementById('msg-title').removeAttribute('data-i18n');
             document.getElementById('msg-body').innerText = msg;
             document.getElementById('msg-modal').style.display = 'flex';

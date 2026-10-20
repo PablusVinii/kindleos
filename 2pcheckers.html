@@ -282,7 +282,7 @@
             text-align: center;
         }
     </style>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
     <script src="theme.js?v=19"></script>
 </head>
@@ -717,11 +717,11 @@
             const el = document.getElementById('status-bar');
             if (game.winner) {
                 const winnerName = window.t ? window.t('pool2p.status.' + (game.winner === 'b' ? 'black' : 'white')) : (game.winner === 'b' ? 'Black' : 'White');
-                el.innerText = window.t ? window.t('checkers2p.msg.win', { winner: winnerName }) : `${winnerName} Wins!`;
+                el.innerText = window.t ? window.tFormat('checkers2p.msg.win', { winner: winnerName }, "${winner} Wins!") : `${winnerName} Wins!`;
             } else {
                 const turnName = window.t ? window.t('checkers2p.turn.' + (game.turn === 'b' ? 'black' : 'white')) : (game.turn === 'b' ? 'Black to move' : 'White to move');
                 el.innerText = turnName;
-                if (game.mustJumpPos) el.innerText += (window.t ? window.t('checkers2p.msg.double_jump') : " (Double Jump!)");
+                if (game.mustJumpPos) el.innerText += (window.t ? window.t('checkers2p.msg.double_jump', " (Double Jump!)") : " (Double Jump!)");
             }
         }
 

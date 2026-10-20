@@ -1167,7 +1167,7 @@
         }
     </style>
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
 </head>
 
 <body>
@@ -1446,14 +1446,26 @@
             if (el) el.innerText = text;
         }
 
-        // Route same-origin requests through the matching proxy. Gutenberg gets
-        // its own allowlisted, edge-cached function; everything else uses the
-        // generic proxy.
+        // Route requests through the matching proxy. Gutenberg gets its own
+        // allowlisted, edge-cached Pages Function; Standard Ebooks has to go to
+        // Firebase (see below); everything else uses the generic proxy.
+        //
+        // standardebooks.org 403s every Cloudflare egress IP (AS132892, the
+        // Workers/Pages network), so /api/proxy returns "403 Forbidden" for the
+        // feed and every EPUB download. A Cloudflare-hosted proxy cannot be
+        // fixed by changing headers — the block is on the source IP. The
+        // `standardebooks` Cloud Function runs on Google Cloud, which the site
+        // allows, and exposes the same ?url= contract.
+        var SE_RELAY_BASE = 'https://us-central1-rekindle-dd1fa.cloudfunctions.net/standardebooks?url=';
+
         function proxyBaseFor(url) {
             try {
                 const host = new URL(url, window.location.href).hostname.toLowerCase();
                 if (host === 'gutenberg.org' || host === 'www.gutenberg.org') {
                     return '/api/gutenberg?url=';
+                }
+                if (host === 'standardebooks.org' || host === 'www.standardebooks.org') {
+                    return SE_RELAY_BASE;
                 }
             } catch (e) { /* fall through */ }
             return '/api/proxy?url=';

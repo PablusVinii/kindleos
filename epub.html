@@ -277,7 +277,7 @@
         }
     </style>
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
 </head>
 
 <body>
@@ -436,7 +436,7 @@
             const author = document.getElementById('book-author').value.trim();
 
             if (!url || !title) {
-                showModal(window.t('epub.error.inputs'));
+                showModal(window.t('epub.error.inputs', "Please provide at least a URL and a Title."));
                 return;
             }
 

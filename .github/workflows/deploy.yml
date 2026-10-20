@@ -21,10 +21,14 @@ jobs:
         with:
           node-version: 20 # Uses Node 20 to fix dependency errors
 
-      - name: Install & Build
-        run: |
-          npm install
-          npm run build
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Static audit + unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
 
       # NOTE: cloudflare/pages-action was deprecated and removed on 2026-09-18
       # (CVE-2026-11325), so GitHub can no longer resolve it. Cloudflare's

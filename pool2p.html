@@ -221,7 +221,7 @@
             }
         }
     </style>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
     <script src="theme.js?v=19"></script>
 </head>
@@ -530,7 +530,7 @@
             const pl = document.getElementById('player-turn');
             const tg = document.getElementById('target-info');
 
-            let turnText = window.t ? window.t('pool2p.msg.turn', { player: (window.t ? window.t('pool2p.status.' + (turn === 'player1' ? 'p1' : 'p2')) : (turn === 'player1' ? 'Player 1' : 'Player 2')) }) : (turn === 'player1' ? "Player 1 Turn" : "Player 2 Turn");
+            let turnText = window.t ? window.tFormat('pool2p.msg.turn', { player: (window.t ? window.t('pool2p.status.' + (turn === 'player1' ? 'p1' : 'p2')) : (turn === 'player1' ? 'Player 1' : 'Player 2')) }, "${player} Turn") : (turn === 'player1' ? "Player 1 Turn" : "Player 2 Turn");
 
             // Determine groups relative to current player
             let myGroup = null;
@@ -542,7 +542,7 @@
                 }
             }
 
-            let groupText = myGroup ? (window.t ? window.t('pool2p.status.' + myGroup) : (myGroup === 'solids' ? "Solids" : "Stripes")) : (window.t ? window.t('pool2p.status.open') : "Open");
+            let groupText = myGroup ? (window.t ? window.t('pool2p.status.' + myGroup) : (myGroup === 'solids' ? "Solids" : "Stripes")) : (window.t ? window.t('pool2p.status.open', "Open Table") : "Open");
 
             pl.innerText = `${turnText}`;
             tg.innerText = groupText;
@@ -770,7 +770,7 @@
 
             const winnerKey = player1Wins ? 'pool2p.status.p1' : 'pool2p.status.p2';
             const winnerName = window.t ? window.t(winnerKey) : (player1Wins ? "Player 1" : "Player 2");
-            title.innerText = window.t ? window.t('pool2p.msg.win', { player: winnerName }) : `${winnerName} Wins!`;
+            title.innerText = window.t ? window.tFormat('pool2p.msg.win', { player: winnerName }, "${player} Wins!") : `${winnerName} Wins!`;
             msg.innerText = "";
 
             modal.style.display = 'flex';

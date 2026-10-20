@@ -222,7 +222,7 @@
         }
     </style>
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
 </head>
 
@@ -540,17 +540,17 @@
             const pl = document.getElementById('player-turn');
             const tg = document.getElementById('target-info');
 
-            let turnText = turn === 'player' ? (window.t ? window.t('pool.status.turn.player') : "Your Turn") : (window.t ? window.t('pool.status.turn.cpu') : "CPU Turn");
+            let turnText = turn === 'player' ? (window.t ? window.t('pool.status.turn.player', "Your Turn") : "Your Turn") : (window.t ? window.t('pool.status.turn.cpu', "CPU Turn") : "CPU Turn");
 
             // Determine groups
-            let pG = playerGroup ? (playerGroup === 'solids' ? (window.t ? window.t('pool.status.solids') : "Solids") : (window.t ? window.t('pool.status.stripes') : "Stripes")) : (window.t ? window.t('pool.status.open') : "Open");
-            let cG = playerGroup ? (playerGroup === 'solids' ? (window.t ? window.t('pool.status.stripes') : "Stripes") : (window.t ? window.t('pool.status.solids') : "Solids")) : (window.t ? window.t('pool.status.open') : "Open");
+            let pG = playerGroup ? (playerGroup === 'solids' ? (window.t ? window.t('pool.status.solids', "Solids") : "Solids") : (window.t ? window.t('pool.status.stripes', "Stripes") : "Stripes")) : (window.t ? window.t('pool.status.open', "Open Table") : "Open");
+            let cG = playerGroup ? (playerGroup === 'solids' ? (window.t ? window.t('pool.status.stripes', "Stripes") : "Stripes") : (window.t ? window.t('pool.status.solids', "Solids") : "Solids")) : (window.t ? window.t('pool.status.open', "Open Table") : "Open");
 
             // Show current turn's group
             let currentGroup = turn === 'player' ? pG : cG;
             pl.innerText = `${turnText} (${currentGroup})`;
 
-            tg.innerText = playerGroup ? (window.t ? window.t('pool.status.turn.desc').replace('{p}', pG) : `You are ${pG}`) : (window.t ? window.t('pool.status.open') : "Table Open");
+            tg.innerText = playerGroup ? (window.t ? window.t('pool.status.turn.desc', "You are {p}").replace('{p}', pG) : `You are ${pG}`) : (window.t ? window.t('pool.status.open', "Open Table") : "Table Open");
         }
 
         // --- INPUT ---
@@ -827,8 +827,8 @@
         }
 
         function endGame(playerWon) {
-            document.getElementById('game-over-title').innerText = playerWon ? (window.t ? window.t('pool.msg.win') : "You Won!") : (window.t ? window.t('pool.msg.lose') : "CPU Won!");
-            document.getElementById('game-over-msg').innerText = playerWon ? (window.t ? window.t('pool.msg.congrats') : "Congratulations!") : (window.t ? window.t('pool.msg.luck') : "Better luck next time.");
+            document.getElementById('game-over-title').innerText = playerWon ? (window.t ? window.t('pool.msg.win', "You Win!") : "You Won!") : (window.t ? window.t('pool.msg.lose', "CPU Wins!") : "CPU Won!");
+            document.getElementById('game-over-msg').innerText = playerWon ? (window.t ? window.t('pool.msg.congrats', "Congratulations!") : "Congratulations!") : (window.t ? window.t('pool.msg.luck', "Better luck next time.") : "Better luck next time.");
             document.getElementById('game-over-modal').style.display = 'flex';
             isMoving = false;
         }

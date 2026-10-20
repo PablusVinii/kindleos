@@ -64,6 +64,20 @@
         return defaultText || key;
     };
 
+    // Locale templates may contain ${name} placeholders; the loader only does
+    // a key lookup, so dynamic text must be filled explicitly. Use split/join
+    // rather than String.replace so "$&" inside a value is not special.
+    window.tFormat = function (key, vars, fallback) {
+        var text = window.t(key, fallback || key);
+        if (!vars) return text;
+        for (var name in vars) {
+            if (Object.prototype.hasOwnProperty.call(vars, name)) {
+                text = text.split('${' + name + '}').join(String(vars[name]));
+            }
+        }
+        return text;
+    };
+
     window.rekindleSetLanguage = function (lang) {
         localStorage.setItem('rekindle_language', lang);
         location.reload();

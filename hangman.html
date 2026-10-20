@@ -3,7 +3,7 @@
     <meta charset="UTF-8">
     
     <title>Hangman</title>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <style>
         /* SYSTEM 7 AESTHETICS */
         :root {
@@ -349,7 +349,7 @@
             // Load Localized Words if available
             let words = WORDS;
             if (window.t) {
-                const localizedWords = window.t('hangman.words');
+                const localizedWords = window.t('hangman.words', "ACTION,BASKET,CIRCLE,DOCTOR,ENERGY,FAMILY,GARDEN,HUNGRY,ISLAND,JUNGLE,KNIGHT,LAWYER,MARKET,NATURE,ORANGE,PENCIL,QUICKLY,ROCKET,SILVER,TRAVEL,UNIQUE,VALLEY,WINDOW,YELLOW,ZEBRA,BRIDGE,CAMERA,DESERT,FOREST,GUITAR,HAMMER,INSECT,JACKET,KITTEN,LIZARD,MUSEUM,NAPKIN,OXYGEN,PLANET,QUARTZ,RABBIT,SCHOOL,TOMATO,UMPIRE,VIOLIN,WINTER,XRAY,YOGURT,ZOMBIE,ANCHOR,BANANA,CACTUS");
                 if (localizedWords && localizedWords !== 'hangman.words') {
                     words = localizedWords.split(',').map(w => w.trim());
                 }

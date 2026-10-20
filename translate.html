@@ -216,8 +216,8 @@
     </style>
     <link rel="stylesheet" href="css/custom-select.css">
     <script src="theme.js?v=19"></script>
-    <script src="js/i18n.js"></script>
-    <script src="js/custom-select.js"></script>
+    <script src="js/i18n.js?v=2"></script>
+    <script src="js/custom-select.js?v=1"></script>
 </head>
 
 <body>
@@ -319,7 +319,7 @@
 
             if (!text) return;
 
-            output.value = window.t ? window.t('translate.msg.translating') : "Translating...";
+            output.value = window.t ? window.t('translate.msg.translating', "Translating...") : "Translating...";
 
             try {
                 // Encode URI components to handle special characters
@@ -331,13 +331,13 @@
                 if (data.translation) {
                     output.value = data.translation;
                 } else if (data.error) {
-                    output.value = (window.t ? window.t('translate.msg.error') : "Error: ") + data.error;
+                    output.value = (window.t ? window.t('translate.msg.error', "Error: ") : "Error: ") + data.error;
                 } else {
-                    output.value = window.t ? window.t('translate.msg.failed') : "Translation failed.";
+                    output.value = window.t ? window.t('translate.msg.failed', "Translation failed.") : "Translation failed.";
                 }
 
             } catch (e) {
-                output.value = window.t ? window.t('translate.msg.network_error') : "Network Error. Check connection.";
+                output.value = window.t ? window.t('translate.msg.network_error', "Network Error. Check connection.") : "Network Error. Check connection.";
             }
         }
 

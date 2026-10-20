@@ -153,9 +153,9 @@ node build-automation.js
 
 This creates three optimized targets in the `_deploy` directory:
 
-1.  **Main (`_deploy/main`):** For modern browsers (Desktop, Mobile). Minified with ES6+ features.
-2.  **Lite (`_deploy/lite`):** Optimized for **Kobo** and newer **Kindle** devices (Chrome 44+). Includes local polyfills, transpiled ES5 code, and Kobo-specific fixes (e.g., window handling, WebM video fallbacks).
-3.  **Legacy (`_deploy/legacy`):** Designed for very old devices (Chrome 12+ / e.g., Paperwhite 2). Features aggressive transpilation, heavy polyfills, and visual warnings for unsupported applications.
+1.  **Main (`_deploy/main`):** For modern devices (Chromium-based Kindles on firmware 5.16.4+, desktop, mobile). Minified with ES6+ features.
+2.  **Lite (`_deploy/lite`):** Optimized for **pre-Chromium Kindles** (Mesquite / WebKit ~534, firmware below 5.16.4). All app JavaScript is down-levelled to ES5, with local polyfills and the older-device rendering fixes.
+3.  **Legacy (`_deploy/legacy`):** Optimized for **Kobo** e-readers and other very old browsers (Chrome 12+ target). Features aggressive transpilation, heavy polyfills, Kobo window/navigation shims, and visual warnings for unsupported applications.
 
 ---
 

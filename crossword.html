@@ -7,7 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/i18n.js?v=2"></script>
     <script src="js/gamerules.js?v=2"></script>
 
     <style>
@@ -427,12 +427,12 @@
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
-                    const syncedMsg = window.t ? window.t('crossword.status.synced').replace('${email}', user.email) : "Synced: " + user.email;
+                    const syncedMsg = window.t ? window.t('crossword.status.synced', "Synced: ${email}").replace('${email}', user.email) : "Synced: " + user.email;
                     document.getElementById('status-bar').innerText = syncedMsg;
                     document.getElementById('status-bar').removeAttribute('data-i18n');
                     loadProgress(); // Try to load cloud/local save
                 } else {
-                    const guestMsg = window.t ? window.t('crossword.status.guest') : "Guest Mode (Local)";
+                    const guestMsg = window.t ? window.t('crossword.status.guest', "Guest Mode (Local)") : "Guest Mode (Local)";
                     document.getElementById('status-bar').innerText = guestMsg;
                     document.getElementById('status-bar').removeAttribute('data-i18n');
                     loadProgress(); // Try to load local save
@@ -529,7 +529,7 @@
                 // If full, just select first available non-block
                 selectCell(currentPuzzle.grid.findIndex(c => c !== '.'));
             }
-            const resumeMsg = window.t ? window.t('crossword.label.resumed') : "Game Resumed";
+            const resumeMsg = window.t ? window.t('crossword.label.resumed', "Game Resumed") : "Game Resumed";
             document.getElementById('clue-bar').innerText = resumeMsg;
             document.getElementById('clue-bar').removeAttribute('data-i18n');
         }
@@ -538,7 +538,7 @@
 
         async function newGame() {
             clearSave();
-            const connectMsg = window.t ? window.t('crossword.label.connecting') : "Connecting to archives...";
+            const connectMsg = window.t ? window.t('crossword.label.connecting', "Connecting to archives...") : "Connecting to archives...";
             document.getElementById('clue-bar').innerText = connectMsg;
             document.getElementById('clue-bar').removeAttribute('data-i18n');
             document.getElementById('grid-container').innerHTML = '';
@@ -559,7 +559,7 @@
 
             } catch (e) {
                 console.error(e);
-                const errorMsg = window.t ? window.t('crossword.label.error') : "Error. Retrying...";
+                const errorMsg = window.t ? window.t('crossword.label.error', "Error. Retrying...") : "Error. Retrying...";
                 document.getElementById('clue-bar').innerText = errorMsg;
                 document.getElementById('clue-bar').removeAttribute('data-i18n');
                 setTimeout(newGame, 1000);
@@ -715,7 +715,7 @@
             // Update Clue Bar
             const startIdx = indices[0];
             const num = currentPuzzle.nums[startIdx];
-            const noClue = window.t ? window.t('crossword.label.no_clue') : "(No Clue)";
+            const noClue = window.t ? window.t('crossword.label.no_clue', "(No Clue)") : "(No Clue)";
             const clueText = currentPuzzle.clues[direction][num] || noClue;
 
             const dirLabel = window.t ? window.t(`crossword.direction.${direction}`) : direction.toUpperCase();
@@ -836,16 +836,16 @@
             const bar = document.getElementById('clue-bar');
             bar.removeAttribute('data-i18n');
             if (isEmpty) {
-                bar.innerText = window.t ? window.t('crossword.label.empty') : "Grid is empty.";
+                bar.innerText = window.t ? window.t('crossword.label.empty', "Grid is empty.") : "Grid is empty.";
                 setTimeout(() => updateUI(), 2000);
             } else if (hasError) {
-                bar.innerText = window.t ? window.t('crossword.label.errors_found') : "Errors found. Keep trying.";
+                bar.innerText = window.t ? window.t('crossword.label.errors_found', "Errors found. Keep trying.") : "Errors found. Keep trying.";
                 setTimeout(() => updateUI(), 2000);
             } else if (!isFull) {
-                bar.innerText = window.t ? window.t('crossword.label.correct_so_far') : "Correct so far!";
+                bar.innerText = window.t ? window.t('crossword.label.correct_so_far', "Correct so far!") : "Correct so far!";
                 setTimeout(() => updateUI(), 2000);
             } else {
-                bar.innerText = window.t ? window.t('crossword.label.solved') : "SUCCESS! PUZZLE SOLVED";
+                bar.innerText = window.t ? window.t('crossword.label.solved', "SUCCESS! PUZZLE SOLVED") : "SUCCESS! PUZZLE SOLVED";
                 bar.style.backgroundColor = "black";
                 bar.style.color = "white";
                 // Optionally allow them to keep the filled grid but effectively game over
