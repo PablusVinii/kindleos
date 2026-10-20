@@ -138,6 +138,17 @@
         .sys-btn:active { background: black; color: white; box-shadow: none; transform: translate(3px, 3px); }
         .sys-btn.active-btn { background: black; color: white; box-shadow: none; transform: translate(1px, 1px); }
 
+        /* Compact System 7 lobby menu */
+        .lobby-menu { flex: 1; justify-content: center; text-align: center; padding: 24px 18px; }
+        .lobby-title { font-size: 1.5rem; font-weight: bold; letter-spacing: 0.04em; margin: 0 0 4px; }
+        .lobby-sub { font-size: 0.82rem; line-height: 1.35; color: #333; max-width: 260px; margin: 0 0 18px; }
+        .lobby-options { display: grid; grid-template-columns: 1fr; gap: 8px; width: 100%; max-width: 300px; margin-bottom: 10px; }
+        .lobby-actions { display: grid; grid-template-columns: 1fr; gap: 10px; width: 100%; max-width: 300px; }
+        .lobby-options .sys-btn, .lobby-actions .sys-btn { width: 100%; min-height: 48px; margin: 0; }
+        .sys-btn.primary { background: black; color: white; }
+        .sys-btn.primary:active { background: white; color: black; }
+        .sys-btn.ghost { border-width: 1px; box-shadow: none; font-weight: normal; }
+
         #status-bar {
             width: 100%;
             text-align: center;
@@ -286,12 +297,16 @@
         </div>
 
         <!-- MENU -->
-        <div class="window-content" id="screen-menu">
-            <h1 style="font-size: 3rem; margin: 10px 0;">TIC-TAC-TOE</h1>
-            <p>Real-time Multiplayer.</p>
-            <button class="sys-btn" onclick="toggleModeMenu()" id="menu-mode-btn" style="width: 200px; margin-bottom: 20px;">Mode: Classic</button>
-            <button class="sys-btn" onclick="hostGame()" style="width: 200px;">Host Game</button>
-            <button class="sys-btn" onclick="goHome()" style="width: 200px;">Back</button>
+        <div class="window-content lobby-menu" id="screen-menu">
+            <h1 class="lobby-title">TIC-TAC-TOE</h1>
+            <p class="lobby-sub">Real-time Multiplayer.</p>
+            <div class="lobby-options">
+                <button class="sys-btn" onclick="toggleModeMenu()" id="menu-mode-btn">Mode: Classic</button>
+            </div>
+            <div class="lobby-actions">
+                <button class="sys-btn primary" onclick="hostGame()">Host Game</button>
+                <button class="sys-btn ghost" onclick="goHome()">Back</button>
+            </div>
         </div>
         
         <div class="window-content" id="screen-loading" style="display:none; justify-content:center;">

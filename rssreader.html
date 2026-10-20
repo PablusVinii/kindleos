@@ -660,9 +660,10 @@
             margin-bottom: 10px;
         }
     </style>
-    <script src="time.js?v=1"></script>
+    <script src="time.js?v=2"></script>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=1"></script>
 </head>
 
 <body>
@@ -712,7 +713,12 @@
                     <!-- Categories injected here -->
                 </div>
                 <div id="articles-container">
-                    <div class="loading-msg" data-i18n="rss.msg.welcome">Welcome. Add sources to begin.</div>
+                    <script>
+                        document.getElementById('articles-container').innerHTML = window.rekindleEmptyState(
+                            window.t('rss.msg.welcome', 'Welcome. Add sources to begin.'),
+                            { icon: 'rss' }
+                        );
+                    </script>
                 </div>
             </div>
 
@@ -1251,7 +1257,10 @@
                             maybeShowFeedSelectionModal();
                         }
                     } else {
-                        document.getElementById('articles-container').innerHTML = '<div class="loading-msg">No feeds subscribed. Go to Sources to add some.</div>';
+                        document.getElementById('articles-container').innerHTML = window.rekindleEmptyState(
+                            'No feeds subscribed. Go to Sources to add some.',
+                            { icon: 'rss' }
+                        );
                     }
                 });
         }

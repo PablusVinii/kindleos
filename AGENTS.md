@@ -31,6 +31,7 @@ Only this file is injected automatically. The docs below are **not** in the agen
 | [moderation-reports.md](docs/agent/moderation-reports.md) | `js/reports.js`, report buttons, `/reports` data model, Discord notifications |
 | [integrations.md](docs/agent/integrations.md) | Akinator, NRL scores, comics / Internet Archive, Gutenberg / Standard Ebooks (Reader tabs) |
 | [avatars.md](docs/agent/avatars.md) | `drawAvatar()`, `user_cards`, pixel-art avatars, grayscale values, ReKindle+ gradient gate |
+| [visual-audit.md](docs/agent/visual-audit.md) | No-focus WebKit screenshot harness, full-app visual review, System 7 visual checklist |
 
 ## 🚫 Restrictions (Target: Chromium 75)
 

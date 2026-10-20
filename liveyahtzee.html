@@ -149,6 +149,16 @@
             transform: translate(3px, 3px);
         }
 
+        /* Compact System 7 lobby menu */
+        .lobby-menu { flex: 1; justify-content: center; text-align: center; padding: 24px 18px; }
+        .lobby-title { font-size: 1.5rem; font-weight: bold; letter-spacing: 0.04em; margin: 0 0 4px; }
+        .lobby-sub { font-size: 0.82rem; line-height: 1.35; color: #333; max-width: 260px; margin: 0 0 18px; }
+        .lobby-actions { display: grid; grid-template-columns: 1fr; gap: 10px; width: 100%; max-width: 300px; }
+        .lobby-actions .sys-btn { width: 100%; min-height: 48px; margin: 0; }
+        .sys-btn.primary { background: black; color: white; }
+        .sys-btn.primary:active { background: white; color: black; }
+        .sys-btn.ghost { border-width: 1px; box-shadow: none; font-weight: normal; }
+
         .sys-btn:disabled {
             color: #999;
             border-color: #999;
@@ -365,11 +375,13 @@
             <div class="title-text" data-i18n="yahtzee.title">Yahtzee</div>
         </div>
 
-        <div class="window-content" id="screen-menu">
-            <h1 style="font-size: 2.5rem; margin: 10px 0;">YAHTZEE</h1>
-            <p data-i18n="liveyahtzee.lobby.subtitle">Real-time Multiplayer Dice Game</p>
-            <button class="sys-btn" onclick="hostGame()" data-i18n="liveyahtzee.btn.host">Host Game</button>
-            <button class="sys-btn" onclick="goHome()" data-i18n="common.back">Back</button>
+        <div class="window-content lobby-menu" id="screen-menu">
+            <h1 class="lobby-title">YAHTZEE</h1>
+            <p class="lobby-sub" data-i18n="liveyahtzee.lobby.subtitle">Real-time Multiplayer Dice Game</p>
+            <div class="lobby-actions">
+                <button class="sys-btn primary" onclick="hostGame()" data-i18n="liveyahtzee.btn.host">Host Game</button>
+                <button class="sys-btn ghost" onclick="goHome()" data-i18n="common.back">Back</button>
+            </div>
         </div>
 
         <div class="window-content" id="screen-loading" style="display:none; justify-content:center;">

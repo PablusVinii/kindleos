@@ -354,7 +354,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(0,0,0,0.45);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -374,6 +374,22 @@
             padding: 20px;
             box-shadow: 4px 4px 0 black;
             max-width: 80%;
+        }
+
+        #login-overlay .modal-inner {
+            max-width: 340px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        #login-overlay .modal-inner > * + * {
+            margin-top: 14px;
+        }
+        #login-overlay .modal-inner button {
+            display: block;
+            width: 100%;
+            min-height: 48px;
+            margin-left: 0;
+            margin-right: 0;
         }
 
         .overlay button {
@@ -501,9 +517,12 @@
         </div>
 
         <div id="login-overlay" class="overlay" style="display:none;">
-            <h2 data-i18n="words.overlay.login.title">Words Online</h2>
-            <p data-i18n="words.overlay.login.text">You must log in to play.</p>
-            <button onclick="location.href='index?login=true'" data-i18n="words.overlay.login.btn_login">Log In</button>
+            <div class="modal-inner">
+                <h2 data-i18n="words.overlay.login.title">Words Online</h2>
+                <p data-i18n="words.overlay.login.text">You must log in to play.</p>
+                <button onclick="location.href='index?login=true'" data-i18n="words.overlay.login.btn_login">Log In</button>
+                <button onclick="location.href='index'" data-i18n="common.back">Back</button>
+            </div>
         </div>
 
         <div id="new-game-modal" class="overlay" style="display:none; background:rgba(255,255,255,0.8);">

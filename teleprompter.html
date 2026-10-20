@@ -312,6 +312,7 @@
     </style>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=1"></script>
 </head>
 
 <body>
@@ -509,7 +510,10 @@
             container.innerHTML = '';
 
             if (notes.length === 0) {
-                container.innerHTML = `<div style="padding:40px; text-align:center; font-style:italic;">${window.t ? window.t('teleprompter.msg.empty', "No notes found.") : 'No notes found.'}</div>`;
+                container.innerHTML = window.rekindleEmptyState(
+                    window.t ? window.t('teleprompter.msg.empty', 'No notes found.') : 'No notes found.',
+                    { icon: 'list' }
+                );
                 return;
             }
 

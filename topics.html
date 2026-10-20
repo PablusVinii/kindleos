@@ -752,13 +752,26 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(0,0,0,0.45);
             z-index: 200;
             align-items: center;
             justify-content: center;
             flex-direction: column;
             text-align: center;
             padding: 20px;
+        }
+
+        #login-overlay .modal-box {
+            text-align: center;
+        }
+
+        #login-overlay .sys-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 48px;
+            padding: 10px 20px;
+            margin: 10px auto 0;
         }
 
         /* FULLSCREEN TOGGLE */
@@ -803,7 +816,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
-    <script src="time.js?v=1"></script>
+    <script src="time.js?v=2"></script>
     <script src="theme.js?v=19"></script>
     <script src="bad_words.js?v=4"></script>
     <script src="js/promo-ban.js?v=1"></script>
@@ -1028,10 +1041,13 @@
     </div>
     <!-- LOGIN OVERLAY -->
     <div id="login-overlay" style="display: none;">
-        <h2 id="login-overlay-title" data-i18n="suggestions.msg.login_required">Please Log In</h2>
-        <p id="login-overlay-message" style="font-size: 0.9rem; color: #666; margin: 10px 0; max-width: 300px;"></p>
-        <button class="sys-btn" onclick="window.location.href='index?login=true'" data-i18n="suggestions.btn.login">Log
-            In</button>
+        <div class="modal-box">
+            <h2 id="login-overlay-title" data-i18n="topics.login.title">Log in to join the conversation</h2>
+            <p id="login-overlay-desc" data-i18n="topics.login.desc">Create topics and comment with other ReKindle readers.</p>
+            <p id="login-overlay-message" style="font-size: 0.9rem; color: #666; margin: 10px 0; max-width: 300px;"></p>
+            <button class="sys-btn" onclick="window.location.href='index?login=true'" data-i18n="login.btn.login">Log
+                In</button>
+        </div>
     </div>
 
     <script>
@@ -1368,8 +1384,8 @@
                 var msgEl = document.getElementById('login-overlay-message');
                 if (titleEl) {
                     titleEl.textContent = (typeof window.t === 'function')
-                        ? window.t('suggestions.msg.login_required', 'Please Log In')
-                        : 'Please Log In';
+                        ? window.t('topics.login.title', 'Log in to join the conversation')
+                        : 'Log in to join the conversation';
                 }
                 if (msgEl) msgEl.textContent = '';
             }

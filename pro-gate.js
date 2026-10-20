@@ -26,6 +26,8 @@
     let isPro = false;
     let currentUser = null;
     let checkComplete = false;
+    let lastPaywallStatus = 'Subscription required.';
+    let paywallI18nBound = false;
 
     function initFirebase() {
         if (typeof firebase === 'undefined') return false;
@@ -35,25 +37,88 @@
         return true;
     }
 
-    function showPaywall(message = 'Subscription required.') {
+    function paywallText(key, fallback) {
+        if (typeof window.t === 'function') return window.t(key, fallback);
+        return fallback;
+    }
+
+    function ensurePaywallStyles() {
+        if (document.getElementById('rk-paywall-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'rk-paywall-styles';
+        style.textContent = [
+            '#paywall-overlay{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;',
+            'background:rgba(0,0,0,0.45)!important;z-index:2147483647!important;flex-direction:column!important;',
+            'align-items:center!important;justify-content:center!important;padding:20px!important;box-sizing:border-box!important;',
+            'visibility:visible!important;opacity:1!important;transform:none!important;clip-path:none!important;clip:auto!important;}',
+            '#paywall-overlay .rk-paywall-card{width:100%;max-width:400px;background:#fff;border:2px solid #000;',
+            'box-shadow:6px 6px 0 #000;color:#000;font-family:"Geneva","Verdana",sans-serif;text-align:left;box-sizing:border-box;}',
+            '#paywall-overlay .rk-paywall-bar{height:34px;border-bottom:2px solid #000;display:flex;align-items:center;',
+            'justify-content:center;background:#fff;position:relative;box-sizing:border-box;}',
+            '#paywall-overlay .rk-paywall-stripes{position:absolute;top:4px;bottom:4px;left:4px;right:4px;',
+            'background-image:repeating-linear-gradient(0deg,transparent,transparent 2px,#000 3px,#000 4px);z-index:0;}',
+            '#paywall-overlay .rk-paywall-title{background:#fff;padding:0 12px;font-weight:bold;font-size:1rem;',
+            'position:relative;z-index:1;display:inline-flex;align-items:center;height:100%;box-sizing:border-box;border:none;}',
+            '#paywall-overlay .rk-paywall-body{padding:20px 20px 16px;box-sizing:border-box;text-align:center;}',
+            '#paywall-overlay .rk-paywall-head{font-size:1.15rem;line-height:1.25;font-weight:bold;margin:0 0 8px;color:#000;}',
+            '#paywall-overlay .rk-paywall-desc{font-size:0.82rem;line-height:1.4;color:#333;max-width:300px;margin:0 auto 16px;}',
+            '#paywall-overlay .rk-paywall-primary,#paywall-overlay .rk-paywall-secondary{display:block;width:100%;',
+            'min-height:48px;padding:8px 12px;border:2px solid #000;border-radius:0;box-shadow:2px 2px 0 #000;',
+            'margin:0;font-family:inherit;font-size:0.92rem;font-weight:bold;line-height:1.2;cursor:pointer;box-sizing:border-box;}',
+            '#paywall-overlay .rk-paywall-primary{background:#000;color:#fff;}',
+            '#paywall-overlay .rk-paywall-primary:active{background:#fff;color:#000;box-shadow:none;transform:translate(2px,2px);}',
+            '#paywall-overlay .rk-paywall-secondary{margin-top:8px;background:#fff;color:#000;}',
+            '#paywall-overlay .rk-paywall-secondary:active{background:#000;color:#fff;box-shadow:none;transform:translate(2px,2px);}',
+            '#paywall-overlay .rk-paywall-status{font-size:0.72rem;line-height:1.3;color:#555;margin:12px 0 0;min-height:1em;}'
+        ].join('');
+        (document.head || document.documentElement).appendChild(style);
+    }
+
+    function renderPaywall(message) {
+        lastPaywallStatus = message || lastPaywallStatus;
+        ensurePaywallStyles();
+
         let overlay = document.getElementById('paywall-overlay');
         if (!overlay) {
-            // Create overlay if not exists
             overlay = document.createElement('div');
             overlay.id = 'paywall-overlay';
-            overlay.style.cssText = 'display:flex !important; position:fixed !important; top:35px !important; left:0 !important; width:100% !important; height:calc(100% - 35px) !important; background:rgba(255,255,255,0.98) !important; z-index:2147483647 !important; flex-direction:column !important; justify-content:center !important; align-items:center !important; text-align:center !important; padding:20px !important; box-sizing:border-box !important; visibility:visible !important; opacity:1 !important; transform:none !important; clip-path:none !important; clip:auto !important;';
-            overlay.innerHTML = `
-                <h2 style="margin-top:0;">ReKindle+</h2>
-                <p>Support ReKindle development and get<br>access to exclusive apps.</p>
-                <button onclick="window.location.href='pay.html'" style="padding:12px 32px; cursor:pointer; font-size:1.1rem; font-weight:bold; font-family:inherit; background:#fff; border:2px solid #000; color:#000;">Subscribe / Login</button>
-                <p style="font-size:0.8rem; margin-top:20px; color:#666;" id="paywall-status">${message}</p>
-            `;
             document.body.appendChild(overlay);
-        } else {
-            overlay.style.display = 'flex';
-            const status = document.getElementById('paywall-status');
-            if (status) status.innerText = message;
         }
+
+        // Keep display:flex and the exact inline z-index: the anti-tamper
+        // interval below checks both values.
+        overlay.style.cssText = 'display:flex!important;position:fixed!important;top:0!important;left:0!important;' +
+            'width:100%!important;height:100%!important;background:rgba(0,0,0,0.45)!important;' +
+            'z-index:2147483647!important;flex-direction:column!important;align-items:center!important;' +
+            'justify-content:center!important;padding:20px!important;box-sizing:border-box!important;' +
+            'visibility:visible!important;opacity:1!important;transform:none!important;clip-path:none!important;clip:auto!important;';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+
+        overlay.innerHTML = '<div class="rk-paywall-card">' +
+            '<div class="rk-paywall-bar"><div class="rk-paywall-stripes"></div>' +
+            '<span class="rk-paywall-title">' + paywallText('paywall.title', 'ReKindle+') + '</span></div>' +
+            '<div class="rk-paywall-body">' +
+            '<h2 class="rk-paywall-head">' + paywallText('paywall.unlock', 'Unlock ReKindle+') + '</h2>' +
+            '<p class="rk-paywall-desc">' + paywallText('paywall.desc', 'Support ReKindle development and get access to exclusive apps.') + '</p>' +
+            '<button type="button" class="rk-paywall-primary" onclick="window.location.href=\'pay.html\'">' +
+            paywallText('btn.subscribe', 'Subscribe / Login') + '</button>' +
+            '<button type="button" class="rk-paywall-secondary" onclick="window.location.href=\'index\'">' +
+            paywallText('common.back', 'Back') + '</button>' +
+            '<p class="rk-paywall-status" id="paywall-status">' + lastPaywallStatus + '</p>' +
+            '</div></div>';
+
+        if (!paywallI18nBound) {
+            paywallI18nBound = true;
+            document.addEventListener('rekindle:i18n:ready', function () {
+                const el = document.getElementById('paywall-overlay');
+                if (el && el.style.display !== 'none') renderPaywall(lastPaywallStatus);
+            });
+        }
+    }
+
+    function showPaywall(message = 'Subscription required.') {
+        renderPaywall(message);
     }
 
     function hidePaywall() {

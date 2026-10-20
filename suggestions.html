@@ -341,13 +341,29 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(0,0,0,0.45);
             z-index: 10001;
             align-items: center;
             justify-content: center;
             flex-direction: column;
             text-align: center;
             padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #login-overlay .modal-box {
+            max-width: 340px;
+            box-shadow: 4px 4px 0 black;
+        }
+
+        #login-overlay .modal-box > * + * {
+            margin-top: 14px;
+        }
+
+        #login-overlay .modal-box button {
+            display: block;
+            width: 100%;
+            min-height: 48px;
         }
 
         /* VOTE BUTTON IN DETAIL */
@@ -584,7 +600,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    <script src="time.js?v=1"></script>
+    <script src="time.js?v=2"></script>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
     <script src="js/custom-select.js?v=1"></script>
@@ -703,10 +719,14 @@
         </div>
 
         <div id="login-overlay">
-            <h2 data-i18n="suggestions.msg.login_required">Please Log In</h2>
-            <p data-i18n="suggestions.msg.login_desc">You need to be logged in to enable suggestions.</p>
-            <button class="sys-btn" onclick="window.location.href='index?login=true'"
-                data-i18n="suggestions.btn.login">Log In</button>
+            <div class="modal-box">
+                <h2 data-i18n="suggestions.msg.login_required">Please Log In</h2>
+                <p data-i18n="suggestions.msg.login_desc">You need to be logged in to enable suggestions.</p>
+                <button class="sys-btn" onclick="window.location.href='index?login=true'"
+                    data-i18n="suggestions.btn.login">Log In</button>
+                <button class="sys-btn" onclick="window.location.href='index'"
+                    data-i18n="common.back">Back</button>
+            </div>
         </div>
     </div>
 

@@ -8,6 +8,7 @@
 
     <title>Dictionary</title>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=1"></script>
     <script src="js/custom-select.js?v=1"></script>
     <style>
         /* SYSTEM 7 AESTHETICS */
@@ -403,10 +404,12 @@
         </div>
 
         <div id="content-area">
-            <div style="text-align:center; margin-top:50px;">
-                <h1 style="font-family: 'Helvetica Neue'; font-size: 2rem;" data-i18n="dictionary.title">Dictionary</h1>
-                <p data-i18n="dictionary.msg.initial">Type a word above to begin.</p>
-            </div>
+            <script>
+                document.getElementById('content-area').innerHTML = window.rekindleEmptyState(
+                    window.t('dictionary.msg.initial', 'Type a word above to begin.'),
+                    { icon: 'search' }
+                );
+            </script>
         </div>
     </div>
 
@@ -493,10 +496,10 @@
                 const data = await res.json();
                 renderWordOfDayResult(data);
             } catch (e) {
-                content.innerHTML = `<div style="text-align:center; margin-top:50px;">
-                    <h1 style="font-family:'Helvetica Neue';font-size:2rem;" data-i18n="dictionary.title">Dictionary</h1>
-                    <p data-i18n="dictionary.msg.initial">Type a word above to begin.</p>
-                </div>`;
+                content.innerHTML = window.rekindleEmptyState(
+                    window.t('dictionary.msg.initial', 'Type a word above to begin.'),
+                    { icon: 'search' }
+                );
             }
         }
 

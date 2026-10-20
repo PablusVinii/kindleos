@@ -887,9 +887,10 @@
         }
     </style>
     <link rel="stylesheet" href="css/custom-select.css">
-    <script src="time.js?v=1"></script>
+    <script src="time.js?v=2"></script>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=1"></script>
     <script src="js/custom-select.js?v=1"></script>
 </head>
 
@@ -919,7 +920,14 @@
             <div class="tab-btn" onclick="switchView('month')" data-i18n="calendar.tab.month">Month</div>
         </div>
 
-        <div id="content-area"></div>
+        <div id="content-area">
+            <script>
+                document.getElementById('content-area').innerHTML = window.rekindleEmptyState(
+                    window.t('common.loading', 'Loading...'),
+                    { icon: 'calendar' }
+                );
+            </script>
+        </div>
 
         <div id="status-bar">
             <span id="status-msg" data-i18n="calendar.status.ready">Ready.</span>
@@ -1285,7 +1293,10 @@
             });
 
             if (filteredEvents.length === 0) {
-                wrapper.innerHTML = '<div style="text-align:center; padding:20px;">No upcoming events.</div>';
+                wrapper.innerHTML = window.rekindleEmptyState(
+                    window.t('calendar.msg.empty', 'No events scheduled.'),
+                    { icon: 'calendar' }
+                );
                 container.appendChild(wrapper);
                 return;
             }
@@ -1456,7 +1467,10 @@
             // Create slots for hours 6 AM to 10 PM (simplified view)
             // Or just list the events sorted
             if (dayEvents.length === 0) {
-                list.innerHTML = '<div style="padding:40px; text-align:center; color:#666;">No events scheduled.</div>';
+                list.innerHTML = window.rekindleEmptyState(
+                    window.t('calendar.msg.empty', 'No events scheduled.'),
+                    { icon: 'calendar' }
+                );
             } else {
                 // Group by hour for a structured look
                 for (let hour = 0; hour < 24; hour++) {

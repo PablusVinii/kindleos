@@ -348,6 +348,10 @@
             padding: 20px;
             text-align: center;
             display: none;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+            box-sizing: border-box;
         }
 
         /* --- MODAL STYLES --- */
@@ -504,9 +508,10 @@
             box-shadow: none;
         }
     </style>
-    <script src="time.js?v=1"></script>
+    <script src="time.js?v=2"></script>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=1"></script>
 </head>
 
 <body>
@@ -529,7 +534,7 @@
 
         <div class="window-content">
 
-            <div id="auth-msg" data-i18n="watchlist.msg.auth">
+            <div id="auth-msg">
                 Please log in on the Home screen to save items.
             </div>
 
@@ -636,6 +641,19 @@
         window.onload = () => {
             if (window.rekindleApplyWallpaper) window.rekindleApplyWallpaper();
 
+            const authEl = document.getElementById('auth-msg');
+            if (authEl) {
+                authEl.innerHTML = window.rekindleEmptyState(
+                    window.t('watchlist.msg.auth', 'Please log in on the Home screen to save items.'),
+                    {
+                        icon: 'film',
+                        card: true,
+                        action: '<button class="rk-empty-btn" onclick="location.href=\'index?login=true\'">' +
+                            window.t('login.btn.login', 'Login') + '</button>'
+                    }
+                );
+            }
+
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
@@ -644,7 +662,7 @@
                     document.getElementById('search-view').style.display = 'none';
                     document.getElementById('saved-view').style.display = 'none';
                     document.getElementById('calendar-view').style.display = 'none';
-                    document.getElementById('auth-msg').style.display = 'block';
+                    document.getElementById('auth-msg').style.display = 'flex';
                 }
             });
 
@@ -841,7 +859,10 @@
                     savedItems = []; // Reset local cache
 
                     if (snapshot.empty) {
-                        list.innerHTML = '<div style="text-align:center; padding:20px;">Your watchlist is empty.</div>';
+                        list.innerHTML = window.rekindleEmptyState(
+                            window.t('watchlist.msg.empty', 'Your watchlist is empty.'),
+                            { icon: 'film' }
+                        );
                         return;
                     }
 

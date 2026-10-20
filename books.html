@@ -203,7 +203,7 @@
         .book-user-rating { color: black; font-size: 1.1rem; letter-spacing: 2px; }
 
         /* AUTH MESSAGE */
-        .auth-msg { padding: 20px; text-align: center; display: none; }
+        .auth-msg { padding: 20px; text-align: center; display: none; align-items: center; justify-content: center; min-height: 60vh; box-sizing: border-box; }
 
         /* --- MODAL STYLES --- */
         .modal-overlay {
@@ -258,9 +258,10 @@
         .generic-modal-btn:active { background: black; color: white; transform: translate(1px, 1px); box-shadow: none; }
     </style>
     <link rel="stylesheet" href="css/custom-select.css">
-    <script src="time.js?v=1"></script>
+    <script src="time.js?v=2"></script>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=1"></script>
     <script src="js/custom-select.js?v=1"></script>
 </head>
 
@@ -279,7 +280,7 @@
         </div>
 
         <div class="window-content">
-            <div id="auth-msg-saved" class="auth-msg" data-i18n="books.msg.auth">
+            <div id="auth-msg-saved" class="auth-msg">
                 Please log in on the Home screen to save books.
             </div>
 
@@ -390,6 +391,19 @@
             if (window.rekindleApplyWallpaper) window.rekindleApplyWallpaper();
             initCurrentWeek();
 
+            const authEl = document.getElementById('auth-msg-saved');
+            if (authEl) {
+                authEl.innerHTML = window.rekindleEmptyState(
+                    window.t('books.msg.auth', 'Please log in on the Home screen to save books.'),
+                    {
+                        icon: 'book',
+                        card: true,
+                        action: '<button class="rk-empty-btn" onclick="location.href=\'index?login=true\'">' +
+                            window.t('login.btn.login', 'Login') + '</button>'
+                    }
+                );
+            }
+
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
@@ -397,7 +411,7 @@
                     loadCloudDataLog();
                 } else {
                     document.getElementById('saved-view').style.display = 'none';
-                    document.getElementById('auth-msg-saved').style.display = 'block';
+                    document.getElementById('auth-msg-saved').style.display = 'flex';
                     loadLocalDataLog();
                 }
             });
@@ -415,7 +429,7 @@
 
             if (tab === 'saved') {
                 if (currentUser) document.getElementById('saved-view').style.display = 'flex';
-                else document.getElementById('auth-msg-saved').style.display = 'block';
+                else document.getElementById('auth-msg-saved').style.display = 'flex';
             } else if (tab === 'log') {
                 document.getElementById('log-view').style.display = 'flex';
                 document.getElementById('auth-msg-saved').style.display = 'none';

@@ -188,6 +188,10 @@
     // --- TIMEZONE OFFSET WARNING ---
     // Displays a modal if the user has not configured their timezone offset.
     function checkTimezoneOffset() {
+        // Never cover the sign-in page with the timezone prompt; signing in
+        // is how the user restores a saved timezone.
+        if (/\/(login)(\.html)?\/?$/.test(window.location.pathname || '')) return;
+
         // Check for offset in rekindle_location_manual (primary) or rekindle_timezone_offset (legacy)
         const manualLocStr = localStorage.getItem('rekindle_location_manual');
         if (manualLocStr) {
@@ -280,6 +284,37 @@
             .tz-result-item { padding: 8px; border-bottom: 1px solid #ccc; cursor: pointer; font-size: 0.9rem; }
             .tz-result-item:last-child { border-bottom: none; }
             #tz-search-status { font-size: 0.8rem; margin-top: 5px; min-height: 1.2em; }
+            .tz-signin { margin-top: 14px; padding-top: 12px; border-top: 1px solid #ccc; }
+            .tz-signin-btn {
+                display: block;
+                width: 100%;
+                min-height: 48px;
+                margin: 0;
+                padding: 8px 12px;
+                border: 2px solid black;
+                border-radius: 0;
+                background: white;
+                color: black;
+                box-shadow: 2px 2px 0 black;
+                font-family: inherit;
+                font-size: 0.9rem;
+                font-weight: bold;
+                text-align: center;
+                cursor: pointer;
+                box-sizing: border-box;
+            }
+            .tz-signin-btn:active {
+                background: black;
+                color: white;
+                box-shadow: none;
+                transform: translate(2px, 2px);
+            }
+            .tz-signin-hint {
+                font-size: 0.75rem;
+                line-height: 1.35;
+                color: #555;
+                margin: 8px 0 0 0;
+            }
         `;
         document.head.appendChild(style);
 
@@ -292,13 +327,18 @@
             <div class="tz-modal-window">
                 <div class="title-bar">
                     <div class="title-stripes"></div>
-                    <span class="title-text">Timezone Not Set</span>
+                    <span class="title-text" data-i18n="tz.title">Timezone Not Set</span>
                 </div>
                 <div class="tz-modal-content">
-                    <p>Times may be incorrect. Search for your city below:</p>
-                    <input type="text" id="tz-city-search" placeholder="Search city..." autocomplete="off">
+                    <p data-i18n="tz.desc">Times may be incorrect. Search for your city below:</p>
+                    <input type="text" id="tz-city-search" placeholder="Search city..." autocomplete="off"
+                        data-i18n-placeholder="tz.search_ph">
                     <div id="tz-search-results"></div>
                     <div id="tz-search-status"></div>
+                    <div class="tz-signin">
+                        <button type="button" class="tz-signin-btn" id="tz-signin-btn" data-i18n="tz.signin">Sign in instead</button>
+                        <p class="tz-signin-hint" data-i18n="tz.signin_hint">Your saved timezone will be restored.</p>
+                    </div>
                 </div>
             </div>
         `;
@@ -364,6 +404,26 @@
             });
         }
 
+        function syncTimezoneToProfile(locData, offsetHours) {
+            try {
+                if (typeof firebase === 'undefined' || !firebase.auth || !firebase.firestore) return;
+                if (!firebase.apps || !firebase.apps.length) return;
+                var app = firebase.app();
+                if (!app || !app.options || app.options.projectId !== 'rekindle-dd1fa') return;
+                var user = firebase.auth().currentUser;
+                if (!user) return;
+                firebase.firestore().collection('users').doc(user.uid)
+                    .collection('settings').doc('general').set({
+                        manualLocation: locData,
+                        timezoneOffset: offsetHours
+                    }, { merge: true }).catch(function (e) {
+                        console.warn('Timezone profile sync failed', e);
+                    });
+            } catch (e) {
+                console.warn('Timezone profile sync unavailable', e);
+            }
+        }
+
         function selectCity(city) {
             searchInput.disabled = true;
             clearResults();
@@ -386,6 +446,7 @@
                         utc_offset: offsetHours
                     };
                     localStorage.setItem('rekindle_location_manual', JSON.stringify(locData));
+                    syncTimezoneToProfile(locData, offsetHours);
 
                     showStatus('Timezone set to UTC' + (offsetHours >= 0 ? '+' : '') + offsetHours);
                     setTimeout(function () {
@@ -403,7 +464,15 @@
             handleSearchInput(this.value);
         });
 
-        // Dismiss button removed — user must set timezone or leave the popup open
+        var tzSignInBtn = document.getElementById('tz-signin-btn');
+        if (tzSignInBtn) {
+            tzSignInBtn.addEventListener('click', function () {
+                var returnTo = window.location.pathname + window.location.search;
+                window.location.href = 'login?return=' + encodeURIComponent(returnTo);
+            });
+        }
+
+        // Dismiss button removed — the user can set a timezone or sign in.
     }
 
     // NOTE: checkTimezoneOffset() is no longer auto-run.

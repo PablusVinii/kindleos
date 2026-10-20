@@ -373,6 +373,7 @@
     </style>
     <script src="theme.js?v=19"></script>
     <script src="js/i18n.js?v=2"></script>
+    <script src="js/ui-kit.js?v=1"></script>
 </head>
 
 <body>
@@ -579,7 +580,10 @@
                 storeTotal = (data.response && data.response.numFound) || 0;
 
                 if (docs.length === 0 && page === 1) {
-                    container.innerHTML = '<div style="grid-column: 1/-1; text-align: center;" data-i18n="manga.msg.empty_store">Store is empty.</div>';
+                    container.innerHTML = window.rekindleEmptyState(
+                        window.t('manga.msg.empty_store', 'Store is empty.'),
+                        { icon: 'book', className: 'rk-empty-grid' }
+                    );
                     return;
                 }
 
@@ -659,8 +663,10 @@
             container.innerHTML = '';
 
             if (library.length === 0) {
-                var emptyMsg = window.t('manga.msg.empty_library', "Your library is empty. Go to the Store to add some.") || 'Your library is empty. Go to the Store to add some.';
-                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center;" data-i18n="manga.msg.empty_library">' + emptyMsg + '</div>';
+                container.innerHTML = window.rekindleEmptyState(
+                    window.t('manga.msg.empty_library', 'Your library is empty. Go to the Store to add some.'),
+                    { icon: 'book', className: 'rk-empty-grid' }
+                );
                 return;
             }
 
