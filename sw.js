@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rekindle-cache-v25'; // Bumped 2026-10-20: i18n.js ?v=2, index.html refresh, shared-script versions
+const CACHE_NAME = 'rekindle-cache-v26'; // Bumped 2026-10-20: force client caches to drop pre-visual-upgrade assets
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
