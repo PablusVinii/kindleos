@@ -653,6 +653,16 @@ Fix: `evaluateChatRepetition()` in `workers/rekindle-moderate/worker.js` + the c
 *   **Custom auth claims must be merged, never replaced.** Identity Toolkit's `customAttributes` replaces the whole claims object. Use `mergeClaims()` (`workers/rekindle-stripe/claims.js`) or spread the existing claims before calling `setCustomUserClaims`; otherwise `ageVerified`/`moderator` are silently deleted when Pro is granted or revoked. `getSocialToken` lazily repairs a wiped `ageVerified` claim from `users/{uid}/ageVerification/latest`.
 *   **Quality gate:** `npm test` runs the i18n, compatibility, proxy-guard, claim-merge, chat-spam, and Oregon Trail checks. Both CI and the deploy workflow run it before building.
 
+## 📦 Dependency & CodeQL Security (2026-10-20)
+
+*   **`npm audit` must report 0** for the two tracked Node manifests: the repo root (build tooling + `admin/` scripts) and `firebase-functions/` (Cloud Functions). `workers/rekindle-reader` is separate and clean. Use plain `npm audit fix` (non-major only); never `npm audit fix --force`.
+*   **`firebase-admin` stays on `13.10.x` on purpose.** 13.10 drops the vulnerable `node-forge` dependency and moves `@google-cloud/firestore`/`storage` to optional dependencies. v14 is **modular-only**: it deletes the namespaced `admin.auth()`, `admin.database()`, `admin.firestore()`, `admin.credential.*`, `admin.firestore.FieldValue` and `admin.database.ServerValue` APIs used throughout `firebase-functions/` and `admin/*.js`. Migrating to v14 (`getAuth()`, `getDatabase()`, `getFirestore()`, `cert()`, modular `FieldValue`/`ServerValue`) is a separate refactor, not a version bump.
+*   **Keep `"uuid": "^11.1.1"` in both `overrides` blocks.** firebase-admin 13.10 still installs the optional Google Cloud clients, whose `uuid < 11.1.1` copies trigger GHSA-w5hq-g745-h8pq. Those libraries only call `uuid.v4()`, so the major override is safe; remove it when the admin v14 migration lands.
+*   **Do not re-add `firebase-functions-test`** until it peer-supports `firebase-admin@14`. It is unused (no test files reference it) and pulled a vulnerable jest / `ts-deepmerge` / `js-yaml` tree that accounted for most Dependabot alerts.
+*   **CodeQL default setup analyzes `actions`, `javascript-typescript` and `python` only.** `scripts/shot-webkit.swift` is a standalone macOS WebKit harness with no Xcode/SwiftPM project, so CodeQL's Swift autobuild always fails on the macOS runner. Do not re-add Swift to the default setup and do not add a `codeql.yml` (advanced setup cannot coexist with default setup).
+*   **Node 22 is the build/runtime baseline.** CI and the deploy workflow run Node 22 (Node 20 is EOL and `firebase-admin@14` requires ≥22). The functions package already pins `"engines": {"node": "22"}`.
+*   **Mail-library majors:** `nodemailer@10`, `imapflow@2` and `mailparser@3.10` only change packaging/Node floor (≥20) — the `createTransport`/`sendMail`, `new ImapFlow`, `fetchOne`/`search`/`list` and `simpleParser` APIs used by `firebase-functions/index.js` are unchanged.
+
 ## ✅ Best Practices
 -   **Images:** Use **WebP** or **SVG**. They are fully supported and perform best.
 -   **Modals:** Always stick to the `.modal-overlay` / `.modal-box` DOM structure found in `weather.html`.

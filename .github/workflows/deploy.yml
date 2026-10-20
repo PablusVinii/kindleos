@@ -19,7 +19,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20 # Uses Node 20 to fix dependency errors
+          node-version: 22 # Matches the Cloud Functions runtime; Node 20 is EOL (2026-04-30)
 
       - name: Install dependencies
         run: npm ci
