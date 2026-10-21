@@ -59,7 +59,8 @@ Then:
 3. Create a **Service**:
    * Repository: the ReKindle repository.
    * Build type: **Dockerfile**.
-   * Build context: `akinator-service`.
+   * Build context: `akinator-service` (must be the service directory, **not**
+     the repo root — the Dockerfile's COPY paths are relative to it).
    * Dockerfile path: `/akinator-service/Dockerfile`.
    * Port: **8080** (HTTP).
    * Health check path: `/healthz`.

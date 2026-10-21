@@ -1,8 +1,10 @@
 # Akinator relay container.
 #
-# Northflank builds this from the repository root, so the copy paths include the
-# `akinator-service/` prefix. It also works locally:
-#   docker build -f akinator-service/Dockerfile -t rekindle-akinator .
+# The build context is THIS directory (`akinator-service`), not the repository
+# root, so COPY paths are relative to it. Northflank: Build context
+# `akinator-service`, Dockerfile path `/akinator-service/Dockerfile`.
+# Local:
+#   docker build -f akinator-service/Dockerfile -t rekindle-akinator akinator-service
 #   docker run --rm -p 8080:8080 rekindle-akinator
 
 FROM node:22-slim
@@ -12,10 +14,10 @@ WORKDIR /app
 
 # Install production dependencies from the lockfile first so source edits do not
 # invalidate the dependency layer.
-COPY akinator-service/package.json akinator-service/package-lock.json ./
+COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY akinator-service/ ./
+COPY . ./
 
 ENV PORT=8080
 EXPOSE 8080
