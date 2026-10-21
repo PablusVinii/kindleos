@@ -72,9 +72,12 @@ Any new feature that posts pixel art or flipbooks to KindleChat must also write 
 KindleChat general messages older than **30 days**, always keeping the latest **50** messages. For
 each deleted message it also removes `kindlechat/art_index/{messageId}` and every
 `kindlechat/translations_by_lang/<lang>/{messageId}` entry in the same multi-path RTDB update, so
-translations and the art gallery prune instead of orphaning. Candidate scans use REST
-`shallow=true`, so message bodies/pixel art are never downloaded just to get keys. DM messages are
-not touched. Full design and deploy/dry-run steps: [social-cleanup.md](social-cleanup.md).
+translations and the art gallery prune instead of orphaning. Candidate scans page the
+RTDB keys with shallow `limitToFirst`/`startAfter` and decode the Firebase push-ID
+creation time (RTDB rejects `orderBy`/`endAt` on shallow GETs); the latest 50 messages
+are fetched with one `limitToLast` query. Message bodies/pixel art are never downloaded
+just to get keys. DM messages are not touched. Full design and deploy/dry-run steps:
+[social-cleanup.md](social-cleanup.md).
 
 ## KindleChat Pixel Art Duplicate Prevention
 

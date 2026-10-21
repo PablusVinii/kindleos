@@ -6,8 +6,11 @@
  * idempotent: a failure in one collection is logged and the rest still run.
  *
  * Efficiency notes (see docs/agent/social-cleanup.md):
- *  - RTDB candidate scans use REST `shallow=true`, so message bodies / pixel
- *    art / report snapshots are not downloaded just to get keys.
+ *  - RTDB candidate scans page `shallow=true` key listings and decode the
+ *    Firebase push-ID timestamp to decide age. RTDB rejects orderBy/endAt on
+ *    shallow GETs, and downloading every message body would be far more
+ *    expensive than keys. The latest 50 chat messages use one limitToLast read
+ *    so a dormant room keeps a visible tail.
  *  - Chat deletes are one multi-path update per batch: message + art_index +
  *    every translations_by_lang entry.
  *  - Firestore deletes use batched deletes for comments and recursiveDelete
@@ -20,6 +23,7 @@ const {
     TRANSLATION_LANGS,
     isSafeRtdbKey,
     cutoffMs,
+    pushIdTimestamp,
     buildChatDeletePaths,
     shouldDeleteReport,
     toMillis,
@@ -43,6 +47,7 @@ const CLEANUP_CONFIG = {
     chatBatchSize: 200,
     firestorePageSize: 200,
     deleteBatchSize: 400,
+    keyPageSize: 1000,
 
     // Per-run caps; the time budget is the hard stop.
     maxTopicsPerRun: 2000,
@@ -68,6 +73,7 @@ const POSITIVE_INT_KEYS = [
     'chatBatchSize',
     'firestorePageSize',
     'deleteBatchSize',
+    'keyPageSize',
     'maxTopicsPerRun',
     'maxChatMessagesPerRun',
     'maxCommentDeletesPerRun',
@@ -186,23 +192,38 @@ async function runSocialCleanup(options) {
         return response.json();
     }
 
-    function validateQueryField(field) {
-        if (field !== 'timestamp' && field !== 'createdAt') {
-            throw new Error(`social-cleanup: unsupported RTDB order field ${field}`);
-        }
-    }
+    /**
+     * Page a node's keys with a shallow GET. RTDB rejects orderBy/endAt/startAt
+     * on shallow GETs but supports limitToFirst + startAfter. The server returns
+     * keys in lexicographic order; the JSON object order is not guaranteed, so
+     * sort each page and advance from the greatest key.
+     */
+    async function forEachKeyPage(dbUrl, path, token, handler) {
+        let after = null;
+        for (;;) {
+            if (Date.now() >= deadline) return;
 
-    async function shallowOldKeys(dbUrl, path, field, endAtMs, limit, token) {
-        validateQueryField(field);
-        const data = await rtdbFetch(dbUrl, path, {
-            shallow: 'true',
-            orderBy: `"${field}"`,
-            startAt: '0',
-            endAt: String(endAtMs),
-            limitToFirst: String(limit)
-        }, token);
-        if (!data || typeof data !== 'object') return [];
-        return Object.keys(data).filter(isSafeRtdbKey);
+            const params = {
+                shallow: 'true',
+                limitToFirst: String(config.keyPageSize)
+            };
+            if (after) params.startAfter = after;
+
+            const data = await rtdbFetch(dbUrl, path, params, token);
+            const keys = data && typeof data === 'object' ? Object.keys(data) : [];
+            if (keys.length === 0) return;
+
+            keys.sort();
+            const fresh = after
+                ? keys.filter(function (key) { return key > after; })
+                : keys;
+            if (fresh.length === 0) return;
+
+            const outcome = await handler(fresh);
+            if (outcome && outcome.stop) return;
+
+            after = fresh[fresh.length - 1];
+        }
     }
 
     async function shallowKeys(dbUrl, path, token) {
@@ -211,15 +232,17 @@ async function runSocialCleanup(options) {
         return Object.keys(data).filter(isSafeRtdbKey);
     }
 
-    async function latestKeys(dbUrl, path, field, limit, token) {
-        validateQueryField(field);
-        const data = await rtdbFetch(dbUrl, path, {
-            shallow: 'true',
-            orderBy: `"${field}"`,
-            limitToLast: String(limit)
+    async function latestMessageKeys(token) {
+        if (config.keepLatestChatMessages <= 0) return [];
+
+        // The only non-shallow chat read: downloads the latest N messages
+        // (including any art payload) but never the whole room.
+        const data = await rtdbFetch(socialDbUrl, 'kindlechat/messages', {
+            orderBy: '"timestamp"',
+            limitToLast: String(config.keepLatestChatMessages)
         }, token);
         if (!data || typeof data !== 'object') return [];
-        return Object.keys(data);
+        return Object.keys(data).filter(isSafeRtdbKey);
     }
 
     async function rtdbMultiPathDelete(db, updates) {
@@ -243,42 +266,77 @@ async function runSocialCleanup(options) {
     async function cleanupChat() {
         if (!dryRun && !socialRtdb) throw new Error('social-cleanup: social RTDB is unavailable');
         const token = await getToken('social');
-        const chatCutoff = cutoffMs(now, config.chatRetentionDays) - 1; // integer ms timestamps
-        const keep = new Set(config.keepLatestChatMessages > 0
-            ? await latestKeys(socialDbUrl, 'kindlechat/messages', 'timestamp', config.keepLatestChatMessages, token)
-            : []);
+        const chatCutoff = cutoffMs(now, config.chatRetentionDays);
+        const keep = new Set(await latestMessageKeys(token));
         const langs = await translationLangs(token);
 
         let deleted = 0;
         let batches = 0;
-        while (deleted < config.maxChatMessagesPerRun && Date.now() < deadline) {
-            const ids = await shallowOldKeys(
-                socialDbUrl,
-                'kindlechat/messages',
-                'timestamp',
-                chatCutoff,
-                config.chatBatchSize,
-                token
-            );
-            if (ids.length === 0) break;
+        let scanned = 0;
+        let invalidKeys = 0;
+        let truncated = false;
 
-            const deletable = ids.filter(function (id) { return !keep.has(id); });
-            // All old keys are in the keep set: the room is dormant and short.
-            if (deletable.length === 0) break;
+        await forEachKeyPage(socialDbUrl, 'kindlechat/messages', token, async function (keys) {
+            const deletable = [];
+            let reachedCutoff = false;
 
-            if (!dryRun) {
-                await rtdbMultiPathDelete(socialRtdb, buildChatDeletePaths(deletable, langs));
+            for (const key of keys) {
+                if (!isSafeRtdbKey(key)) {
+                    invalidKeys++;
+                    continue;
+                }
+                const createdAt = pushIdTimestamp(key);
+                if (!createdAt) {
+                    invalidKeys++;
+                    continue;
+                }
+                if (createdAt >= chatCutoff) {
+                    // Keys are chronological; everything after this is newer.
+                    reachedCutoff = true;
+                    break;
+                }
+                scanned++;
+                if (!keep.has(key)) deletable.push(key);
             }
-            deleted += deletable.length;
-            batches++;
-            if (dryRun) break;
-        }
+
+            for (let offset = 0; offset < deletable.length;) {
+                if (deleted >= config.maxChatMessagesPerRun || Date.now() >= deadline) {
+                    truncated = true;
+                    return { stop: true };
+                }
+                const size = Math.min(
+                    config.chatBatchSize,
+                    config.maxChatMessagesPerRun - deleted,
+                    deletable.length - offset
+                );
+                if (size <= 0) {
+                    truncated = true;
+                    return { stop: true };
+                }
+                const batch = deletable.slice(offset, offset + size);
+                if (!dryRun) {
+                    await rtdbMultiPathDelete(socialRtdb, buildChatDeletePaths(batch, langs));
+                }
+                deleted += size;
+                batches++;
+                offset += size;
+            }
+
+            if (reachedCutoff) return { stop: true };
+            if (deleted >= config.maxChatMessagesPerRun) {
+                truncated = true;
+                return { stop: true };
+            }
+            return {};
+        });
 
         return {
             deleted,
             batches,
+            scanned,
+            invalidKeys,
             languages: langs.length,
-            truncated: deleted >= config.maxChatMessagesPerRun
+            truncated: truncated || deleted >= config.maxChatMessagesPerRun
         };
     }
 
@@ -288,10 +346,11 @@ async function runSocialCleanup(options) {
         let last = null;
 
         while (topicDocs.length < config.maxTopicsPerRun && Date.now() < deadline) {
+            const pageLimit = Math.min(config.firestorePageSize, config.maxTopicsPerRun - topicDocs.length);
             let query = socialDb.collection('topics')
                 .where('timestamp', '<', commentCutoff)
                 .orderBy('timestamp', 'asc')
-                .limit(config.firestorePageSize)
+                .limit(pageLimit)
                 .select('timestamp', 'lastActive', 'commentCount');
             if (last) query = query.startAfter(last);
 
@@ -299,7 +358,7 @@ async function runSocialCleanup(options) {
             if (page.empty) break;
             topicDocs.push.apply(topicDocs, page.docs);
             last = page.docs[page.docs.length - 1];
-            if (page.size < config.firestorePageSize) break;
+            if (page.size < pageLimit) break;
         }
 
         let commentsDeleted = 0;
@@ -318,10 +377,11 @@ async function runSocialCleanup(options) {
             let deletedForTopic = 0;
 
             while (deletedForTopic < commentBudget && Date.now() < deadline) {
+                const batchLimit = Math.min(config.deleteBatchSize, commentBudget - deletedForTopic);
                 const snapshot = await topicDoc.ref.collection('comments')
                     .where('timestamp', '<', commentCutoff)
                     .orderBy('timestamp', 'asc')
-                    .limit(config.deleteBatchSize)
+                    .limit(batchLimit)
                     .select('timestamp')
                     .get();
                 if (snapshot.empty) break;
@@ -518,13 +578,14 @@ async function runSocialCleanup(options) {
             // it every day. They stay until a moderator resolves them.
             if (deletable.length === 0) break;
 
+            const toDelete = deletable.slice(0, config.maxReportDeletesPerRun - deleted);
             const updates = {};
-            deletable.forEach(function (id) { updates[`reports/${id}`] = null; });
+            toDelete.forEach(function (id) { updates[`reports/${id}`] = null; });
             if (!dryRun) await rtdbMultiPathDelete(socialRtdb, updates);
 
-            deleted += deletable.length;
+            deleted += toDelete.length;
             batches++;
-            if (dryRun || keys.length < 500) break;
+            if (dryRun || keys.length < 500 || deleted >= config.maxReportDeletesPerRun) break;
         }
 
         return {
@@ -538,70 +599,164 @@ async function runSocialCleanup(options) {
     async function cleanupAutomod() {
         if (!dryRun && !socialRtdb) throw new Error('social-cleanup: social RTDB is unavailable');
         const token = await getToken('social');
-        const cutoff = cutoffMs(now, config.automodRetentionDays) - 1;
+        const cutoff = cutoffMs(now, config.automodRetentionDays);
 
         let deleted = 0;
         let batches = 0;
+        let invalidKeys = 0;
+        let truncated = false;
 
-        while (deleted < config.maxAutomodDeletesPerRun && Date.now() < deadline) {
-            const ids = await shallowOldKeys(
-                socialDbUrl,
-                'automod_log',
-                'timestamp',
-                cutoff,
-                500,
-                token
-            );
-            if (ids.length === 0) break;
+        await forEachKeyPage(socialDbUrl, 'automod_log', token, async function (keys) {
+            const old = [];
+            let reachedCutoff = false;
 
-            const updates = {};
-            ids.forEach(function (id) { updates[`automod_log/${id}`] = null; });
-            if (!dryRun) await rtdbMultiPathDelete(socialRtdb, updates);
+            for (const key of keys) {
+                if (!isSafeRtdbKey(key)) {
+                    invalidKeys++;
+                    continue;
+                }
+                const createdAt = pushIdTimestamp(key);
+                if (!createdAt) {
+                    invalidKeys++;
+                    continue;
+                }
+                if (createdAt >= cutoff) {
+                    reachedCutoff = true;
+                    break;
+                }
+                old.push(key);
+            }
 
-            deleted += ids.length;
-            batches++;
-            if (dryRun) break;
-        }
+            for (let offset = 0; offset < old.length;) {
+                if (deleted >= config.maxAutomodDeletesPerRun || Date.now() >= deadline) {
+                    truncated = true;
+                    return { stop: true };
+                }
+                const size = Math.min(
+                    500,
+                    config.maxAutomodDeletesPerRun - deleted,
+                    old.length - offset
+                );
+                if (size <= 0) {
+                    truncated = true;
+                    return { stop: true };
+                }
+                const batch = old.slice(offset, offset + size);
+                const updates = {};
+                batch.forEach(function (id) { updates[`automod_log/${id}`] = null; });
+                if (!dryRun) await rtdbMultiPathDelete(socialRtdb, updates);
+                deleted += size;
+                batches++;
+                offset += size;
+            }
+
+            if (reachedCutoff) return { stop: true };
+            if (deleted >= config.maxAutomodDeletesPerRun) {
+                truncated = true;
+                return { stop: true };
+            }
+            return {};
+        });
 
         return {
             deleted,
             batches,
-            truncated: deleted >= config.maxAutomodDeletesPerRun
+            invalidKeys,
+            truncated: truncated || deleted >= config.maxAutomodDeletesPerRun
         };
     }
 
     async function cleanupModActions() {
         if (!dryRun && !primaryRtdb) throw new Error('social-cleanup: primary RTDB is unavailable');
         const token = await getToken('primary');
-        const cutoff = cutoffMs(now, config.modActionsRetentionDays) - 1;
+        const cutoff = cutoffMs(now, config.modActionsRetentionDays);
 
         let deleted = 0;
         let batches = 0;
+        let invalidKeys = 0;
+        let skipped = 0;
+        let truncated = false;
 
-        while (deleted < config.maxModActionDeletesPerRun && Date.now() < deadline) {
-            const ids = await shallowOldKeys(
-                primaryDbUrl,
-                'mod_actions',
-                'createdAt',
-                cutoff,
-                500,
-                token
-            );
-            if (ids.length === 0) break;
+        await forEachKeyPage(primaryDbUrl, 'mod_actions', token, async function (keys) {
+            const candidates = [];
+            let reachedCutoff = false;
 
-            const updates = {};
-            ids.forEach(function (id) { updates[`mod_actions/${id}`] = null; });
-            if (!dryRun) await rtdbMultiPathDelete(primaryRtdb, updates);
+            for (const key of keys) {
+                if (!isSafeRtdbKey(key)) {
+                    invalidKeys++;
+                    continue;
+                }
+                const createdAt = pushIdTimestamp(key);
+                if (!createdAt) {
+                    invalidKeys++;
+                    continue;
+                }
+                if (createdAt >= cutoff) {
+                    reachedCutoff = true;
+                    break;
+                }
+                candidates.push(key);
+            }
 
-            deleted += ids.length;
-            batches++;
-            if (dryRun) break;
-        }
+            if (candidates.length > 0) {
+                // mod_actions keys are often created by the client, so the push
+                // time can reflect a skewed device clock. Verify the stored
+                // createdAt (a single-field GET, no savedData payload) before
+                // deleting. Discord/server-created actions pass immediately.
+                const verified = await mapWithConcurrency(candidates, 10, async function (id) {
+                    try {
+                        const value = await rtdbFetch(primaryDbUrl, `mod_actions/${id}/createdAt`, {}, token);
+                        return {
+                            id,
+                            createdAt: typeof value === 'number' && Number.isFinite(value) ? value : NaN
+                        };
+                    } catch (e) {
+                        return { id, createdAt: NaN };
+                    }
+                });
+                const old = verified
+                    .filter(function (entry) { return Number.isFinite(entry.createdAt) && entry.createdAt < cutoff; })
+                    .map(function (entry) { return entry.id; });
+                skipped += verified.length - old.length;
+
+                for (let offset = 0; offset < old.length;) {
+                    if (deleted >= config.maxModActionDeletesPerRun || Date.now() >= deadline) {
+                        truncated = true;
+                        return { stop: true };
+                    }
+                    const size = Math.min(
+                        500,
+                        config.maxModActionDeletesPerRun - deleted,
+                        old.length - offset
+                    );
+                    if (size <= 0) {
+                        truncated = true;
+                        return { stop: true };
+                    }
+                    const batch = old.slice(offset, offset + size);
+                    const updates = {};
+                    batch.forEach(function (id) { updates[`mod_actions/${id}`] = null; });
+                    if (!dryRun) await rtdbMultiPathDelete(primaryRtdb, updates);
+                    deleted += size;
+                    batches++;
+                    offset += size;
+                }
+            }
+
+            if (reachedCutoff) return { stop: true };
+            if (deleted >= config.maxModActionDeletesPerRun) {
+                truncated = true;
+                return { stop: true };
+            }
+            return {};
+        });
 
         return {
             deleted,
             batches,
-            truncated: deleted >= config.maxModActionDeletesPerRun
+            invalidKeys,
+            skipped,
+            truncated: truncated || deleted >= config.maxModActionDeletesPerRun
         };
     }
 

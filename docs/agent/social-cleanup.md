@@ -58,6 +58,7 @@ remote config document.
 | `automodRetentionDays` | 30 |
 | `modActionsRetentionDays` | 365 |
 | `chatBatchSize` | 200 messages per multi-path write |
+| `keyPageSize` | 1000 keys per shallow RTDB page |
 | `firestorePageSize` | 200 topics per page |
 | `deleteBatchSize` | 400 comment deletes per Firestore batch |
 | `maxChatMessagesPerRun` | 5000 |
@@ -74,11 +75,16 @@ candidates but no deletes, batches, transactions or recursive deletes.
 
 ## How each task stays cheap
 
-- **Chat:** RTDB REST `shallow=true&orderBy="timestamp"&startAt=0&endAt=...` returns
-  only message keys, so pixel-art/base64 bodies are never downloaded. One multi-path
-  `update()` deletes the message plus `art_index` and every language translation. The
-  live language list is read shallow from `translations_by_lang`; the hard-coded
-  `TRANSLATION_LANGS` list is only a fallback.
+- **Chat:** pages the `kindlechat/messages` keys with shallow `limitToFirst` +
+  `startAfter` (keys only, 1000 per page) and decodes each Firebase push-ID timestamp
+  to decide age; paging stops at the first key newer than the cutoff. RTDB rejects
+  `orderBy`/`endAt`/`startAt` on shallow GETs, which is why the age comes from the
+  push ID instead of a filtered query. The latest 50 messages are fetched with one
+  `orderBy="timestamp"&limitToLast=50` query (full payloads for those 50 only) so a
+  dormant room keeps a visible tail. One multi-path `update()` deletes the message
+  plus `art_index` and every language translation. The live language list is read
+  shallow from `translations_by_lang`; the hard-coded `TRANSLATION_LANGS` list is only
+  a fallback.
 - **Topics:** scan only topics whose `timestamp` is already older than the retention
   window, page their comments by `timestamp`, delete 400 per batch, then use
   `count()` (an aggregation) and one `orderBy('timestamp', 'desc').limit(1)` read to
@@ -89,8 +95,12 @@ candidates but no deletes, batches, transactions or recursive deletes.
   `recursiveDelete` per post. This removes the whole comment subcollection without
   reading comment bodies; Firestore's list/delete operations replace per-comment
   reads.
-- **Reports / automod / mod actions:** RTDB ordered queries. Reports need full values
-  to check `status`; automod and moderator actions use `shallow=true` key-only scans.
+- **Reports / automod / mod actions:** reports use the normal ordered query because
+  the `status` field is needed (the existing `createdAt` index covers it). Automod and
+  moderator actions page shallow keys and use the push-ID timestamp. `mod_actions`
+  keys are often client-created, so each candidate's stored `createdAt` is verified
+  with one single-field GET before deletion; that avoids a skewed device clock
+  deleting a recent action and never downloads `savedData`.
   Pending reports are skipped. If the oldest report page is entirely pending, the task
   stops rather than re-reading it every day.
 - **Bounded work:** every task checks the 8-minute budget and per-run caps. A large
@@ -98,33 +108,31 @@ candidates but no deletes, batches, transactions or recursive deletes.
 
 ## Index requirements
 
-Deploy both rules changes **before** deploying the function; without them the
-ordered RTDB queries can fall back to downloading the whole node:
+No new RTDB or Firestore indexes are required. The only ordered RTDB query left is
+the reports scan, which uses the existing `reports` `.indexOn` in
+`rtdb-social-rules.json` (`createdAt` is already listed). The chat/automod/mod-action
+scans use shallow key pages, so they never need an `orderBy` index.
 
-- `rtdb-social-rules.json` — `automod_log` block with `.indexOn: ["timestamp"]`
-  (read/write remain denied; the service account bypasses rules).
-- `rtdb-rules.json` — `mod_actions` `.indexOn: ["createdAt"]`.
-
-No Firestore composite indexes are needed: each query filters and orders by the same
-single field (`timestamp`) inside one collection/subcollection, which uses the
-automatic single-field index.
+Firestore queries filter and order by the same single field (`timestamp`) inside one
+collection/subcollection, which uses the automatic single-field index.
 
 ## Deploy and first run
 
-```bash
-# 1. Add the indexes first.
-npm run deploy:rules:rtdb
-npm run deploy:rules:social:rtdb
+No rules deploy is required for this job (it uses the service account and the
+existing reports index). If the earlier build already added the experimental
+`automod_log` / `mod_actions` indexes, they are harmless and can stay until the next
+rules deploy.
 
-# 2. Deploy in dry-run mode.
+```bash
+# 1. Deploy in dry-run mode.
 #    Add SOCIAL_CLEANUP_DRY_RUN=1 to firebase-functions/.env first.
 firebase deploy --only functions:cleanupSocial --project rekindle-dd1fa
 
-# 3. Run the Cloud Scheduler job manually and inspect the logs:
+# 2. Run the Cloud Scheduler job manually and inspect the logs:
 #    Console -> Cloud Scheduler -> firebase-schedule-cleanupSocial-us-central1 -> Run now
 #    Expect "social-cleanup: starting/finished", dryRun=true, and candidate counts.
 
-# 4. Remove SOCIAL_CLEANUP_DRY_RUN from firebase-functions/.env and redeploy.
+# 3. Remove SOCIAL_CLEANUP_DRY_RUN from firebase-functions/.env and redeploy.
 firebase deploy --only functions:cleanupSocial --project rekindle-dd1fa
 ```
 
@@ -176,9 +184,26 @@ the per-task error in the logs.
   retention later.
 - DM messages — deliberately untouched.
 
+## 2026-10-21: shallow GET rejected `orderBy`/`endAt`
+
+The first deployed run logged `RTDB query failed (400)` for **chat**, **automod** and
+**mod actions**. RTDB shallow GETs only support `limitToFirst` (plus key cursors such
+as `startAfter`); they reject `orderBy`, `startAt`, `endAt` and `limitToLast`:
+
+```
+shallow+orderBy+startAt+endAt => 400 { "error" : "startAt not supported for with shallow GET, use startAfter" }
+shallow+orderBy+endAt        => 400 { "error" : "endAt not supported for with shallow GET, use limitToFirst" }
+shallow+orderBy              => 400 { "error" : "orderBy not supported for with shallow GET, keys are returned in lexicographical order" }
+```
+
+The fix pages shallow keys (which are already lexicographic/push-ID-chronological) and
+decodes the first 8 characters of each push ID as the creation time. Do **not** add
+`orderBy` to a shallow GET again. Reports still use a normal ordered query because it
+needs the `status` field and already has the `createdAt` index.
+
 ## Tests
 
 `node scripts/test-cleanup.js` (also part of `npm test`) covers cutoff arithmetic,
-key/path safety, multi-path construction, report-status rules, timestamp coercion,
-and the concurrency helper. The I/O layer is verified in production with the dry-run
-rollout above.
+push-ID timestamp decoding, key/path safety, multi-path construction, report-status
+rules, timestamp coercion, and the concurrency helper. The I/O layer is verified in
+production with the dry-run rollout above.

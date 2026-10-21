@@ -14,6 +14,7 @@ const {
     TRANSLATION_LANGS,
     isSafeRtdbKey,
     cutoffMs,
+    pushIdTimestamp,
     chunk,
     mapWithConcurrency,
     buildChatDeletePaths,
@@ -35,6 +36,17 @@ const { CLEANUP_CONFIG, runSocialCleanup } = require('../firebase-functions/soci
     assert.throws(() => cutoffMs(NaN, 30), /finite/);
     assert.throws(() => cutoffMs(now, 0), /positive integer/);
     assert.throws(() => cutoffMs(now, 1.5), /positive integer/);
+
+    /* ---------------------------------------------------------------- */
+    /* 2. Push-ID timestamps                                            */
+    /* ---------------------------------------------------------------- */
+    // Real KindleChat message: its `timestamp` field is exactly this value.
+    assert.strictEqual(pushIdTimestamp('-OtUAWqyOL4lSCy3ro-e'), 1779713318334);
+    assert.strictEqual(pushIdTimestamp('-P3nBCeCwUrF-nkp3m-P'), 1791860202125);
+    assert.ok(pushIdTimestamp('-OtUAWqyOL4lSCy3ro-e') < pushIdTimestamp('-P3nBCeCwUrF-nkp3m-P'));
+    assert.strictEqual(pushIdTimestamp(''), 0);
+    assert.strictEqual(pushIdTimestamp('bad/key'), 0);
+    assert.strictEqual(pushIdTimestamp('short'), 0);
 
     /* ---------------------------------------------------------------- */
     /* 2. RTDB key/path safety                                          */

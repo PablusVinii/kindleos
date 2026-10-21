@@ -8,6 +8,10 @@
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Firebase push-ID alphabet. It is in ASCII order, which is why push IDs sort
+// lexicographically in creation order.
+const PUSH_CHARS = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+
 // Keep in sync with targetLangs in workers/rekindle-translate/worker.js.
 // social-cleanup.js prefers the live keys under kindlechat/translations_by_lang
 // and only falls back to this list if that shallow read fails.
@@ -29,6 +33,26 @@ function cutoffMs(nowMs, days) {
         throw new Error('cutoffMs: days must be a positive integer');
     }
     return nowMs - days * DAY_MS;
+}
+
+/**
+ * Decode the creation timestamp embedded in a Firebase push ID (first 8 chars,
+ * 48-bit ms since the epoch). Returns 0 for keys that are not valid push IDs.
+ *
+ * Needed because RTDB REST shallow GETs reject orderBy/endAt/startAt; paging
+ * keys and decoding the push time is the only way to age-filter without
+ * downloading every message body.
+ */
+function pushIdTimestamp(key) {
+    if (typeof key !== 'string' || key.length < 8) return 0;
+
+    let ms = 0;
+    for (let i = 0; i < 8; i++) {
+        const index = PUSH_CHARS.indexOf(key.charAt(i));
+        if (index === -1) return 0;
+        ms = ms * 64 + index;
+    }
+    return ms > 0 ? ms : 0;
 }
 
 function chunk(items, size) {
@@ -118,9 +142,11 @@ function toMillis(value) {
 
 module.exports = {
     DAY_MS,
+    PUSH_CHARS,
     TRANSLATION_LANGS,
     isSafeRtdbKey,
     cutoffMs,
+    pushIdTimestamp,
     chunk,
     mapWithConcurrency,
     buildChatDeletePaths,
