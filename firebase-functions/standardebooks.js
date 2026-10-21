@@ -20,9 +20,9 @@
  *
  * Therefore the feed and EPUB downloads have to leave through a network that
  * is not Cloudflare. This function runs on Google Cloud (us-central1), which is
- * allowed, and is the same workaround already used for Akinator (see
- * akinator.js — that one needed a Chrome TLS fingerprint, this one does not:
- * plain global `fetch` works).
+ * allowed, and is the same workaround family as the Akinator relay (see
+ * `akinator-service/` — that one needed a Chrome TLS fingerprint, this one does
+ * not: plain global `fetch` works).
  *
  * Contract: GET/HEAD /?url=<encoded https://standardebooks.org/...>
  *   - single-host allowlist (standardebooks.org), https only

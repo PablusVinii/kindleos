@@ -483,15 +483,13 @@
         var backButton = document.getElementById('back-btn');
         var resultPhoto = document.getElementById('result-photo');
 
-        // Chrome-TLS relay (akinator-service/). Akinator's Cloudflare blocks
-        // every plain HTTP client by TLS fingerprint, so this Node relay
-        // (got-scraping) is the only transport. The old public CORS proxies
-        // were verified dead in 2026-10 and have been removed: they only added
-        // ~45s of spinner before the same error.
-        //
-        // NOTE: this still points at the legacy Firebase function until the
-        // Northflank service is live; the cutover changes this one line.
-        var BACKEND_URL = 'https://us-central1-rekindle-dd1fa.cloudfunctions.net/akinator';
+        // Chrome-TLS relay (akinator-service/), hosted on Northflank's free
+        // always-on Developer Sandbox. Akinator's Cloudflare blocks every plain
+        // HTTP client by TLS fingerprint, so this Node relay (got-scraping) is
+        // the only transport. The old public CORS proxies were verified dead in
+        // 2026-10 and have been removed: they only added ~45s of spinner before
+        // the same error.
+        var BACKEND_URL = 'https://p01--akinator--lcgj9cjkcx8q.code.run';
 
         function fetchWithTimeout(url, options, ms) {
             options = options || {};

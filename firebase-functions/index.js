@@ -1439,22 +1439,6 @@ exports.createRssFeed = onCall(callOptions, async (request) => {
 
 
 // ---------------------------------------------------------------------------
-// Akinator relay (Chrome-TLS proxy for akinator.html)
-// See firebase-functions/akinator.js for why this cannot run on Cloudflare.
-// ---------------------------------------------------------------------------
-const { akinatorHandler } = require("./akinator");
-
-exports.akinator = onRequest(
-    {
-        region: "us-central1",
-        memory: "256MiB",
-        timeoutSeconds: 30,
-        maxInstances: 5 // hard cost ceiling; idle cost is zero (no minInstances)
-    },
-    akinatorHandler
-);
-
-// ---------------------------------------------------------------------------
 // Standard Ebooks relay (reader.html's Standard Ebooks tab)
 // standardebooks.org 403s every Cloudflare egress IP (AS132892), so /api/proxy
 // cannot reach it. See firebase-functions/standardebooks.js.

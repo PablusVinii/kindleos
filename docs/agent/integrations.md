@@ -35,31 +35,40 @@ Library items are stored in localforage key `manga_library` and must have `sourc
 ### Dashboard entry
 The `icons.js` entry uses `id: 'comics'` (file `comics.html`) with `name: 'Comics'`. All locale files translate `manga.title` as their word for "Comics".
 
-## Akinator (`akinator.html` + `firebase-functions/akinator.js`)
+## Akinator (`akinator.html` + `akinator-service/`)
 
-**Current transport (2026-10):** a self-hosted Firebase HTTPS relay, with the public CORS proxies kept only as a last-resort fallback. The 2026-07 decision to run proxies-only no longer works — see below.
+**Current transport (2026-10-21):** an always-on Node relay on Northflank's free Developer Sandbox. The public CORS proxies are gone (dead since 2026-07) and Firebase Functions no longer handles Akinator.
+
+### Why it moved off Firebase (2026-10-21)
+Measured with Cloud Monitoring before the move:
+
+- ~98,400 requests in 43 h ≈ **1.65M requests/month**, ~2,300 games/day; P50 430 ms, P95 ~720 ms.
+- ~5,700 vCPU-s/day ≈ **171k vCPU-s/month** — about 85% of Google's 200k CPU-s free tier from this function alone.
+- Traffic was real Kindle/Fire clients, not one scraper.
+
+Cloud Run would not have helped: Firebase Functions 2nd gen **is** Cloud Run, sharing the same Google Cloud billing account and free allotment. At 1.65M requests/month, per-request free tiers (AWS Lambda 1M requests + 400k GB-s, Azure Functions 1M + 400k GB-s) do not stay free either. Northflank's Developer Sandbox is free forever, **always-on (no sleeping)**, 2 services, no request metering.
 
 ### Why the public proxies all died
 Akinator.com's Cloudflare now fingerprints the **TLS ClientHello (JA3/JA4)**, not just headers:
 
 - Browser `fetch`, `curl`, Node `undici` (even with a full Chrome header set) and **Cloudflare Workers/Pages Functions** all get the 403 "Just a moment..." challenge page. Verified against the deployed `rekindle.ink/api/proxy`.
-- `got-scraping` (Chrome TLS + HTTP/2 fingerprint) gets the real page and JSON, from both a residential IP and Cloud Run.
+- `got-scraping` (Chrome TLS + HTTP/2 fingerprint) gets the real page and JSON, from a residential IP, Cloud Run and Northflank.
 - Every public proxy is dead: `test.cors.workers.dev` → Cloudflare `error 1027` (account banned for abuse), `corsproxy.io` → Cloudflare challenge, `codetabs`/`allorigins` → 522, `cors.lol` → 429, several others → 404/DNS fail.
 - `en.akinator.com` sends **no** `Access-Control-Allow-Origin`, so the browser can never call it directly. A relay is unavoidable.
-- Cloudflare Workers cannot fake a Chrome TLS fingerprint, so the old `workers/rekindle-akinator/` worker (still in the repo, undeployed) would fail even if redeployed. That is why the relay lives on Firebase (Node) instead.
+- Cloudflare Workers cannot fake a Chrome TLS fingerprint, so the old `workers/rekindle-akinator/` worker (still in the repo, undeployed) would fail even if redeployed. That is why the relay is a plain Node process on Northflank.
 
 ### The relay
-Defined in `firebase-functions/akinator.js`, exported as `exports.akinator` at the end of `firebase-functions/index.js`.
+Source lives in `akinator-service/`: `akinator.js` (the handler), `app.js` (Express app) and `server.js` (the `$PORT` listener). It has no Firebase/GCP dependency; the same image runs on any Node host.
 
-- URL: `https://us-central1-rekindle-dd1fa.cloudfunctions.net/akinator`
-- Deploy: `firebase deploy --only functions:akinator` · remove: `firebase functions:delete akinator`
-- `onRequest`, us-central1, 256 MiB, 30 s, **`maxInstances: 5`**, no min-instances (idle cost $0).
+- URL: `https://p01--akinator--lcgj9cjkcx8q.code.run`
+- Host: Northflank Developer Sandbox, US East. Dockerfile build; **build context `akinator-service`**, Dockerfile path `/akinator-service/Dockerfile`; port `8080` HTTP; health check `/healthz`; `nf-compute-20` (0.2 vCPU / 512 MB), always-on.
+- Deploy: push to `main`, then rebuild/redeploy the service in Northflank. Verify with `cd akinator-service && ./smoke.sh <url>`.
+- **Cost:** $0 on the Sandbox; no request metering. A card is required for identity verification, and the free plan blocks overages rather than billing.
 - **Stateless**: one HTTP request → one Akinator request. The `session` token is all that is needed (verified with and without cookies), so no Firestore/RTDB is used.
-- **Quota:** zero Firestore/RTDB/Auth/Storage usage. A game is ~21 invocations; the Cloud Functions free tier (2M invocations / 400k GB-s / 200k CPU-s per month) covers roughly **40,000 games/month**.
 - CORS allowlist: the four `rekindle.ink` origins + localhost. OPTIONS answered manually.
-- Per-instance token bucket (~120 burst, 2 req/s per IP) as a cheap abuse guard; keyed off the first `x-forwarded-for` entry so Cloud Run can't collapse all users into one bucket.
-- `got-scraping` is imported lazily so the other functions don't pay its cold start.
-- In `akinator.html`, the relay is always tried first. The dead public proxies are only a fallback for a relay *reachability* failure (`network`/`relay_error`); `session_expired`, `bad_request`, `rate_limited` and all `upstream_*` errors stop immediately so users don't stare at ~45 s of proxy timeouts before the same error.
+- Per-process token bucket (~120 burst, 2 req/s per IP) as a cheap abuse guard; keyed off the first `x-forwarded-for` entry.
+- `got-scraping` is imported lazily so the process starts before the first game request.
+- In `akinator.html`, the relay is now the **only** transport; the dead public proxies were removed on 2026-10-21. `BACKEND_URL` is the Northflank URL.
 
 Request/response contract:
 
@@ -88,9 +97,10 @@ Errors: `{error:'session_expired'|'bad_request'|'upstream_blocked'|'upstream_tim
 - `X-Requested-With: XMLHttpRequest`, `Origin` and `Referer` (…/game, or …/theme-selection for `/game`) are all sent by the relay.
 
 ### Testing
-- Local harness: load `firebase-functions/akinator.js`, call `akinatorHandler({method:'POST', body, headers:{origin:'https://rekindle.ink'}, ip}, fakeRes)`. This exercises the real upstream.
-- Deployed: `curl -X POST https://us-central1-rekindle-dd1fa.cloudfunctions.net/akinator -H 'Content-Type: application/json' -H 'Origin: https://rekindle.ink' --data '{"action":"start","region":"en"}'`.
-- The page can be tested without a browser by running its extracted inline script in a `vm` sandbox with a fake DOM (see the 2026-10 fix). The proxy fallback path can't be tested meaningfully while the proxies are dead.
+- `node scripts/test-akinator.js` — 21 offline tests (parsers, CORS, validation, per-IP rate limit). Part of `npm test`.
+- Local: `cd akinator-service && npm ci && PORT=8080 npm start`.
+- Deployed: `cd akinator-service && ./smoke.sh https://p01--akinator--lcgj9cjkcx8q.code.run` — health, CORS preflight, start, answer and back against the real Akinator.
+- Full game without a browser: run the extracted inline script in a `vm` sandbox with a fake DOM (the 2026-10 harness); the fast path is to play on beta/prod.
 
 ---
 
@@ -231,7 +241,7 @@ connection before headers matter.)
 
 **Fix:** `firebase-functions/standardebooks.js`, exported as `standardebooks`
 (`onRequest`, us-central1, 256 MiB, 60 s). Google Cloud egress is allowed, the
-same workaround already used for Akinator (see `firebase-functions/akinator.js`),
+same workaround family as the Akinator relay (see `akinator-service/`),
 without needing a TLS fingerprint — plain `fetch` works.
 
 - Contract: `GET|HEAD /?url=https%3A%2F%2Fstandardebooks.org%2F...`
