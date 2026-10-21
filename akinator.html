@@ -483,65 +483,15 @@
         var backButton = document.getElementById('back-btn');
         var resultPhoto = document.getElementById('result-photo');
 
-        // Chrome-TLS relay (firebase-functions/akinator.js). Akinator's Cloudflare
-        // blocks every plain HTTP client by TLS fingerprint, so the public proxies
-        // below are only a best-effort fallback (nearly all are dead).
+        // Chrome-TLS relay (akinator-service/). Akinator's Cloudflare blocks
+        // every plain HTTP client by TLS fingerprint, so this Node relay
+        // (got-scraping) is the only transport. The old public CORS proxies
+        // were verified dead in 2026-10 and have been removed: they only added
+        // ~45s of spinner before the same error.
+        //
+        // NOTE: this still points at the legacy Firebase function until the
+        // Northflank service is live; the cutover changes this one line.
         var BACKEND_URL = 'https://us-central1-rekindle-dd1fa.cloudfunctions.net/akinator';
-
-        var CORS_PROXIES = [
-            { base: 'https://test.cors.workers.dev/?', encode: false },
-            { base: 'https://corsproxy.io/?url=', encode: true },
-            { base: 'https://api.codetabs.com/v1/proxy?quest=', encode: true }
-        ];
-
-        var activeTransport = null;
-
-        function regionInfo(region) {
-            var parts = String(region || 'en').split('_');
-            var sid = 1;
-            if (parts[1] === 'objects') sid = 2;
-            else if (parts[1] === 'animals') sid = 14;
-            return { baseUrl: 'https://' + parts[0] + '.akinator.com', sid: sid };
-        }
-
-        function buildForm(params) {
-            var parts = [];
-            for (var key in params) {
-                if (Object.prototype.hasOwnProperty.call(params, key)) {
-                    parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(params[key]));
-                }
-            }
-            return parts.join('&');
-        }
-
-        function extractFirst(text, patterns) {
-            var best = null;
-            for (var i = 0; i < patterns.length; i++) {
-                var flags = patterns[i].flags;
-                if (flags.indexOf('g') === -1) flags += 'g';
-                var regex = new RegExp(patterns[i].source, flags);
-                var match;
-                while ((match = regex.exec(text)) !== null) {
-                    if (match[1] && (!best || match[1].length > best.length)) {
-                        best = match[1];
-                    }
-                    if (match.index === regex.lastIndex) regex.lastIndex++;
-                }
-            }
-            return best;
-        }
-
-        function parseAnswerLabels(html) {
-            var ids = ['a_yes', 'a_no', 'a_dont_know', 'a_probably', 'a_probaly_not'];
-            var answers = [];
-            for (var i = 0; i < ids.length; i++) {
-                var regex = new RegExp("<a[^>]*id=[\"']" + ids[i] + "[\"'][^>]*>([\\s\\S]*?)<\\/a>", "i");
-                var match = html.match(regex);
-                var label = match && match[1] ? match[1].replace(/<[^>]*>/g, '').trim() : null;
-                answers.push(label || null);
-            }
-            return answers;
-        }
 
         function fetchWithTimeout(url, options, ms) {
             options = options || {};
@@ -560,22 +510,6 @@
                 clearTimeout(timer);
                 throw err;
             });
-        }
-
-        function proxyRequest(proxy, target, formBody) {
-            var url = proxy.base + (proxy.encode ? encodeURIComponent(target) : target);
-            return fetchWithTimeout(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: formBody
-            }, 15000);
-        }
-
-        function transportKey(t) {
-            return t.type === 'backend' ? 'backend' : t.proxy.base;
         }
 
         function backendRequest(payload, timeoutMs) {
@@ -614,208 +548,42 @@
             });
         }
 
-        async function startViaProxy(proxy) {
-            var info = regionInfo(state.region);
-            var form = buildForm({ cm: state.childMode ? 'true' : 'false', sid: info.sid, anim: 'false' });
-            var res = await proxyRequest(proxy, info.baseUrl + '/game', form);
-            if (!res.ok) throw new Error('Proxy returned HTTP ' + res.status);
-            var html = await res.text();
-            var session = extractFirst(html, [
-                /session:\s*'([^']+)'/,
-                /session\s*[:=]\s*"([^"]+)"/,
-                /uid_ext_session\s*=\s*'([^']+)'/,
-                /id=["']session["'][^>]*value=["']([^"']+)["']/i,
-                /value=["']([^"']+)["'][^>]*id=["']session["']/i
-            ]);
-            var question = extractFirst(html, [
-                /<p[^>]*id=["']question-label["'][^>]*>([\s\S]*?)<\/p>/i,
-                /id=["']question-label["'][^>]*>([\s\S]*?)<\/(?:p|div)/i
-            ]);
-            if (!session || !question) {
-                throw new Error('Could not parse Akinator session via proxy');
-            }
-            return {
-                session: session,
-                question: question.trim(),
-                baseUrl: info.baseUrl,
-                sid: info.sid,
-                step: 1,
-                progression: 0,
-                answers: parseAnswerLabels(html)
-            };
-        }
-
-        function normalizeAction(data) {
-            var out = {
-                step: parseInt(data.step, 10),
-                progression: parseFloat(data.progression),
-                question: data.question ? String(data.question) : ''
-            };
-            if (isNaN(out.step) || out.step < 1) out.step = state.step;
-            if (isNaN(out.progression)) out.progression = state.progression;
-            if (data.id_proposition || data.name_proposition) {
-                out.guess = {
-                    id: data.id_proposition || data.id_base_proposition || '',
-                    name: data.name_proposition || '',
-                    description: data.description_proposition || '',
-                    photo: data.photo || '',
-                    noQuestion: String(data.no_question) === '1'
-                };
-            }
-            return out;
-        }
-
-        async function actionViaProxy(proxy, endpoint, params) {
-            var info = regionInfo(state.region);
-            var res = await proxyRequest(proxy, info.baseUrl + endpoint, buildForm(params));
-            if (!res.ok) throw new Error('Proxy returned HTTP ' + res.status);
-            var text = await res.text();
-            var data;
-            try {
-                data = JSON.parse(text);
-            } catch (e) {
-                var parseErr = new Error('Akinator did not recognise this game session');
-                parseErr.code = 'session_expired';
-                throw parseErr;
-            }
-            if (!data || typeof data !== 'object') {
-                throw new Error('Akinator returned an unexpected response via proxy');
-            }
-            if (data.completion === 'KO') {
-                var koErr = new Error('Akinator did not recognise this game session');
-                koErr.code = 'session_expired';
-                throw koErr;
-            }
-            return normalizeAction(data);
-        }
-
-        function getTransports() {
-            var list = [{ type: 'backend' }];
-            var i;
-            for (i = 0; i < CORS_PROXIES.length; i++) {
-                list.push({ type: 'proxy', proxy: CORS_PROXIES[i] });
-            }
-            if (activeTransport) {
-                for (i = 0; i < list.length; i++) {
-                    if (transportKey(list[i]) === transportKey(activeTransport)) {
-                        var preferred = list.splice(i, 1)[0];
-                        list.unshift(preferred);
-                        break;
-                    }
-                }
-            }
-            return list;
-        }
-
-        async function withTransport(fn) {
-            var transports = getTransports();
-            var lastErr = null;
-            for (var i = 0; i < transports.length; i++) {
-                try {
-                    var result = await fn(transports[i]);
-                    activeTransport = transports[i];
-                    return result;
-                } catch (e) {
-                    console.warn('Akinator transport failed (' + transportKey(transports[i]) + '):', e.message || e);
-                    // These are not transport problems: the session is dead, the
-                    // request is invalid, or Akinator itself failed. The public
-                    // fallback proxies are all dead, so retrying them would only
-                    // add ~45s of spinner before the same error.
-                    if (e && (e.code === 'session_expired' || e.code === 'bad_request' ||
-                        e.code === 'rate_limited' || e.code === 'upstream_blocked' ||
-                        e.code === 'upstream_timeout' || e.code === 'upstream_parse')) {
-                        throw e;
-                    }
-                    lastErr = e;
-                    if (activeTransport && transportKey(activeTransport) === transportKey(transports[i])) {
-                        activeTransport = null;
-                    }
-                }
-            }
-            throw lastErr || new Error(translate('akinator.error.network', 'Network error. Please try again.'));
-        }
-
         function apiStart() {
-            return withTransport(function (t) {
-                if (t.type === 'backend') return startViaBackend();
-                return startViaProxy(t.proxy);
-            });
+            return startViaBackend();
         }
 
         function apiAnswer(index) {
-            return withTransport(function (t) {
-                var info = regionInfo(state.region);
-                var cm = state.childMode ? 'true' : 'false';
-                if (t.type === 'backend') {
-                    return backendRequest({
-                        action: 'answer',
-                        region: state.region,
-                        childMode: state.childMode,
-                        session: state.session,
-                        step: state.step,
-                        progression: state.progression,
-                        answer: index,
-                        stepLast: state.stepLast || ''
-                    });
-                }
-                return actionViaProxy(t.proxy, '/answer', {
-                    step: state.step,
-                    progression: state.progression,
-                    sid: info.sid,
-                    cm: cm,
-                    answer: index,
-                    step_last_proposition: state.stepLast || '',
-                    session: state.session
-                });
+            return backendRequest({
+                action: 'answer',
+                region: state.region,
+                childMode: state.childMode,
+                session: state.session,
+                step: state.step,
+                progression: state.progression,
+                answer: index,
+                stepLast: state.stepLast || ''
             });
         }
 
         function apiBack() {
-            return withTransport(function (t) {
-                var info = regionInfo(state.region);
-                var cm = state.childMode ? 'true' : 'false';
-                if (t.type === 'backend') {
-                    return backendRequest({
-                        action: 'back',
-                        region: state.region,
-                        childMode: state.childMode,
-                        session: state.session,
-                        step: state.step,
-                        progression: state.progression
-                    });
-                }
-                return actionViaProxy(t.proxy, '/cancel_answer', {
-                    step: state.step,
-                    progression: state.progression,
-                    sid: info.sid,
-                    cm: cm,
-                    session: state.session
-                });
+            return backendRequest({
+                action: 'back',
+                region: state.region,
+                childMode: state.childMode,
+                session: state.session,
+                step: state.step,
+                progression: state.progression
             });
         }
 
         function apiContinue() {
-            return withTransport(function (t) {
-                var info = regionInfo(state.region);
-                var cm = state.childMode ? 'true' : 'false';
-                if (t.type === 'backend') {
-                    return backendRequest({
-                        action: 'continue',
-                        region: state.region,
-                        childMode: state.childMode,
-                        session: state.session,
-                        step: state.step,
-                        progression: state.progression
-                    });
-                }
-                return actionViaProxy(t.proxy, '/exclude', {
-                    step: state.step,
-                    progression: state.progression,
-                    sid: info.sid,
-                    cm: cm,
-                    session: state.session,
-                    forward_answer: '1'
-                });
+            return backendRequest({
+                action: 'continue',
+                region: state.region,
+                childMode: state.childMode,
+                session: state.session,
+                step: state.step,
+                progression: state.progression
             });
         }
 

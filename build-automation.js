@@ -34,7 +34,10 @@ const ignoreList = [
     //  /service-account-social.json   (rekindle-socials admin key)
     //  /firebase-functions/.env       (OPENAI_API_KEY + the social admin key)
     'service-account.json', 'service-account-social.json', '.env',
-    'firebase-functions', 'firebase-social.json'
+    'firebase-functions', 'firebase-social.json',
+    // Akinator relay backend (Node container, deployed to Northflank — never
+    // static-hosted; it also carries package.json/node_modules).
+    'akinator-service'
 ];
 
 // Files/dirs that must never appear in a deploy directory. The build fails
@@ -43,7 +46,8 @@ const ignoreList = [
 const FORBIDDEN_IN_DEPLOY = [
     'service-account.json', 'service-account-social.json', '.env',
     'firebase-functions', 'firebase-social.json', 'firebase.json',
-    'rtdb-rules.json', 'firestore.rules', 'workers', 'scripts', 'admin'
+    'rtdb-rules.json', 'firestore.rules', 'workers', 'scripts', 'admin',
+    'akinator-service'
 ];
 
 // DOM APIs used by the app that WebKit ~534 (Kobo / pre-Chromium Kindle)
