@@ -1321,6 +1321,74 @@
             display: flex;
         }
 
+        /* DM SPLIT VIEW
+           Conversation names on the left, the open thread on the right. Enabled
+           by applyDmLayout() only when the .window is wide enough; below that
+           (Kindle portrait / phones) the single-pane inbox+thread flow stays.
+           CSS Grid (not flex) so the 2px gutter is allowed on Chromium 75. */
+        #app-layout.dm-split {
+            display: grid;
+            grid-template-columns: 230px 1fr;
+            grid-template-rows: auto 1fr;
+        }
+
+        #app-layout.dm-split>.room-header {
+            grid-column: 1 / -1;
+            grid-row: 1;
+        }
+
+        #app-layout.dm-split>#messages-view {
+            grid-column: 1;
+            grid-row: 2;
+            display: flex;
+            border-right: 2px solid black;
+        }
+
+        #app-layout.dm-split>#chat-view,
+        #app-layout.dm-split>#dm-empty-pane {
+            grid-column: 2;
+            grid-row: 2;
+        }
+
+        /* Placeholder shown in the right pane until a conversation is picked. */
+        #dm-empty-pane {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        #app-layout.dm-split>#dm-empty-pane.visible {
+            display: flex;
+        }
+
+        /* The sidebar replaces the inbox, so Back and the toolbar title would
+           only eat space at this width. */
+        #app-layout.dm-split #dm-back-btn,
+        #app-layout.dm-split .dm-toolbar-title {
+            display: none;
+        }
+
+        #app-layout.dm-split .dm-toolbar {
+            padding: 6px;
+        }
+
+        #app-layout.dm-split .dm-new-btn {
+            width: 100%;
+        }
+
+        /* Selected conversation in the sidebar. */
+        .dm-row.active {
+            background: #e5e5e5;
+            box-shadow: inset 4px 0 0 black;
+        }
+
         .dm-toolbar {
             flex-shrink: 0;
             border-bottom: 2px solid black;
@@ -1379,6 +1447,22 @@
         .dm-row-main {
             flex-grow: 1;
             min-width: 0;
+        }
+
+        /* Conversation-list avatar: same 32x32 pixel art as the chat bubbles,
+           rendered as a canvas on first draw and an <img> (cached data URL)
+           afterwards. */
+        .dm-row-avatar {
+            width: 32px;
+            height: 32px;
+            border: 2px solid black;
+            background: white;
+            margin-right: 10px;
+            flex-shrink: 0;
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: crisp-edges;
         }
 
         .dm-row-name {
@@ -1626,8 +1710,8 @@
             <div id="chat-view">
 
                 <div id="dm-thread-header">
-                    <button type="button" class="dm-back-btn" onclick="switchKindlechatTab('messages')"
-                        data-i18n="kindlechat.dm.back">Back</button>
+                    <button type="button" id="dm-back-btn" class="dm-back-btn"
+                        onclick="switchKindlechatTab('messages')" data-i18n="kindlechat.dm.back">Back</button>
                     <div id="dm-thread-name" class="dm-thread-name">Messages</div>
                     <button type="button" id="dm-block-btn" class="dm-back-btn" style="margin-left:10px; margin-right:0;"
                         onclick="dmAction('block')" data-i18n="kindlechat.dm.block">Block</button>
@@ -1706,6 +1790,10 @@
                 <div id="dm-list" class="dm-list">
                     <div class="dm-empty" data-i18n="kindlechat.dm.loading">Loading messages...</div>
                 </div>
+            </div>
+
+            <div id="dm-empty-pane">
+                <div data-i18n="kindlechat.dm.select_conversation">Select a conversation</div>
             </div>
         </div>
 
@@ -2102,6 +2190,7 @@
         var dmAllowRequests = true;
         var dmPartnerName = '';
         var dmNameCache = {};
+        var dmRowAvatarCache = {};       // uid -> data URL of the sidebar avatar
         var generalNeedsReload = false;
 
         function markAllAsRead() {
@@ -2319,9 +2408,15 @@
                 dmCanInitiate = false;
                 dmThreads = {};
                 dmNameCache = {};
+                dmRowAvatarCache = {};
                 currentRoomId = 'general';
                 var dmTab = document.getElementById('messages-tab');
                 if (dmTab) dmTab.style.display = 'none';
+                // Drop the split layout with the DM session, or the general chat
+                // would render in the right-hand pane.
+                var msgsView = document.getElementById('messages-view');
+                if (msgsView) msgsView.classList.remove('active');
+                applyDmLayout();
                 loadMessages();
             }
 
@@ -3309,13 +3404,16 @@
                 currentRoomId = 'general';
                 loadMessages();
             }
+            applyDmLayout();
         }
 
         function openMessagesView() {
             if (galleryState.open) closeGalleryView();
-            // Opening the inbox closes an open thread so its listener does not
-            // keep running behind the inbox.
-            if (currentRoomId !== 'general' || dmThreadState) {
+            // Single-pane layout: the inbox replaces an open thread so its
+            // listener does not keep running behind the list. In the split
+            // layout the conversation stays on the right.
+            var split = dmSplitFits();
+            if (!split && (currentRoomId !== 'general' || dmThreadState)) {
                 closeDmThread();
                 currentRoomId = 'general';
                 generalNeedsReload = true;
@@ -3324,11 +3422,12 @@
             var chatView = document.getElementById('chat-view');
             var galleryView = document.getElementById('gallery-view');
             if (galleryView) galleryView.classList.remove('active');
-            if (chatView) chatView.style.display = 'none';
+            if (chatView) chatView.style.display = (split && dmThreadOpen()) ? 'flex' : 'none';
             if (messagesView) messagesView.classList.add('active');
             setActiveTab('messages');
             openDmSafetyIfNeeded();
             renderDmInbox();
+            applyDmLayout();
         }
 
         function openGalleryView() {
@@ -3353,6 +3452,7 @@
             } else {
                 attachGalleryRemovedListener();
             }
+            applyDmLayout();
         }
 
         function closeGalleryView() {
@@ -3512,9 +3612,79 @@
             return ts ? formatChatTime(ts) : dmT('kindlechat.dm.conversation', 'Conversation');
         }
 
+        // --- DM SPLIT LAYOUT (conversation list | open thread) ---
+        // Two panes need room for a 230px sidebar plus a readable bubble column.
+        // The .window is measured (not the viewport): it is centered and capped
+        // at 900px, and fullscreen/zoom change the usable layout width, so the
+        // viewport is a poor proxy for how much space the chat actually has.
+        var DM_SPLIT_MIN_WIDTH = 600;
+        var dmLayoutResizeTimer = null;
+
+        function dmSplitFits() {
+            var win = document.querySelector('.window');
+            var width = (win && win.clientWidth) ? win.clientWidth : window.innerWidth;
+            return width >= DM_SPLIT_MIN_WIDTH;
+        }
+
+        function dmThreadOpen() {
+            return !!(dmThreadState && currentRoomId && currentRoomId !== 'general');
+        }
+
+        function markActiveDmRow() {
+            var list = document.getElementById('dm-list');
+            if (!list) return;
+            var rows = list.querySelectorAll('.dm-row');
+            for (var i = 0; i < rows.length; i++) {
+                var on = rows[i].getAttribute('data-thread-id') === currentRoomId;
+                if (on) rows[i].classList.add('active');
+                else rows[i].classList.remove('active');
+            }
+        }
+
+        function applyDmLayout() {
+            var layout = document.getElementById('app-layout');
+            var messagesView = document.getElementById('messages-view');
+            if (!layout || !messagesView) return;
+
+            var threadOpen = dmThreadOpen();
+            var onMessages = messagesView.classList.contains('active') || threadOpen;
+            var split = onMessages && dmSplitFits();
+
+            if (split) {
+                layout.classList.add('dm-split');
+                // The sidebar carries the list, so keep it mounted while a
+                // thread is open in the right pane.
+                messagesView.classList.add('active');
+            } else {
+                layout.classList.remove('dm-split');
+                // Below the breakpoint the thread and the inbox are the same
+                // pane: the open thread must own it (single-pane behaviour).
+                if (threadOpen) messagesView.classList.remove('active');
+            }
+
+            var pane = document.getElementById('dm-empty-pane');
+            if (pane) {
+                if (split && !threadOpen) pane.classList.add('visible');
+                else pane.classList.remove('visible');
+            }
+
+            markActiveDmRow();
+        }
+
+        window.addEventListener('resize', function () {
+            if (dmLayoutResizeTimer) clearTimeout(dmLayoutResizeTimer);
+            dmLayoutResizeTimer = setTimeout(function () {
+                dmLayoutResizeTimer = null;
+                applyDmLayout();
+            }, 150);
+        });
+
         function renderDmInbox() {
             var list = document.getElementById('dm-list');
             if (!list || !currentUser) return;
+            // In the split layout the list persists beside the thread and is
+            // rebuilt on every inbox update; keep the reader's scroll position.
+            var prevScroll = list.scrollTop;
             list.innerHTML = '';
 
             var ids = [];
@@ -3541,9 +3711,12 @@
             ids.forEach(function (threadId) {
                 var row = dmThreads[threadId];
                 var rowEl = document.createElement('div');
-                rowEl.className = 'dm-row';
+                rowEl.className = 'dm-row' + (threadId === currentRoomId ? ' active' : '');
                 rowEl.setAttribute('data-thread-id', threadId);
                 rowEl.onclick = function () { openDmThread(threadId); };
+
+                // Profile picture, like the general chat's message avatars.
+                rowEl.appendChild(makeDmRowAvatar(row.otherUid));
 
                 var main = document.createElement('div');
                 main.className = 'dm-row-main';
@@ -3582,6 +3755,7 @@
                 fragment.appendChild(rowEl);
             });
             list.appendChild(fragment);
+            list.scrollTop = prevScroll;
         }
 
         function openDmThread(threadId) {
@@ -3602,12 +3776,18 @@
 
             var messagesView = document.getElementById('messages-view');
             var chatView = document.getElementById('chat-view');
-            if (messagesView) messagesView.classList.remove('active');
+            if (messagesView) {
+                // Split layout: the conversation list stays in the left pane, so
+                // the thread opens beside it instead of replacing it.
+                if (dmSplitFits()) messagesView.classList.add('active');
+                else messagesView.classList.remove('active');
+            }
             if (chatView) chatView.style.display = 'flex';
             setActiveTab('messages');
             updateDmHeader();
             updateDmBanner();
             updateDmComposer();
+            applyDmLayout();
             loadMessages();
         }
 
@@ -4054,6 +4234,56 @@
                 });
         }
 
+        // Profile picture next to each DM bubble, drawn exactly like the general
+        // chat: hash fallback immediately, then the user's customAvatar /
+        // avatarSeed from /user_cards (theme.js caches the lookup for both).
+        function resolveDmAvatar(uid, canvas) {
+            if (!uid || !canvas) return;
+            drawAvatar(canvas, uid);
+            if (typeof window.rekindleFetchUserCard !== 'function') return;
+            window.rekindleFetchUserCard(rtdb, uid, function (card) {
+                // The bubble may have been removed (thread switch / paging) while
+                // the card lookup was in flight.
+                if (!card || !canvas.parentNode) return;
+                drawAvatar(canvas, card.customAvatar || card.avatarSeed || uid);
+            });
+        }
+
+        // Sidebar (conversation list) avatars. The inbox is re-rendered on every
+        // thread update, so the finished 32x32 avatar is cached as a data URL
+        // per uid (declared with the other DM state) and reused as an <img>:
+        // each redraw costs ~256 fillRects and the Kindle runs a JIT-less V8,
+        // so only the first render pays for them.
+        function makeDmRowAvatar(uid) {
+            var cached = dmRowAvatarCache[uid];
+            if (cached) {
+                var img = document.createElement('img');
+                img.className = 'dm-row-avatar';
+                img.src = cached;
+                return img;
+            }
+
+            var canvas = document.createElement('canvas');
+            canvas.className = 'dm-row-avatar';
+            canvas.width = 32;
+            canvas.height = 32;
+            drawAvatar(canvas, uid); // instant hash fallback, works detached
+
+            if (!uid || typeof window.rekindleFetchUserCard !== 'function') return canvas;
+            window.rekindleFetchUserCard(rtdb, uid, function (card) {
+                // Nothing to cache if the row was rebuilt and no card came back:
+                // a cached hash would then shadow the real avatar for the session.
+                if (!card && !canvas.parentNode) return;
+                var seed = (card && (card.customAvatar || card.avatarSeed)) || uid;
+                drawAvatar(canvas, seed);
+                try {
+                    var url = canvas.toDataURL ? canvas.toDataURL() : '';
+                    if (url) dmRowAvatarCache[uid] = url;
+                } catch (e) { /* tainted canvas / no encoder: keep redrawing */ }
+            });
+            return canvas;
+        }
+
         function renderDmMessage(msg, msgId, returnOnly) {
             var historyEl = document.getElementById('chat-history');
             if (!historyEl || !msg) return null;
@@ -4081,27 +4311,48 @@
             meta.appendChild(timeEl);
             el.appendChild(meta);
 
-            var bubble = document.createElement('div');
-            bubble.className = 'msg-bubble';
-            bubble.textContent = censorText(msg.text || '');
-            el.appendChild(bubble);
-            if (typeof window.renderEmojis === 'function') {
-                try { window.renderEmojis(bubble); } catch (e) { }
-            }
+            var avatarId = 'dm-avatar-' + msgId;
+            var avatarEl = document.createElement('canvas');
+            avatarEl.id = avatarId;
+            avatarEl.className = 'msg-avatar';
+            avatarEl.width = 32;
+            avatarEl.height = 32;
+            avatarEl.onclick = function () { openUserProfile(msg.uid || ''); };
+
+            var rowEl = document.createElement('div');
+            rowEl.className = 'msg-row';
+            rowEl.appendChild(avatarEl);
+
+            // Same order as the general chat: action buttons sit between the
+            // avatar and the bubble, so the report button is no longer a row
+            // underneath the message.
+            var contentEl = document.createElement('div');
+            contentEl.style.cssText = 'display:flex; align-items:center; min-width:0;';
 
             if (!isSelf && msg.uid) {
-                var actions = document.createElement('div');
-                actions.className = 'msg-row';
                 var reportBtn = document.createElement('div');
                 reportBtn.className = 'report-btn';
                 reportBtn.title = dmT('kindlechat.btn.report', 'Report');
                 reportBtn.textContent = '!';
                 reportBtn.onclick = function () { openDmReport(msgId); };
-                actions.appendChild(reportBtn);
-                el.appendChild(actions);
+                contentEl.appendChild(reportBtn);
             }
 
+            var bubble = document.createElement('div');
+            bubble.className = 'msg-bubble';
+            bubble.textContent = censorText(msg.text || '');
+            contentEl.appendChild(bubble);
+            if (typeof window.renderEmojis === 'function') {
+                try { window.renderEmojis(bubble); } catch (e) { }
+            }
+
+            rowEl.appendChild(contentEl);
+            el.appendChild(rowEl);
+
             if (!returnOnly) historyEl.appendChild(el);
+            // Draw after the node is in the document: paginated renders append
+            // their fragment synchronously after this function returns.
+            setTimeout(function () { resolveDmAvatar(msg.uid, avatarEl); }, 0);
             return el;
         }
 
@@ -4776,8 +5027,11 @@
         }
 
         // --- DRAW AVATAR (Ported from Neighbourhood/Topics) ---
+        // Accepts an element id or the canvas element itself, so callers can
+        // pre-render while detached (the DM sidebar caches avatars as data URLs
+        // and the bubble helper redraws a canvas it already holds).
         function drawAvatar(canvasId, seed) {
-            var canvas = document.getElementById(canvasId);
+            var canvas = (canvasId && canvasId.nodeType === 1) ? canvasId : document.getElementById(canvasId);
             if (!canvas) return;
             var ctx = canvas.getContext('2d');
             ctx.fillStyle = '#fff';
@@ -6524,6 +6778,7 @@
 
         function toggleFullScreen() {
             document.querySelector('.window').classList.toggle('fullscreen');
+            applyDmLayout();
         }
 
         function showConfirm(msg, onOk, onCancel) {

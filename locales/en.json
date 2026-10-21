@@ -1562,6 +1562,7 @@
   "kindlechat.dm.safety_body": "Only ReKindle+ members can start a conversation, and you choose whether to accept each request. Messages are screened, but never share personal information such as your address, school or passwords. You can block or report anyone.",
   "kindlechat.dm.safety_ok": "I understand",
   "kindlechat.dm.safety_title": "Private messages",
+  "kindlechat.dm.select_conversation": "Select a conversation",
   "kindlechat.dm.self": "You can't message yourself.",
   "kindlechat.dm.send_failed": "Unable to send message.",
   "kindlechat.dm.send_request": "Send Request",

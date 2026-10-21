@@ -281,3 +281,107 @@ New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).
 - **Send token** uses the cached `getIdToken()` and force-refreshes only when the worker answers
   401/403 (one retry). The same pattern is in `neighbourhood.html` (comment + post) and
   `topics.html` (comment).
+
+## 2026-10-21: DM avatars (bubbles + sidebar) + split (list | conversation) layout
+
+DMs only; all changes are in `kindlechat.html`.
+
+### DM profile pictures (same as the general chat)
+
+`renderDmMessage()` used to append the bubble straight to `.msg`, so DM threads had no avatars while the
+general chat showed a 32×32 canvas beside every bubble. It now builds the same `.msg-row` structure as
+`renderMessage()`:
+
+```html
+<div class="msg other">
+  <div class="msg-meta">name · time</div>
+  <div class="msg-row">
+    <canvas class="msg-avatar" id="dm-avatar-{msgId}" width="32" height="32"></canvas>
+    <div style="display:flex; align-items:center; min-width:0">
+      <div class="report-btn">!</div>   <!-- not on your own messages -->
+      <div class="msg-bubble">…</div>
+    </div>
+  </div>
+</div>
+```
+
+- `.msg.self .msg-row { flex-direction: row-reverse }` (existing CSS) puts your own avatar on the right,
+  exactly like the general chat.
+- `resolveDmAvatar(uid, canvas)` draws the `uid` hash immediately (blank canvas never shows), then
+  `window.rekindleFetchUserCard(rtdb, uid, …)` swaps in `card.customAvatar || card.avatarSeed || uid`.
+  `rtdb` is the **primary** project (`user_cards`), same source the general chat reads; theme.js caches the
+  lookup, so a thread costs no extra reads.
+- The card callback checks `canvas.parentNode` before redrawing: paging/thread switching can remove the
+  bubble while the lookup is in flight.
+- The draw is deferred with `setTimeout(…, 0)` because paginated renders (`returnOnly === true`) are
+  inserted into a fragment *after* `renderDmMessage` returns; drawing immediately would find no canvas.
+- The report button moved from its own row under the bubble into the content div (between avatar and
+  bubble), matching the general chat's action-button position.
+- Do **not** fork `drawAvatar()` for DMs: the one copy already renders float `customAvatar` grids as
+  grayscale (see [avatars.md](avatars.md)). It now also accepts the canvas **element** as its first
+  argument (an id still works) so callers can draw while detached — the bubble helper and the sidebar
+  cache below both rely on that.
+
+### Sidebar (conversation list) avatars
+
+Every `#dm-list` row starts with the same 32×32 avatar (`canvas.dm-row-avatar` → `img.dm-row-avatar`
+once cached), followed by the existing name/status block and unread dot. `makeDmRowAvatar(uid)`:
+
+1. If `dmRowAvatarCache[uid]` holds a data URL, returns an `<img src=…>` — no drawing at all.
+2. Otherwise creates a 32×32 canvas, draws the `uid` hash immediately (works detached), and asks
+   `rekindleFetchUserCard` for the card. When it answers it redraws with
+   `customAvatar || avatarSeed || uid` and stores `canvas.toDataURL()` in the cache.
+3. Skips caching only when the row was rebuilt **and** no card came back (`!card && !canvas.parentNode`),
+   so a transient hash avatar can't shadow the real one for the session.
+
+Why the cache: `renderDmInbox()` rebuilds all rows on every inbox update (now also while a thread is
+open in the split view), and one `drawAvatar()` costs up to ~256 `fillRect` calls. The Kindle runs a
+JIT-less V8, so the first render pays for the draws and every later render reuses the PNG data URLs.
+`dmRowAvatarCache` is declared with the other DM state and cleared on sign-out alongside `dmNameCache`.
+
+The sidebar column is **230px** (not 210px) so a 36px avatar + 10px gap still leaves room for a full
+15-character username before the ellipsis, plus the unread dot.
+
+### Split layout: names left, conversation right
+
+The Messages tab can now show the conversation list beside the open thread:
+
+```text
+#app-layout.dm-split           (display: grid; grid-template-columns: 230px 1fr; rows: auto 1fr)
+├─ .room-header                (grid-column: 1 / -1)
+├─ #messages-view              (col 1 — dm-toolbar + #dm-list)
+├─ #chat-view                  (col 2 — DM thread + composer; the general chat's usual home)
+└─ #dm-empty-pane.visible      (col 2 — placeholder until a conversation is picked)
+```
+
+- `applyDmLayout()` adds/removes `dm-split` and the pane's `visible` class. It runs from
+  `openMessagesView`, `openDmThread`, `openGeneralChat`, `openGalleryView`, `toggleFullScreen`, the
+  debounced (150 ms) `resize` listener, and the sign-out reset.
+- **Breakpoint:** `DM_SPLIT_MIN_WIDTH = 600`, measured on `.window.clientWidth`, **not** the viewport —
+  the window is centered, capped at 900px, and fullscreen/zoom change the usable layout width (the
+  Kindle can be 800px wide with a 760px window, or 600px wide in portrait).
+- Below the breakpoint the original single-pane flow is unchanged: `#messages-view` is the inbox,
+  opening a thread hides it and shows `#chat-view`; `openMessagesView` closes the open thread, and
+  `applyDmLayout` removes `active` from `#messages-view` when it narrowed while a thread was open.
+- Above it, `openMessagesView` **keeps** the open thread (`#chat-view` stays `display:flex`) and
+  `openDmThread` keeps `#messages-view.active`, so the list remains in the left pane.
+- Split-only chrome: `#dm-back-btn` and `.dm-toolbar-title` are hidden (`Back` is meaningless when the
+  list is visible), `.dm-new-btn` goes full width, and `.dm-row.active` (gray background + 4px inset
+  bar) marks the open conversation via `markActiveDmRow()`.
+- `renderDmInbox()` saves/restores `#dm-list.scrollTop`: in split mode the inbox listener re-renders the
+  list on every thread update, which would otherwise jump the sidebar to the top.
+- The placeholder uses `data-i18n="kindlechat.dm.select_conversation"`; the key is in `locales/en.json`
+  only (missing keys leave the inline English text, per `applyTranslations`). `#dm-empty-pane` is a direct
+  child of `#app-layout` because it needs its own grid cell.
+- CSS Grid (not flex) for the panes: Chromium 75 has no flex `gap` (AGENTS.md §1).
+
+**Verification:** static harness screenshots at 800×1000 (grid computed `230px 530px`, window 760px) and
+500×800 (single pane), plus a real-page smoke test that called `openMessagesView()`/`openDmThread()` with
+fake inbox rows: `#messages-view` at x=20 w=230, `#chat-view` at x=250 w=530, 3 `.msg-avatar` canvases,
+`#dm-empty-pane` hidden, `#dm-back-btn` `display:none`. A second smoke test confirmed the sidebar
+avatars: first render `CANVAS,CANVAS` with 2 cache entries, an immediate `renderDmInbox()` produced
+`IMG,IMG` with `src="data:image/png;…"`, and the bubbles still rendered their own avatars.
+
+**Testing gotcha:** forcing `#app-layout { display:flex !important }` in a test/stub (e.g. to counter the
+guest-mode `display:none`) silently overrides the split grid and stacks the panes — hide the guest overlay
+and reset `style.display` instead.
