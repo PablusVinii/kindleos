@@ -3123,5 +3123,20 @@
   "yahtzee.status.loading": "Đang tải...",
   "yahtzee.status.login_required": "Đăng nhập để xem điểm số toàn cầu.",
   "yahtzee.status.no_scores": "Chưa có điểm nào!",
-  "yahtzee.title": "Yahtzee"
+  "yahtzee.title": "Yahtzee",
+  "home.header.recent": "Gần đây",
+  "home.header.all_games": "Tất cả trò chơi",
+  "home.search.placeholder": "Tìm ứng dụng và trò chơi...",
+  "home.search.results": "Kết quả tìm kiếm",
+  "home.search.empty": "Không có ứng dụng nào khớp với tìm kiếm.",
+  "home.search.hint": "Thử từ khác hoặc xóa tìm kiếm.",
+  "home.search.clear": "Xóa tìm kiếm",
+  "calendar.auth.use_local": "Dùng lịch cục bộ",
+  "books.empty.none": "Chưa có sách.",
+  "books.empty.hint": "Tìm tiêu đề hoặc tác giả ở trên, hoặc mượn một tác phẩm cổ điển miễn phí trong Reader.",
+  "books.btn.browse": "Duyệt Reader",
+  "news.error.hint": "Kiểm tra kết nối và thử lại.",
+  "news.btn.retry": "Thử lại",
+  "home.btn.recent_on": "Gần đây: BẬT",
+  "home.btn.recent_off": "Gần đây: TẮT"
 }

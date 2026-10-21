@@ -217,6 +217,14 @@
             align-content: start;
         }
 
+        .tasks-loading {
+            grid-column: 1 / -1;
+            padding: 40px 20px;
+            text-align: center;
+            font-style: italic;
+            font-size: 0.95rem;
+        }
+
         .column {
             border: 2px solid black;
             box-shadow: 3px 3px 0px #ccc;
@@ -312,13 +320,39 @@
             left: 0;
             width: 100%;
             height: calc(100% - 35px);
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(0, 0, 0, 0.45);
             display: none;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 10001;
             text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #auth-overlay .auth-card {
+            background: white;
+            border: 2px solid black;
+            box-shadow: 4px 4px 0 black;
+            padding: 20px;
+            width: 100%;
+            max-width: 340px;
+            box-sizing: border-box;
+        }
+
+        #auth-overlay .auth-card .sys-btn {
+            min-height: 48px;
+            width: 100%;
+        }
+
+        #auth-overlay .auth-card .auth-secondary {
+            margin-top: 10px;
+            border: 0;
+            background: white;
+            box-shadow: none;
+            text-decoration: underline;
+            font-weight: normal;
         }
 
         /* MODAL OVERLAY */
@@ -330,7 +364,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(0, 0, 0, 0.45);
             z-index: 10002;
             align-items: center;
             justify-content: center;
@@ -451,6 +485,7 @@
         </div>
 
         <div class="window-content" id="dashboard">
+            <div id="tasks-loading" class="tasks-loading" data-i18n="common.loading">Loading...</div>
             <!-- Native Mode Default Layout -->
             <div class="column" id="native-col" style="display:none;">
                 <div class="column-header" data-i18n="tasks.col.native">My Tasks</div>
@@ -465,11 +500,15 @@
         <div id="status-bar" data-i18n="tasks.status.ready">Ready.</div>
 
         <div id="auth-overlay">
-            <h2 style="margin-bottom:10px;" data-i18n="tasks.overlay.google.title">Google Tasks</h2>
-            <p style="margin-bottom:20px; font-size:0.9rem;" data-i18n="tasks.overlay.google.desc">Log in to sync your
-                tasks.</p>
-            <button class="sys-btn" id="authorize_button" onclick="oauthSignIn()" data-i18n="tasks.btn.login">Log
-                In</button>
+            <div class="auth-card">
+                <h2 style="margin-bottom:10px;" data-i18n="tasks.overlay.google.title">Google Tasks</h2>
+                <p style="margin-bottom:20px; font-size:0.9rem;" data-i18n="tasks.overlay.google.desc">Log in to sync your
+                    tasks.</p>
+                <button class="sys-btn" id="authorize_button" onclick="oauthSignIn()" data-i18n="tasks.btn.login">Log
+                    In</button>
+                <button class="sys-btn auth-secondary" onclick="useLocalTasks()"
+                    data-i18n="tasks.btn.use_local">Use local tasks</button>
+            </div>
         </div>
     </div>
 
@@ -608,16 +647,33 @@
             localStorage.setItem('rekindle_google_tasks_enabled', enableGoogle);
 
             // Save preference to cloud
-            db.collection('users').doc(currentUser.uid).collection('settings').doc('integrations').set({
-                google_tasks: enableGoogle
-            }, { merge: true });
+            if (currentUser && db) {
+                db.collection('users').doc(currentUser.uid).collection('settings').doc('integrations').set({
+                    google_tasks: enableGoogle
+                }, { merge: true });
+            }
 
             if (enableGoogle) {
                 googleEnabled = true;
                 initGoogleMode();
             } else {
                 googleEnabled = false;
-                document.getElementById('status-bar').innerText = window.t('status.synced', "Synced: ") + currentUser.email;
+                document.getElementById('status-bar').innerText = currentUser
+                    ? (window.t('status.synced', "Synced: ") + currentUser.email)
+                    : window.t('status.guest', "Guest Mode (Local)");
+                initNativeMode();
+            }
+        }
+
+        // Keep local tasks reachable when the Google token is missing/expired.
+        function useLocalTasks() {
+            document.getElementById('auth-overlay').style.display = 'none';
+            if (currentUser && db) {
+                setSyncPreference(false);
+            } else {
+                googleEnabled = false;
+                localStorage.setItem('rekindle_google_tasks_enabled', 'false');
+                document.getElementById('status-bar').innerText = window.t('status.guest', "Guest Mode (Local)");
                 initNativeMode();
             }
         }
@@ -801,6 +857,8 @@
         function initNativeMode() {
             document.getElementById('app-title').innerText = window.t('tasks.title', "Tasks");
             document.getElementById('native-col').style.display = 'flex';
+            var loading = document.getElementById('tasks-loading');
+            if (loading) loading.style.display = 'none';
 
             if (currentUser) loadCloudTasks();
             else loadLocalTasks();

@@ -134,3 +134,50 @@ Interactive Reader, Reader, Browser, Books, Neighbourhood, KindleChat), 3 menus
 (Akinator, Codebreaker, Nonograms), plus the Flashcards shell fix.
 `js/system-dialog.css` is the reusable piece; future modal work should use it
 instead of copying a white `.modal-box` heading.
+
+## 2026-10-21 experience pass (dashboard + core apps)
+
+Full-page captures (800×1000 and 600×800) plus source review of the dashboard,
+Tasks, Calendar, Books, News, and the live/multiplayer gates.
+
+- **`index.html` app search** — a magnifier button beside Edit in the
+  "All Applications" header toggles a 48px full-width System 7 field (it is not
+  persistent). Filters `APPS` by name, `desc`, `id` and localized names
+  (multi-word AND); games are grouped by name so "chess" shows one Chess folder
+  instead of four tiles. 220ms debounce, exact/prefix matches first, result
+  count in the heading. No results renders `rekindleEmptyState()` with a Close
+  action; X, Escape or toggling the button closes the field. Tab switches and
+  Edit close it; the magnifier hides in edit mode. New `home.search.*` keys in
+  all ten locales.
+- **`index.html` Recent row** — last six launches in `rekindle_recent_apps`
+  (localStorage), rendered between Featured and "All Applications" with a Clear
+  action. Featured apps are never recorded or shown there (stored legacy
+  entries are filtered), and any app currently in Recent is removed from the
+  All Applications grid (exact ids, before game folder grouping). Clearing
+  recents re-renders All so those apps return. Edit mode adds a "Recent: ON/OFF"
+  button next to Featured; the choice persists in `rekindle_recent_hidden`,
+  hiding the row also returns its apps to All, and Reset restores it. Folders,
+  disabled apps and Pro-locked tiles do not record; hidden apps are filtered;
+  the row is hidden in edit mode, dashboard tab and search results.
+- **Dashboard action buttons** — Edit, Recent Clear, Featured, Recent and Reset
+  use the shared 30px `.sys-btn.home-action-btn` height, matching the magnifier
+  button instead of the larger default `.sys-btn` padding.
+- **Dashboard labels** — `renderAppGrid`/`filterApps`/`toggleEditMode` now use
+  `window.t()` instead of hardcoded English, and a `rekindle:i18n:ready`
+  listener refreshes the few JS-written labels so a late locale fetch cannot
+  leave English headings.
+- **Top-bar clock** — removed the `HEAD` request `Date`-header sync. A
+  service-worker/edge-cached HTML response made that offset hours stale, so the
+  menu clock disagreed with the Local Time widget by +2h. The bar now follows
+  `rtdb.ref('.info/serverTimeOffset')` (same guidance as AGENTS §9).
+- **Calendar + Tasks auth overlays** — white 95% washes replaced with a dim
+  scrim and a bordered card, plus a "Use local calendar/tasks" escape hatch so
+  an expired Google token cannot make the local apps unreachable. The
+  first-run sync choosers now use a dim scrim too.
+- **Books** — the two identical "No books here." blocks are now one guided
+  empty state with a "Browse Reader" action; section headings return when a
+  book is added.
+- **News** — the bare "Could not fetch the news" line is now an empty state
+  with a Retry button that re-fetches the current category.
+- `index.html` and `newspaper.html` now load `js/ui-kit.js?v=2`;
+  `index_old.html` (Lite/Legacy dashboard) still lacks search/recents (BL-25).

@@ -3134,5 +3134,20 @@
   "oregontrail.scores.none": "Brak ukończonych wypraw.",
   "oregontrail.scores.login": "Zaloguj się, aby zobaczyć wyniki globalne.",
   "oregontrail.scores.error": "Nie udało się wczytać wyników.",
-  "oregontrail.score.best": "Rekord osobisty"
+  "oregontrail.score.best": "Rekord osobisty",
+  "home.header.recent": "Ostatnie",
+  "home.header.all_games": "Wszystkie gry",
+  "home.search.placeholder": "Szukaj aplikacji i gier...",
+  "home.search.results": "Wyniki wyszukiwania",
+  "home.search.empty": "Żadna aplikacja nie pasuje do wyszukiwania.",
+  "home.search.hint": "Spróbuj innego słowa lub wyczyść wyszukiwanie.",
+  "home.search.clear": "Wyczyść wyszukiwanie",
+  "calendar.auth.use_local": "Użyj kalendarza lokalnego",
+  "books.empty.none": "Nie ma jeszcze książek.",
+  "books.empty.hint": "Wyszukaj tytuł lub autora powyżej albo wypożycz darmowy klasyk w Reader.",
+  "books.btn.browse": "Przeglądaj Reader",
+  "news.error.hint": "Sprawdź połączenie i spróbuj ponownie.",
+  "news.btn.retry": "Spróbuj ponownie",
+  "home.btn.recent_on": "Ostatnie: TAK",
+  "home.btn.recent_off": "Ostatnie: NIE"
 }

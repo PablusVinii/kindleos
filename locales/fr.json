@@ -3134,5 +3134,20 @@
   "oregontrail.scores.none": "Aucun voyage terminé pour l'instant.",
   "oregontrail.scores.login": "Connectez-vous pour voir les scores mondiaux.",
   "oregontrail.scores.error": "Impossible de charger les scores.",
-  "oregontrail.score.best": "Meilleur score personnel"
+  "oregontrail.score.best": "Meilleur score personnel",
+  "home.header.recent": "Récents",
+  "home.header.all_games": "Tous les jeux",
+  "home.search.placeholder": "Rechercher des apps et des jeux...",
+  "home.search.results": "Résultats de recherche",
+  "home.search.empty": "Aucune app ne correspond à votre recherche.",
+  "home.search.hint": "Essayez un autre mot ou effacez la recherche.",
+  "home.search.clear": "Effacer la recherche",
+  "calendar.auth.use_local": "Utiliser le calendrier local",
+  "books.empty.none": "Pas encore de livres.",
+  "books.empty.hint": "Recherchez un titre ou un auteur ci-dessus, ou empruntez un classique gratuit dans Reader.",
+  "books.btn.browse": "Parcourir Reader",
+  "news.error.hint": "Vérifiez votre connexion et réessayez.",
+  "news.btn.retry": "Réessayer",
+  "home.btn.recent_on": "Récents : OUI",
+  "home.btn.recent_off": "Récents : NON"
 }

@@ -3123,5 +3123,20 @@
   "yahtzee.status.loading": "Загрузка...",
   "yahtzee.status.login_required": "Войдите в систему, чтобы увидеть глобальные результаты.",
   "yahtzee.status.no_scores": "Оценок пока нет!",
-  "yahtzee.title": "Яхтзи"
+  "yahtzee.title": "Яхтзи",
+  "home.header.recent": "Недавние",
+  "home.header.all_games": "Все игры",
+  "home.search.placeholder": "Поиск приложений и игр...",
+  "home.search.results": "Результаты поиска",
+  "home.search.empty": "Ни одно приложение не подходит под запрос.",
+  "home.search.hint": "Попробуйте другое слово или очистите поиск.",
+  "home.search.clear": "Очистить поиск",
+  "calendar.auth.use_local": "Использовать локальный календарь",
+  "books.empty.none": "Книг пока нет.",
+  "books.empty.hint": "Найдите название или автора выше или возьмите бесплатную классику в Reader.",
+  "books.btn.browse": "Открыть Reader",
+  "news.error.hint": "Проверьте подключение и попробуйте снова.",
+  "news.btn.retry": "Повторить",
+  "home.btn.recent_on": "Недавние: ВКЛ",
+  "home.btn.recent_off": "Недавние: ВЫКЛ"
 }

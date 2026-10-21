@@ -3123,5 +3123,20 @@
   "yahtzee.status.loading": "加载中...",
   "yahtzee.status.login_required": "登录查看全球分数。",
   "yahtzee.status.no_scores": "还没有分数！",
-  "yahtzee.title": "快艇"
+  "yahtzee.title": "快艇",
+  "home.header.recent": "最近使用",
+  "home.header.all_games": "所有游戏",
+  "home.search.placeholder": "搜索应用和游戏...",
+  "home.search.results": "搜索结果",
+  "home.search.empty": "没有匹配的应用。",
+  "home.search.hint": "试试其他词，或清除搜索。",
+  "home.search.clear": "清除搜索",
+  "calendar.auth.use_local": "使用本地日历",
+  "books.empty.none": "还没有书籍。",
+  "books.empty.hint": "在上方搜索书名或作者，或在 Reader 中借阅免费经典。",
+  "books.btn.browse": "浏览 Reader",
+  "news.error.hint": "检查网络连接后重试。",
+  "news.btn.retry": "重试",
+  "home.btn.recent_on": "最近使用: 开",
+  "home.btn.recent_off": "最近使用: 关"
 }

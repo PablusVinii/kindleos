@@ -564,6 +564,41 @@
             var read = document.getElementById('read-list');
             if (!want || !read) return;
 
+            var titleWant = document.getElementById('title-want-read');
+            var titleRead = document.getElementById('title-read');
+            var total = want.querySelectorAll('.book-item').length + read.querySelectorAll('.book-item').length;
+
+            // One guided empty state instead of two identical "No books here."
+            // blocks, and a route into the free Reader catalogue.
+            if (total === 0) {
+                if (titleWant) titleWant.style.display = 'none';
+                if (titleRead) titleRead.style.display = 'none';
+                read.style.display = 'none';
+                var readPh = read.querySelector('[data-books-empty]');
+                if (readPh) readPh.remove();
+
+                var empty = want.querySelector('[data-books-empty]');
+                if (!empty) {
+                    empty = document.createElement('div');
+                    empty.setAttribute('data-books-empty', '1');
+                    want.appendChild(empty);
+                }
+                empty.innerHTML = window.rekindleEmptyState(
+                    window.t('books.empty.none', 'No books yet.'),
+                    {
+                        icon: 'book',
+                        hint: window.t('books.empty.hint', 'Search for a title or author above, or borrow a free classic in Reader.'),
+                        action: '<a class="rk-empty-btn" href="reader.html" style="display:inline-block;text-decoration:none;">' +
+                            window.t('books.btn.browse', 'Browse Reader') + '</a>'
+                    }
+                );
+                return;
+            }
+
+            if (titleWant) titleWant.style.display = '';
+            if (titleRead) titleRead.style.display = '';
+            read.style.display = '';
+
             function setEmpty(list, message) {
                 var count = list.querySelectorAll('.book-item').length;
                 var ph = list.querySelector('[data-books-empty]');

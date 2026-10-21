@@ -74,6 +74,7 @@
     <script src="theme.js?v=21" defer></script>
     <script src="bad_words.js?v=4" defer></script>
     <script src="js/i18n.js?v=3" defer></script>
+    <script src="js/ui-kit.js?v=2" defer></script>
     <script src="js/ip-ban.js?v=1" defer></script>
 
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -455,6 +456,116 @@
 
         #favorites-section {
             margin-bottom: 15px;
+        }
+
+        /* App search: full-width System 7 field above the icon grid. */
+        .app-search-row {
+            display: flex;
+            align-items: center;
+            min-height: 48px;
+            box-sizing: border-box;
+            border: 2px solid black;
+            background: white;
+            margin: 0 0 15px 0;
+            padding: 0 10px;
+        }
+
+        .app-search-icon {
+            width: 20px;
+            height: 20px;
+            flex: none;
+            margin-right: 10px;
+        }
+
+        .app-search-input {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 44px;
+            border: 0;
+            padding: 0;
+            background: transparent;
+            color: black;
+            font-family: inherit;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .app-search-clear {
+            flex: none;
+            width: 48px;
+            height: 48px;
+            border: 0;
+            background: transparent;
+            color: black;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .app-search-clear:active {
+            background: black;
+            color: white;
+        }
+
+        #app-search-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 30px;
+            padding: 0;
+            margin-right: 10px;
+            margin-top: -2px;
+            border: 2px solid black;
+            background: white;
+            box-shadow: 2px 2px 0 black;
+            cursor: pointer;
+        }
+
+        #app-search-toggle svg {
+            display: block;
+            width: 15px;
+            height: 15px;
+        }
+
+        #app-search-toggle.is-active {
+            background: black;
+        }
+
+        #app-search-toggle.is-active svg circle,
+        #app-search-toggle.is-active svg path {
+            stroke: white;
+        }
+
+        #app-search-toggle:active {
+            transform: translate(2px, 2px);
+            box-shadow: none;
+        }
+
+        /* Compact header/row actions: same 30px height as the search button. */
+        .sys-btn.home-action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 30px;
+            min-height: 30px;
+            padding: 0 10px;
+            margin-top: -2px;
+            font-size: 0.75rem;
+            line-height: 1;
+            box-sizing: border-box;
+            box-shadow: 2px 2px 0 black;
+            white-space: nowrap;
+        }
+
+        #recent-section {
+            margin-bottom: 15px;
+        }
+
+        #recent-grid {
+            grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+            grid-auto-rows: 90px;
         }
 
         .app-icon {
@@ -1159,6 +1270,15 @@
                         <div class="grid-container" id="featured-grid"></div>
                     </div>
 
+                    <div id="recent-section" style="display:none;">
+                        <div class="view-header">
+                            <span data-i18n="home.header.recent">Recent</span>
+                            <button class="sys-btn home-action-btn" onclick="clearRecentApps()"
+                                data-i18n="btn.clear">Clear</button>
+                        </div>
+                        <div class="grid-container" id="recent-grid"></div>
+                    </div>
+
                     <div id="favorites-section" style="display:none;">
                         <div class="view-header">
                             <span id="favorites-title" data-i18n="home.header.favorites">★ Favorites</span>
@@ -1176,16 +1296,41 @@
                     <div class="view-header" id="main-view-header">
                         <span id="category-title" data-i18n="home.header.all">All Applications</span>
                         <div style="display:flex; align-items:center;">
-                            <button class="sys-btn" id="featured-toggle-btn" onclick="toggleFeaturedSection()"
-                                style="box-shadow: 2px 2px 0 black; display:none; margin-right:10px; font-size:0.8rem; margin-top:-2px;"
+                            <button class="sys-btn home-action-btn" id="featured-toggle-btn"
+                                onclick="toggleFeaturedSection()"
+                                style="display:none; margin-right:10px;"
                                 data-i18n="home.btn.featured_on">Featured: ON</button>
-                            <button class="sys-btn" id="reset-btn" onclick="openResetModal()"
-                                style="box-shadow: 2px 2px 0 black; display:none; margin-right:10px; font-size:0.8rem; margin-top:-2px;"
+                            <button class="sys-btn home-action-btn" id="recent-toggle-btn"
+                                onclick="toggleRecentSection()"
+                                style="display:none; margin-right:10px;">Recent: ON</button>
+                            <button class="sys-btn home-action-btn" id="reset-btn" onclick="openResetModal()"
+                                style="display:none; margin-right:10px;"
                                 data-i18n="home.btn.reset">Reset</button>
-                            <button class="sys-btn" id="edit-done-btn" onclick="toggleEditMode()"
-                                style="box-shadow: 2px 2px 0 black; margin-top:-2px;"
+                            <button class="sys-btn app-search-toggle" id="app-search-toggle" onclick="toggleAppSearch()"
+                                title="Search" aria-label="Search" aria-expanded="false"
+                                data-i18n-title="common.search">
+                                <svg viewBox="0 0 32 32" aria-hidden="true">
+                                    <circle cx="14" cy="14" r="8" fill="none" stroke="black" stroke-width="3"></circle>
+                                    <path d="M20 20l7 7" fill="none" stroke="black" stroke-width="3"></path>
+                                </svg>
+                            </button>
+                            <button class="sys-btn home-action-btn" id="edit-done-btn" onclick="toggleEditMode()"
                                 data-i18n="home.btn.edit">Edit</button>
                         </div>
+                    </div>
+
+                    <div id="app-search-row" class="app-search-row" style="display:none;">
+                        <svg class="app-search-icon" viewBox="0 0 32 32" aria-hidden="true">
+                            <circle cx="14" cy="14" r="8" fill="none" stroke="black" stroke-width="2"></circle>
+                            <path d="M20 20l7 7" fill="none" stroke="black" stroke-width="2"></path>
+                        </svg>
+                        <input id="app-search" class="app-search-input" type="text" autocomplete="off"
+                            autocapitalize="off" spellcheck="false" placeholder="Search apps and games..."
+                            data-i18n-placeholder="home.search.placeholder" aria-label="Search apps and games"
+                            oninput="onAppSearchInput()"
+                            onkeydown="if(event.key==='Escape'){closeAppSearch();}">
+                        <button type="button" id="app-search-clear" class="app-search-clear" onclick="closeAppSearch()"
+                            title="Clear search" aria-label="Clear search" style="display:none;">X</button>
                     </div>
 
                     <div class="grid-container" id="app-grid"></div>
@@ -1296,7 +1441,7 @@
             <div class="modal-box">
                 <h3>Reset Preferences?</h3>
                 <p style="margin-bottom:20px;">This will clear your favorites, unhide hidden apps, and restore the
-                    featured section.</p>
+                    featured and recent sections.</p>
                 <div style="display: flex; justify-content: center">
                     <button class="sys-btn" onclick="confirmReset()">Yes</button>
                     <button class="sys-btn" onclick="closeModal('reset-modal')" style="margin-left: 10px">No</button>
@@ -1326,6 +1471,7 @@
         let favoriteApps = [];
         let hiddenApps = [];
         let featuredHidden = localStorage.getItem('rekindle_featured_hidden') === 'true';
+        let recentHidden = localStorage.getItem('rekindle_recent_hidden') === 'true';
 
         try {
             const cached = JSON.parse(localStorage.getItem('rekindle_favorites'));
@@ -1352,23 +1498,37 @@
 
         let auth, db, rtdb;
         let serverTimeOffset = 0;
-        function syncWithServer() {
+        let appSearchQuery = '';
+        let appSearchOpen = false;
+        let appSearchTimer = null;
+        let recentApps = [];
+
+        try {
+            const cachedRecent = JSON.parse(localStorage.getItem('rekindle_recent_apps') || '[]');
+            if (Array.isArray(cachedRecent)) {
+                recentApps = cachedRecent.filter(function (id) {
+                    return typeof id === 'string';
+                }).slice(0, 6);
+            }
+        } catch (e) {
+            recentApps = [];
+        }
+
+        // Clock skew: use RTDB's server offset. The old HEAD-request Date header
+        // could be answered from the service-worker/edge cache, so the computed
+        // "offset" could be hours stale and drag the top-bar clock with it.
+        function syncWithFirebaseClock() {
+            if (!rtdb) return;
             try {
-                // Fetch current page headers only (HEAD request is fast)
-                fetch(window.location.href, { method: 'HEAD', cache: 'no-cache' })
-                    .then(response => {
-                        const dateHeader = response.headers.get('Date');
-                        if (dateHeader) {
-                            const serverTime = new Date(dateHeader).getTime();
-                            const localTime = Date.now();
-                            serverTimeOffset = serverTime - localTime;
-                            console.log("Time synced! Offset: " + serverTimeOffset + "ms");
-                            updateTopClock(); // Immediate update
-                        }
-                    })
-                    .catch(e => console.warn("Time sync failed, using system time.", e));
+                rtdb.ref('.info/serverTimeOffset').on('value', function (snap) {
+                    const offset = snap.val();
+                    if (typeof offset === 'number' && isFinite(offset)) {
+                        serverTimeOffset = offset;
+                        updateTopClock();
+                    }
+                });
             } catch (e) {
-                console.warn("Time sync error:", e);
+                console.warn("Clock sync unavailable; using device time.", e);
             }
         }
 
@@ -1387,7 +1547,6 @@
         }
         setInterval(updateTopClock, 60000);
         updateTopClock();
-        syncWithServer();
         const firebaseConfig = {
             apiKey: "AIzaSyDY7x7vVmlYUyVZNLuCCmIQYa6PWFVfZqQ",
             authDomain: "rekindle-dd1fa.firebaseapp.com",
@@ -1495,6 +1654,7 @@
                     rtdb = firebase.database();
                     isFirebaseAvailable = true;
                     console.log("Firebase initialized successfully.");
+                    syncWithFirebaseClock();
 
                     // Global Matchmaking Listener for Tab Badge
                     if (rtdb) {
@@ -1892,14 +2052,22 @@
 
         function toggleEditMode() {
             isEditMode = !isEditMode;
+            if (appSearchOpen || appSearchQuery) resetAppSearchField();
             const btn = document.getElementById('edit-done-btn');
             const resetBtn = document.getElementById('reset-btn');
             const featToggle = document.getElementById('featured-toggle-btn');
+            const recentToggle = document.getElementById('recent-toggle-btn');
+            const searchToggle = document.getElementById('app-search-toggle');
+            if (searchToggle) searchToggle.style.display = isEditMode ? 'none' : 'flex';
             if (isEditMode) {
-                btn.innerText = "Done";
-                if (resetBtn) resetBtn.style.display = 'block';
+                btn.innerText = window.t('home.btn.done', 'Done');
+                if (resetBtn) resetBtn.style.display = 'inline-flex';
+                if (recentToggle) {
+                    recentToggle.style.display = 'inline-flex';
+                    updateRecentToggleLabel();
+                }
                 if (featToggle) {
-                    featToggle.style.display = 'block';
+                    featToggle.style.display = 'inline-flex';
                     const key = featuredHidden ? 'home.btn.featured_off' : 'home.btn.featured_on';
                     const def = featuredHidden ? 'Featured: OFF' : 'Featured: ON';
                     featToggle.innerText = window.t ? window.t(key, def) : def;
@@ -1908,9 +2076,10 @@
                 document.querySelectorAll('.hide-toggle').forEach(t => t.classList.add('show-toggle'));
                 document.querySelectorAll('.beta-label, .new-label, .one-p-label, .two-p-label, .live-label, .disabled-label, .plus-label').forEach(l => l.style.display = 'none');
             } else {
-                btn.innerText = "Edit";
+                btn.innerText = window.t('home.btn.edit', 'Edit');
                 if (resetBtn) resetBtn.style.display = 'none';
                 if (featToggle) featToggle.style.display = 'none';
+                if (recentToggle) recentToggle.style.display = 'none';
                 document.querySelectorAll('.favorite-toggle').forEach(t => t.classList.remove('show-toggle'));
                 document.querySelectorAll('.hide-toggle').forEach(t => t.classList.remove('show-toggle'));
                 document.querySelectorAll('.beta-label, .new-label, .one-p-label, .two-p-label, .live-label, .disabled-label, .plus-label').forEach(l => l.style.display = 'block');
@@ -1918,6 +2087,24 @@
             if (currentFilter === 'all') renderFeaturedSection();
             renderAppGrid(currentFilter);
             renderFavoriteSection();
+        }
+
+        function updateRecentToggleLabel() {
+            const btn = document.getElementById('recent-toggle-btn');
+            if (!btn) return;
+            const key = recentHidden ? 'home.btn.recent_off' : 'home.btn.recent_on';
+            const def = recentHidden ? 'Recent: OFF' : 'Recent: ON';
+            btn.innerText = window.t(key, def);
+        }
+
+        function toggleRecentSection() {
+            recentHidden = !recentHidden;
+            try { localStorage.setItem('rekindle_recent_hidden', recentHidden.toString()); } catch (e) { }
+            updateRecentToggleLabel();
+            if (currentFilter === 'all' && !appSearchQuery) {
+                renderRecentSection();
+                renderAppGrid('all');
+            }
         }
 
         function toggleFeaturedSection() {
@@ -1941,12 +2128,15 @@
             favoriteApps = [];
             hiddenApps = [];
             featuredHidden = false;
+            recentHidden = false;
             localStorage.setItem('rekindle_featured_hidden', 'false');
+            localStorage.setItem('rekindle_recent_hidden', 'false');
             const featToggle = document.getElementById('featured-toggle-btn');
             if (featToggle) {
                 const labelOn = window.t ? window.t('home.btn.featured_on', 'Featured: ON') : 'Featured: ON';
                 featToggle.innerText = labelOn;
             }
+            updateRecentToggleLabel();
 
             saveFavorites();
             if (currentFilter === 'all') renderFeaturedSection();
@@ -2002,6 +2192,12 @@
             const isFavClass = isFav ? 'is-favorite' : '';
             const isHiddenClass = isHidden ? 'is-hidden' : '';
 
+            // Recent list only records real launches; folders open a chooser and
+            // Pro-locked tiles open the paywall, so neither counts as a launch.
+            if (!app.isFolder && !app.disabled && !(app.plus && !isPro)) {
+                a.addEventListener('click', function () { recordRecentApp(app.id); });
+            }
+
             if (isHidden) { a.style.opacity = '0.4'; a.style.filter = 'grayscale(100%)'; }
 
             let extraHtml = `
@@ -2037,7 +2233,8 @@
                 labelClass += " folder-title-badge";
             }
 
-            a.innerHTML = `${iconHtml}<span class="${labelClass}" data-i18n="app.${app.id}.name">${app.name}</span>${extraHtml}`;
+            const labelId = app.i18nId || app.id;
+            a.innerHTML = `${iconHtml}<span class="${labelClass}" data-i18n="app.${labelId}.name">${app.name}</span>${extraHtml}`;
             return a;
         }
 
@@ -2052,14 +2249,17 @@
 
         function filterApps(category, btnElement) {
             updateNavVisibility();
+            if (appSearchOpen || appSearchQuery) resetAppSearchField();
             if (isEditMode) toggleEditMode();
             if (gamesDisabled && (category === 'games' || category === 'two_player')) { category = 'all'; btnElement = document.getElementById('nav-all'); }
             currentFilter = category;
             document.querySelectorAll('.folder-tab').forEach(el => el.classList.remove('active'));
             if (btnElement) btnElement.classList.add('active');
             const editBtn = document.getElementById('edit-done-btn');
-            if (category === 'all') { editBtn.style.display = 'block'; editBtn.innerText = isEditMode ? "Done" : "Edit"; }
-            else editBtn.style.display = 'none';
+            if (category === 'all') {
+                editBtn.style.display = 'inline-flex';
+                editBtn.innerText = window.t(isEditMode ? 'home.btn.done' : 'home.btn.edit', isEditMode ? 'Done' : 'Edit');
+            } else editBtn.style.display = 'none';
 
             if (category === 'all') renderFeaturedSection();
             else { document.getElementById('featured-section').style.display = 'none'; document.getElementById('favorites-section').style.display = 'none'; }
@@ -2069,6 +2269,11 @@
             const mvh = document.getElementById('main-view-header');
             if (mvh) mvh.style.display = category === 'dashboard' ? 'none' : 'flex';
             document.getElementById('app-grid').style.display = category === 'dashboard' ? 'none' : 'grid';
+
+            const searchRow = document.getElementById('app-search-row');
+            if (searchRow) searchRow.style.display = 'none';
+            const recentSection = document.getElementById('recent-section');
+            if (recentSection) recentSection.style.display = 'none';
 
             const liveGamesSection = document.getElementById('live-games-section');
             if (liveGamesSection) {
@@ -2252,6 +2457,9 @@
                     a.classList.add('pro-locked');
                 }
                 a.innerHTML = `<div class="featured-icon"><svg viewBox="0 0 32 32" style="width:100%;height:100%;">${app.icon}</svg></div><div class="featured-info"><span class="featured-title" data-i18n="app.${app.id}.name">${app.name}</span><span class="featured-sub" data-i18n="app.${app.id}.desc">${subheading}</span></div>${badgeHtml}`;
+                if (!app.disabled && !(app.plus && !isPro)) {
+                    a.addEventListener('click', function () { recordRecentApp(app.id); });
+                }
                 fragment.appendChild(a);
             });
             featuredGrid.appendChild(fragment);
@@ -2282,6 +2490,7 @@
                     const primaryApp = group.find(a => !a.live && !a.cat.includes('two_player')) || group[0];
                     const folderApp = Object.assign({}, primaryApp);
                     folderApp.id = 'folder_' + primaryApp.id;
+                    folderApp.i18nId = primaryApp.id;
                     folderApp.isFolder = true;
                     folderApp.groupedApps = group;
                     result.push(folderApp);
@@ -2292,9 +2501,251 @@
             return result;
         }
 
+        function appsForCategory(category) {
+            if (category === 'all') return APPS.slice();
+            if (category === 'two_player') {
+                return APPS.filter(a => a.cat === 'two_player' || a.cat === 'live_game');
+            }
+            return APPS.filter(a => Array.isArray(a.cat) ? a.cat.includes(category) : a.cat === category);
+        }
+
+        function appMatchesSearch(app, terms) {
+            const translations = window.rekindleTranslations || {};
+            const localizedName = translations['app.' + app.id + '.name'] || '';
+            const localizedDesc = translations['app.' + app.id + '.desc'] || '';
+            const haystack = ((app.name || '') + ' ' + (app.desc || '') + ' ' + app.id + ' ' +
+                localizedName + ' ' + localizedDesc).toLowerCase();
+            for (let i = 0; i < terms.length; i++) {
+                if (haystack.indexOf(terms[i]) === -1) return false;
+            }
+            return true;
+        }
+
+        function setAppSearchActive(active) {
+            const btn = document.getElementById('app-search-toggle');
+            if (!btn) return;
+            if (active) btn.classList.add('is-active');
+            else btn.classList.remove('is-active');
+            btn.setAttribute('aria-expanded', active ? 'true' : 'false');
+        }
+
+        function resetAppSearchField() {
+            appSearchQuery = '';
+            appSearchOpen = false;
+            if (appSearchTimer) { clearTimeout(appSearchTimer); appSearchTimer = null; }
+            const input = document.getElementById('app-search');
+            const clearBtn = document.getElementById('app-search-clear');
+            const row = document.getElementById('app-search-row');
+            if (input) input.value = '';
+            if (clearBtn) clearBtn.style.display = 'none';
+            if (row) row.style.display = 'none';
+            setAppSearchActive(false);
+        }
+
+        function openAppSearch() {
+            if (currentFilter === 'dashboard') return;
+            if (isEditMode) toggleEditMode();
+            appSearchOpen = true;
+            const row = document.getElementById('app-search-row');
+            if (row) row.style.display = 'flex';
+            setAppSearchActive(true);
+            const input = document.getElementById('app-search');
+            if (input) {
+                input.focus();
+                try { input.scrollIntoView({ block: 'nearest' }); } catch (e) { }
+            }
+        }
+
+        function closeAppSearch() {
+            const wasOpen = appSearchOpen || !!appSearchQuery;
+            resetAppSearchField();
+            if (wasOpen) filterApps(currentFilter, document.querySelector('.folder-tab.active'));
+        }
+
+        function toggleAppSearch() {
+            if (appSearchOpen || appSearchQuery) closeAppSearch();
+            else openAppSearch();
+        }
+
+        // 220ms debounce: each rebuild creates up to ~125 icon nodes, so filtering
+        // on every keystroke is visibly slow on a jitless Kindle.
+        function onAppSearchInput() {
+            const input = document.getElementById('app-search');
+            const clearBtn = document.getElementById('app-search-clear');
+            if (!input) return;
+            if (clearBtn) clearBtn.style.display = input.value ? 'block' : 'none';
+            if (appSearchTimer) clearTimeout(appSearchTimer);
+            appSearchTimer = setTimeout(function () {
+                appSearchTimer = null;
+                const query = input.value.trim();
+                if (!query) {
+                    closeAppSearch();
+                    return;
+                }
+                if (currentFilter === 'dashboard') return;
+                appSearchQuery = query;
+                appSearchOpen = true;
+                renderAppGrid(currentFilter);
+            }, 220);
+        }
+
+        // Only JS-written labels need a refresh here; the i18n loader has
+        // already translated every data-i18n node in the document, so a full
+        // grid rebuild on a slow Kindle would be wasted work.
+        document.addEventListener('rekindle:i18n:ready', function () {
+            if (appSearchQuery) { renderAppGrid(currentFilter); return; }
+            if (currentFilter === 'dashboard') return;
+            const title = document.getElementById('category-title');
+            if (title) title.innerText = categoryTitleFor(currentFilter);
+            const editBtn = document.getElementById('edit-done-btn');
+            if (editBtn) {
+                editBtn.innerText = window.t(isEditMode ? 'home.btn.done' : 'home.btn.edit', isEditMode ? 'Done' : 'Edit');
+            }
+            if (document.getElementById('recent-toggle-btn')) updateRecentToggleLabel();
+            const gamesHeader = document.getElementById('all-games-header');
+            if (gamesHeader) gamesHeader.innerText = window.t('home.header.all_games', 'All Games');
+        });
+
+        function getVisibleRecentApps() {
+            return recentApps.map(function (id) {
+                return APPS.find(function (app) { return app.id === id; });
+            }).filter(function (app) {
+                return app && !app.featured && hiddenApps.indexOf(app.id) === -1;
+            });
+        }
+
+        function recordRecentApp(id) {
+            const app = APPS.find(function (candidate) { return candidate.id === id; });
+            if (!app || app.featured || app.isFolder || app.disabled) return;
+            if (!id || recentApps[0] === id) return;
+            recentApps = [id].concat(recentApps.filter(function (savedId) { return savedId !== id; })).slice(0, 6);
+            try { localStorage.setItem('rekindle_recent_apps', JSON.stringify(recentApps)); } catch (e) { }
+            renderRecentSection();
+        }
+
+        function clearRecentApps() {
+            recentApps = [];
+            try { localStorage.removeItem('rekindle_recent_apps'); } catch (e) { }
+            renderRecentSection();
+            // Clearing recents returns the apps to the All Applications grid.
+            if (currentFilter === 'all' && !isEditMode && !appSearchQuery) renderAppGrid('all');
+        }
+
+        function renderRecentSection() {
+            const section = document.getElementById('recent-section');
+            const grid = document.getElementById('recent-grid');
+            if (!section || !grid) return;
+
+            if (recentHidden || isEditMode || appSearchQuery || currentFilter !== 'all') {
+                section.style.display = 'none';
+                return;
+            }
+
+            const visible = getVisibleRecentApps();
+
+            if (!visible.length) {
+                section.style.display = 'none';
+                return;
+            }
+
+            grid.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            visible.forEach(function (app) { fragment.appendChild(createAppElement(app)); });
+            grid.appendChild(fragment);
+            section.style.display = 'block';
+        }
+
+        function renderSearchResults(category) {
+            const grid = document.getElementById('app-grid');
+            const terms = appSearchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+            if (!terms.length) return;
+
+            let pool = appsForCategory(category);
+            if (!isEditMode) pool = pool.filter(function (app) { return hiddenApps.indexOf(app.id) === -1; });
+            if (gamesDisabled) pool = pool.filter(function (app) {
+                return app.cat !== 'games' && app.cat !== 'two_player' && app.cat !== 'live_game';
+            });
+
+            const matched = pool.filter(function (app) { return appMatchesSearch(app, terms); });
+            const gameCats = ['games', 'two_player', 'live_game'];
+            const games = matched.filter(function (app) { return gameCats.indexOf(app.cat) !== -1; });
+            const others = matched.filter(function (app) { return gameCats.indexOf(app.cat) === -1; });
+            const items = others.concat(getGroupedApps(games));
+            const query = appSearchQuery.toLowerCase();
+
+            // Exact and prefix matches first, then alphabetical.
+            items.sort(function (a, b) {
+                function rank(app) {
+                    const name = (app.name || '').toLowerCase();
+                    if (name === query) return 0;
+                    if (name.indexOf(query) === 0) return 1;
+                    return 2;
+                }
+                const diff = rank(a) - rank(b);
+                return diff || a.name.localeCompare(b.name);
+            });
+
+            ['featured-section', 'favorites-section', 'live-games-section', 'recent-section'].forEach(function (id) {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+
+            document.getElementById('category-title').innerText =
+                window.t('home.search.results', 'Search results') + ' (' + items.length + ')';
+            const searchEditBtn = document.getElementById('edit-done-btn');
+            if (searchEditBtn) searchEditBtn.style.display = 'none';
+
+            if (!items.length) {
+                grid.style.gridAutoRows = 'auto';
+                const emptyText = window.t('home.search.empty', 'No apps match your search.');
+                if (window.rekindleEmptyState) {
+                    grid.innerHTML = window.rekindleEmptyState(emptyText, {
+                        icon: 'search',
+                        hint: window.t('home.search.hint', 'Try another word, or clear the search.'),
+                        action: '<button class="rk-empty-btn" type="button" onclick="closeAppSearch()">' +
+                            window.t('home.search.clear', 'Clear search') + '</button>',
+                        className: 'rk-empty-grid'
+                    });
+                } else {
+                    grid.innerHTML = '<div style="grid-column: 1 / -1; padding: 24px; text-align: center; font-weight: bold;">' + emptyText + '</div>';
+                }
+                return;
+            }
+
+            grid.style.gridAutoRows = '';
+            const fragment = document.createDocumentFragment();
+            items.forEach(function (app) { fragment.appendChild(createAppElement(app)); });
+            grid.appendChild(fragment);
+        }
+
+        function categoryTitleFor(category) {
+            const titleKeys = {
+                essentials: 'home.nav.essentials',
+                tools: 'home.nav.tools',
+                lifestyle: 'home.nav.lifestyle',
+                games: 'home.nav.games',
+                two_player: 'home.nav.two_player'
+            };
+            const titleDefaults = {
+                essentials: 'Essentials',
+                tools: 'Tools',
+                lifestyle: 'Lifestyle',
+                games: 'Games',
+                two_player: 'Multiplayer Games'
+            };
+            if (category === 'all') return window.t('home.header.all', 'All Applications');
+            return window.t(titleKeys[category] || '', titleDefaults[category] || 'Applications');
+        }
+
         function renderAppGrid(category) {
             const grid = document.getElementById('app-grid');
             grid.innerHTML = '';
+            grid.style.gridAutoRows = '';
+
+            if (appSearchQuery && category !== 'dashboard') {
+                renderSearchResults(category);
+                return;
+            }
 
             let appsToRender = APPS;
             if (category !== 'all') {
@@ -2307,13 +2758,20 @@
                 }
             }
 
-            const titles = { all: "All Applications", productivity: "Productivity", essentials: "Essentials", tools: "Tools", lifestyle: "Lifestyle", games: "Games", two_player: "Multiplayer Games" };
             const fragment = document.createDocumentFragment();
 
             if (category === 'all' || currentFilter === 'all') {
-                document.getElementById('category-title').innerText = "All Applications";
+                document.getElementById('category-title').innerText = categoryTitleFor('all');
                 let baseList = APPS.filter(a => (!a.featured || featuredHidden) && !favoriteApps.includes(a.id));
                 if (!isEditMode) baseList = baseList.filter(a => !hiddenApps.includes(a.id));
+                // A launcher already visible in Recent must not appear again in
+                // the All Applications grid.
+                if (!recentHidden && !isEditMode && currentFilter === 'all') {
+                    const recentIds = getVisibleRecentApps().map(function (app) { return app.id; });
+                    if (recentIds.length) {
+                        baseList = baseList.filter(function (app) { return recentIds.indexOf(app.id) === -1; });
+                    }
+                }
                 if (gamesDisabled) baseList = baseList.filter(app => app.cat !== 'games' && app.cat !== 'two_player' && app.cat !== 'live_game');
                 let games = baseList.filter(a => (a.cat === 'games' || a.cat === 'two_player' || a.cat === 'live_game'));
                 const apps = baseList.filter(a => a.cat !== 'games' && a.cat !== 'two_player' && a.cat !== 'live_game');
@@ -2328,7 +2786,7 @@
                     const header = document.createElement('div');
                     header.className = 'view-header';
                     header.style.gridColumn = '1 / -1'; header.style.marginTop = '25px'; header.style.marginBottom = '15px'; header.style.borderBottom = '2px solid black';
-                    header.innerHTML = '<span style="font-size: 1.2rem; font-weight: bold;">All Games</span>';
+                    header.innerHTML = '<span id="all-games-header" style="font-size: 1.2rem; font-weight: bold;">' + window.t('home.header.all_games', 'All Games') + '</span>';
                     fragment.appendChild(header);
                     games.forEach(app => fragment.appendChild(createAppElement(app)));
                 }
@@ -2342,7 +2800,7 @@
                 }
 
                 filtered.sort((a, b) => a.name.localeCompare(b.name));
-                document.getElementById('category-title').innerText = titles[currentFilter] || "Applications";
+                document.getElementById('category-title').innerText = categoryTitleFor(currentFilter);
                 filtered.forEach(app => fragment.appendChild(createAppElement(app)));
             }
             grid.appendChild(fragment);
@@ -2351,6 +2809,11 @@
                 document.getElementById('app-grid').querySelectorAll('.hide-toggle').forEach(t => t.classList.add('show-toggle'));
                 document.getElementById('app-grid').querySelectorAll('.beta-label, .new-label, .one-p-label, .two-p-label, .folder-label, .live-label, .disabled-label, .plus-label').forEach(l => l.style.display = 'none');
             }
+            if (category === 'all' && !isEditMode) renderRecentSection();
+            else {
+                const recentSection = document.getElementById('recent-section');
+                if (recentSection) recentSection.style.display = 'none';
+            }
         }
 
         // ... [Remaining helper functions openLogin, openAbout, etc. unchanged] ...
@@ -2358,7 +2821,9 @@
         function openAbout() { document.getElementById('about-modal').style.display = 'flex'; }
 
         function openFolderModal(appName, groupedAppsArray) {
-            document.getElementById('folder-title').innerText = appName;
+            const titleApp = groupedAppsArray && groupedAppsArray.length ? groupedAppsArray[0] : null;
+            const titleKey = titleApp ? ('app.' + titleApp.id + '.name') : '';
+            document.getElementById('folder-title').innerText = titleKey ? window.t(titleKey, appName) : appName;
             const container = document.getElementById('folder-options');
             container.innerHTML = '';
 
@@ -2988,10 +3453,17 @@
         window.doRegister = doRegister;
         window.toggleEditMode = toggleEditMode;
         window.toggleFeaturedSection = toggleFeaturedSection;
+        window.toggleRecentSection = toggleRecentSection;
         window.toggleFavorite = toggleFavorite;
         window.toggleHidden = toggleHidden;
         window.changeDashboardCalendar = changeDashboardCalendar;
         window.selectDashboardCalendarDay = selectDashboardCalendarDay;
+        window.onAppSearchInput = onAppSearchInput;
+        window.toggleAppSearch = toggleAppSearch;
+        window.openAppSearch = openAppSearch;
+        window.closeAppSearch = closeAppSearch;
+        window.clearRecentApps = clearRecentApps;
+        window.recordRecentApp = recordRecentApp;
     })();
     </script>
     <script src="https://cdn.counter.dev/script.js" data-id="4e551911-0e5d-4c48-91a6-b828c3301675" data-utcoffset="11"

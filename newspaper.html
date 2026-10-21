@@ -9,6 +9,7 @@
     <title>News</title>
     <script src="time.js?v=4"></script>
     <script src="js/i18n.js?v=3"></script>
+    <script src="js/ui-kit.js?v=2"></script>
     <style>
         /* SYSTEM 7 AESTHETICS */
         :root {
@@ -492,6 +493,7 @@
 
         let currentArticleUrl = "";
         let readerFontSize = 16; // Default article font size in px
+        let currentNewsCategory = 'world';
 
         window.onload = function () {
             if (window.rekindleApplyWallpaper) window.rekindleApplyWallpaper();
@@ -543,6 +545,7 @@
 
         async function fetchNews(category) {
             const container = document.getElementById('news-container');
+            currentNewsCategory = category;
             container.innerHTML = `<div style="text-align:center; padding:20px; font-style:italic;">${window.t('news.status.updating', 'Updating wires...')}</div>`;
 
             try {
@@ -587,8 +590,22 @@
                 });
 
             } catch (e) {
-                container.innerText = window.t('news.error.fetch', "Could not fetch the wires for this section.");
+                const message = window.t('news.error.fetch', "Could not fetch the wires for this section.");
+                if (window.rekindleEmptyState) {
+                    container.innerHTML = window.rekindleEmptyState(message, {
+                        icon: 'rss',
+                        hint: window.t('news.error.hint', 'Check your connection and try again.'),
+                        action: '<button class="rk-empty-btn" type="button" onclick="retryNews()">' +
+                            window.t('news.btn.retry', 'Retry') + '</button>'
+                    });
+                } else {
+                    container.innerText = message;
+                }
             }
+        }
+
+        function retryNews() {
+            fetchNews(currentNewsCategory);
         }
 
         // --- READABILITY WORKER ---

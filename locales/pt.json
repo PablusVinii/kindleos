@@ -3134,5 +3134,20 @@
   "oregontrail.scores.none": "Nenhuma viagem concluída ainda.",
   "oregontrail.scores.login": "Faça login para ver as pontuações globais.",
   "oregontrail.scores.error": "Não foi possível carregar as pontuações.",
-  "oregontrail.score.best": "Melhor marca pessoal"
+  "oregontrail.score.best": "Melhor marca pessoal",
+  "home.header.recent": "Recentes",
+  "home.header.all_games": "Todos os jogos",
+  "home.search.placeholder": "Pesquisar apps e jogos...",
+  "home.search.results": "Resultados da pesquisa",
+  "home.search.empty": "Nenhuma app corresponde à pesquisa.",
+  "home.search.hint": "Tente outra palavra ou limpe a pesquisa.",
+  "home.search.clear": "Limpar pesquisa",
+  "calendar.auth.use_local": "Usar calendário local",
+  "books.empty.none": "Ainda não há livros.",
+  "books.empty.hint": "Pesquise um título ou autor acima, ou pegue um clássico grátis no Reader.",
+  "books.btn.browse": "Explorar Reader",
+  "news.error.hint": "Verifique sua conexão e tente novamente.",
+  "news.btn.retry": "Tentar novamente",
+  "home.btn.recent_on": "Recentes: SIM",
+  "home.btn.recent_off": "Recentes: NÃO"
 }

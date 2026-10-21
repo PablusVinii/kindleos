@@ -3134,5 +3134,20 @@
   "oregontrail.scores.none": "Noch keine Reise beendet.",
   "oregontrail.scores.login": "Melde dich an, um die Rangliste zu sehen.",
   "oregontrail.scores.error": "Rangliste konnte nicht geladen werden.",
-  "oregontrail.score.best": "Persönlicher Rekord"
+  "oregontrail.score.best": "Persönlicher Rekord",
+  "home.header.recent": "Zuletzt verwendet",
+  "home.header.all_games": "Alle Spiele",
+  "home.search.placeholder": "Apps und Spiele suchen...",
+  "home.search.results": "Suchergebnisse",
+  "home.search.empty": "Keine Apps passen zu deiner Suche.",
+  "home.search.hint": "Versuche ein anderes Wort oder lösche die Suche.",
+  "home.search.clear": "Suche löschen",
+  "calendar.auth.use_local": "Lokalen Kalender verwenden",
+  "books.empty.none": "Noch keine Bücher.",
+  "books.empty.hint": "Suche oben nach Titel oder Autor oder leihe im Reader einen kostenlosen Klassiker aus.",
+  "books.btn.browse": "Reader durchstöbern",
+  "news.error.hint": "Prüfe deine Verbindung und versuche es erneut.",
+  "news.btn.retry": "Erneut versuchen",
+  "home.btn.recent_on": "Zuletzt: AN",
+  "home.btn.recent_off": "Zuletzt: AUS"
 }

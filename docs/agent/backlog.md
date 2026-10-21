@@ -293,6 +293,8 @@ Details are recorded in the matching `docs/agent/*.md`.
 - **Fix:** extract the shared dashboard (app grid, favourites, badges, auth) into
   `js/dashboard.js` and keep only layout deltas in the two files. Until then, every dashboard
   feature must be applied twice or it silently diverges on Lite/Kobo.
+- **2026-10-21:** the modern dashboard gained an app search field and a Recent row; the Lite/Legacy
+  fork has neither, so the feature gap is now larger.
 - **Effort:** large · **Risk:** high (needs the Lite build to be exercised).
 
 ### BL-26 · Dead files and dead code still shipped
