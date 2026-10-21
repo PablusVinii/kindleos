@@ -117,6 +117,7 @@
         "mod_actions": {
             ".read": "auth.token.email === 'ukiyo@rekindle.ink' || (auth != null && root.child('moderators').child(auth.uid).val() === true)",
             ".write": "auth.token.email === 'ukiyo@rekindle.ink'",
+            ".indexOn": ["createdAt"],
             "$actionId": {
                 ".write": "auth.token.email === 'ukiyo@rekindle.ink' || (auth != null && root.child('moderators').child(auth.uid).val() === true && (!data.exists() || (data.child('moderatorUid').val() === auth.uid && newData.exists() && data.child('type').val() === newData.child('type').val() && data.child('moderatorUid').val() === newData.child('moderatorUid').val() && data.child('targetUid').val() === newData.child('targetUid').val() && data.child('createdAt').val() === newData.child('createdAt').val())))",
                 ".validate": "newData.hasChildren(['type', 'moderatorUid', 'targetUid', 'createdAt'])"

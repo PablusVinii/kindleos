@@ -66,6 +66,16 @@ node scripts/backfill-art-index.js
 
 Any new feature that posts pixel art or flipbooks to KindleChat must also write an entry to `kindlechat/art_index/{messageId}` with the same shape, or update the moderation worker to do it on the feature's behalf. Otherwise the gallery will not show those posts.
 
+## Message Retention (2026-10-21)
+
+`cleanupSocial` (Firebase scheduled function, `firebase-functions/social-cleanup.js`) deletes
+KindleChat general messages older than **30 days**, always keeping the latest **50** messages. For
+each deleted message it also removes `kindlechat/art_index/{messageId}` and every
+`kindlechat/translations_by_lang/<lang>/{messageId}` entry in the same multi-path RTDB update, so
+translations and the art gallery prune instead of orphaning. Candidate scans use REST
+`shallow=true`, so message bodies/pixel art are never downloaded just to get keys. DM messages are
+not touched. Full design and deploy/dry-run steps: [social-cleanup.md](social-cleanup.md).
+
 ## KindleChat Pixel Art Duplicate Prevention
 
 To stop users from reposting the exact same pixel art repeatedly in KindleChat, duplicate prevention is enforced both client-side and server-side.

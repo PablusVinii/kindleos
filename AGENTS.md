@@ -34,6 +34,7 @@ Only this file is injected automatically. The docs below are **not** in the agen
 | [visual-audit.md](docs/agent/visual-audit.md) | No-focus WebKit screenshot harness, full-app visual review, System 7 visual checklist |
 | [backlog.md](docs/agent/backlog.md) | Deferred optimisation/QoL work from the 2026-10 audit: deliberately skipped fixes, partial fixes and their verification steps |
 | [help.md](docs/agent/help.md) | `help.html`, `help-data.js`: adding/renaming app guides, search, A-Z index, help content coverage |
+| [social-cleanup.md](docs/agent/social-cleanup.md) | Daily `cleanupSocial` retention: KindleChat messages/translations/art, topics, neighbourhood posts, reports, automod & moderator logs |
 
 ## 🚫 Restrictions (Target: Chromium 75)
 

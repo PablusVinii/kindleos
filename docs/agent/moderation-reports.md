@@ -117,6 +117,15 @@ If an app can function without Firebase (e.g., local-only games), wrap Firebase 
 
 New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).
 
+## Report Retention (2026-10-21)
+
+`cleanupSocial` prunes moderation records daily: resolved/dismissed reports older than **90 days**,
+`automod_log` entries older than **30 days**, and `mod_actions` entries older than **365 days**.
+Pending reports are never auto-deleted — they remain the moderator queue, and if the oldest report
+page is entirely pending the cleanup task stops rather than re-reading it every day. Old `mod_actions`
+entries can no longer be undone from `moderation.html`. Full design:
+[social-cleanup.md](social-cleanup.md).
+
 ## 2026-10-21 backlog pass
 
 - **Timeout lookups are cached per uid for 30 s** (`timeoutCache` in

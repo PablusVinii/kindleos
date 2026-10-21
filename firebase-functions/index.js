@@ -9,6 +9,7 @@
 
 const functions = require("firebase-functions/v1");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const net = require("net");
@@ -27,6 +28,7 @@ try {
     if (socialServiceAccount.project_id) {
         socialAdminApp = admin.initializeApp({
             credential: admin.credential.cert(socialServiceAccount),
+            projectId: socialServiceAccount.project_id,
             databaseURL: 'https://rekindle-socials-default-rtdb.firebaseio.com'
         }, 'social');
         logger.info('Social admin app initialized for project:', socialServiceAccount.project_id);
@@ -1467,4 +1469,63 @@ exports.standardebooks = onRequest(
         maxInstances: 5 // hard cost ceiling; idle cost is zero (no minInstances)
     },
     standardEbooksHandler
+);
+
+// ---------------------------------------------------------------------------
+// Daily social-content retention (cleanupSocial)
+//
+// Deletes expired KindleChat messages/translations/art-index entries, topic
+// comments (and topics left empty), neighbourhood posts + comments, resolved
+// reports, the automod log and old moderator actions.
+//
+// Efficiency: RTDB candidate scans use shallow REST queries and chat deletes
+// are one multi-path update per batch; Firestore deletes use batched deletes
+// and recursiveDelete. The job stops at an 8-minute internal budget before the
+// 540 s timeout, so a backlog is caught up oldest-first over multiple days.
+//
+// First rollout: set SOCIAL_CLEANUP_DRY_RUN=1 in firebase-functions/.env,
+// deploy, run the Cloud Scheduler job manually, inspect the logs, then remove
+// the flag and redeploy. See docs/agent/social-cleanup.md.
+// ---------------------------------------------------------------------------
+const { runSocialCleanup } = require("./social-cleanup");
+
+exports.cleanupSocial = onSchedule(
+    {
+        schedule: "0 4 * * *",
+        timeZone: "Australia/Sydney",
+        region: "us-central1",
+        memory: "256MiB",
+        timeoutSeconds: 540,
+        maxInstances: 1,
+        retryCount: 0
+    },
+    async () => {
+        if (!socialAdminApp) {
+            throw new Error('cleanupSocial: SOCIAL_SERVICE_ACCOUNT_JSON is not configured');
+        }
+
+        const socialCredential = socialAdminApp.options.credential;
+        if (!socialCredential || typeof socialCredential.getAccessToken !== 'function') {
+            throw new Error('cleanupSocial: social service-account credential is unavailable');
+        }
+
+        const primaryApp = admin.app();
+        const primaryCredential = primaryApp.options.credential || admin.credential.applicationDefault();
+
+        const summary = await runSocialCleanup({
+            socialApp: socialAdminApp,
+            primaryApp,
+            logger,
+            accessTokens: {
+                social: async () => (await socialCredential.getAccessToken()).access_token,
+                primary: async () => (await primaryCredential.getAccessToken()).access_token
+            }
+        });
+
+        // Surface partial failures in Cloud Monitoring instead of silently
+        // succeeding. Tasks are independent, so every other task has run.
+        if (summary.errors.length > 0) {
+            throw new Error(`cleanupSocial finished with ${summary.errors.length} task error(s)`);
+        }
+    }
 );
