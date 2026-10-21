@@ -13,9 +13,9 @@ P3 = maintainability. `risk` is the chance the change breaks something a test ca
 
 ## Status 2026-10-21 (backlog pass)
 
-**Shipped:** BL-02, BL-03, BL-04, BL-05, BL-06, BL-07, BL-08, BL-09 (KindleChat, Neighbourhood
-post/comment, Topics comment), BL-11, BL-12, BL-13, BL-14, BL-15, BL-16, BL-17, BL-18, BL-19,
-BL-20, BL-24, BL-26 (stale service workers deleted), BL-28a–d, plus the repo-wide emoji sweep.
+**Shipped:** BL-02, BL-03, BL-04, BL-05, BL-06, BL-07, BL-08, BL-11, BL-12, BL-13, BL-14, BL-15,
+BL-16, BL-17, BL-18, BL-19, BL-20, BL-24, BL-26 (stale service workers deleted), BL-28 (presence
+poll, topics `docChanges`, badge auth gating, repo-wide emoji sweep).
 Details are recorded in the matching `docs/agent/*.md`.
 
 **Still open (deliberately):**
@@ -23,14 +23,15 @@ Details are recorded in the matching `docs/agent/*.md`.
 | ID | Why it is still open |
 |---|---|
 | BL-01 | Checked and **not applicable** — see the corrected entry below |
+| BL-09 (rest) | 9 forced `getIdToken(true)` calls remain (background translations + three one-off pages) — see BL-09 |
 | BL-10 | Reader chapter-mounting is a rewrite of pagination + resume; needs device testing |
 | BL-21 | 130+ page edits with differing modal behaviour; needs a visual QA pass |
 | BL-22 | Same: a shared stylesheet changes every page's layout |
 | BL-23 | Pruning needs per-namespace review; added `npm run locales:report` instead |
-| BL-25 | Same root cause as BL-01: the fork has no live-games feature to keep in sync |
+| BL-25 | `index_old.html` still needs the shared-dashboard extraction; the Lite build must be exercised |
 | BL-26 (pages) | `manga.html` / `texasholdem.html` need a product decision (register or delete) |
 | BL-27 (mail) | Stripe caches and the supporters field mask shipped; the mail callables still run serially because `loadEmails` depends on `loadFolders` setting `currentFolder` |
-| BL-28e | `moderation.html` has no `data-i18n` attributes at all, so adding i18n would be a no-op; adding `theme.js` would change an admin layout that was never built for zoom |
+| BL-28 (rest) | Poll votes are still read as a whole collection; the Multiplayer tab duplicates the matchmaking query; `moderation.html` has no `data-i18n` attributes, so i18n alone would be a no-op and `theme.js` would change an admin layout never built for zoom |
 
 ---
 
@@ -133,15 +134,18 @@ Details are recorded in the matching `docs/agent/*.md`.
 - **Effort:** small · **Risk:** low (visual only).
 - **Verify:** tap-target audit at 1× zoom (48×48 minimum), and a mistap check around Edit.
 
-### BL-09 · `getIdToken(true)` before every social write
-- **Where:** 13 sites: `kindlechat.html` (4), `neighbourhood.html` (4), `topics.html` (2),
-  `flipbook.html`, `pixel.html`, `files.html`.
-- **Trade-off:** the forced refresh is what makes a newly granted `pro`/`ageVerified` claim reach
-  the worker immediately, so it was deliberately kept.
-- **Fix:** use the cached `getIdToken()` and force a refresh **once** after a `401`/`403` from the
-  worker, then retry the request. Saves one Identity Toolkit round trip per post.
-- **Effort:** medium · **Risk:** medium (claim propagation) · **Verify:** grant Pro, return to chat,
-  post immediately — must be allowed.
+### BL-09 · `getIdToken(true)` before every social write — PARTIAL
+- **Shipped 2026-10-21:** cached `getIdToken()` + one forced refresh after a 401/403, in
+  `kindlechat.html` (`doSendMessage`), `neighbourhood.html` (post + comment) and `topics.html`
+  (comment). This is the hot path: one fewer Identity Toolkit round trip per post.
+- **Still forced (9 sites):** `kindlechat.html` ×3 (DM send + translation retry paths),
+  `neighbourhood.html` ×2 (background translation requests), `topics.html` ×1 (background
+  translation), `flipbook.html` ×1, `pixel.html` ×1, `files.html` ×1.
+- **Why the rest were left:** the remaining chat/feed calls are background work off the critical
+  path, and the three single-use pages were not worth a bespoke retry path this pass.
+- **Fix:** convert each the same way — cached token, retry once on 401/403 with a forced refresh.
+  Keep a forced refresh where a just-granted `pro`/`ageVerified` claim must be visible immediately.
+- **Verify:** grant Pro, return to chat, post immediately — must be allowed.
 
 ---
 
@@ -260,14 +264,19 @@ Details are recorded in the matching `docs/agent/*.md`.
   harness in [visual-audit.md](visual-audit.md) across a sample of 20 pages.
 
 ### BL-23 · Locale files carry dead keys
-- **Measured:** `en.json` 3,520 keys / 172,942 B. 1,110 have no literal reference; excluding
-  dynamically composed namespaces puts genuinely dead keys at 454 (~32 KB, ×10 locales).
+- **Measured 2026-10-21:** `en.json` 3,533 keys. `node scripts/check-unused-locales.js`
+  (`npm run locales:report`) reports **355 candidates** after excluding literal references and
+  dynamic prefixes (`app.`, `journal.cause.`, `gamerules.`, `oregontrail.month.`, …); the top
+  namespaces are `neighbourhood` 38, `ao3` 31, `oregontrail` 26, `kindlechat` 20.
   `gamerules.*` (29) are dead *and* the rules stay English-only because `js/gamerules.js` hardcodes
   the same HTML.
-- **Fix:** script the reference check into `npm test`, prune, and make `js/gamerules.js` read
-  `window.t('gamerules.' + id, fallback)`.
-- **Effort:** medium · **Risk:** medium (a wrong prune shows raw keys) · **Verify:** load every
-  page in `?lang=de|es|pt` and diff visible text against `en`.
+- **Shipped:** the report script only. **Not pruned:** several namespaces are still composed at
+  runtime and a wrong prune shows raw keys to non-English users.
+- **Fix when pruning:** run the report, review each namespace for dynamic construction, prune all
+  ten locale files together, and make `js/gamerules.js` read `window.t('gamerules.' + id, fallback)`
+  so those keys stop being dead and become translatable.
+- **Effort:** medium · **Risk:** medium · **Verify:** load every page in `?lang=de|es|pt` and diff
+  visible text against `en`.
 
 ### BL-24 · Four pages still use native `<select>`
 - **Where:** `akinator.html` (1), `comics.html` (1), `moderation.html` (5), `readwise.html` (2).
@@ -276,24 +285,34 @@ Details are recorded in the matching `docs/agent/*.md`.
 - **Effort:** small per page · **Risk:** medium (modal CSS) · **Verify:** each page's select opens,
   selects, and respects `disabled`.
 
-### BL-25 · `index_old.html` is a 66 KB fork that has already drifted
-- **Where:** `build-automation.js:1703`; differs from `index.html` by features added since the
-  fork (live validation — BL-01 — is the visible one).
-- **Fix:** same shared-dashboard extraction as BL-01; until then, treat `index_old.html` as a file
-  that must be updated alongside `index.html` for dashboard features.
-- **Effort:** large · **Risk:** high.
+### BL-25 · `index_old.html` is a 66 KB fork of `index.html`
+- **Where:** `build-automation.js:1703` swaps it in as `index.html` for the Lite and Legacy builds.
+- **What has drifted:** it predates several dashboard features (the live-games section and its
+  validator, the Help app entry, later auth/timezone wiring). It is **not** a live-lobby bug —
+  see BL-01: the fork simply has no live-games UI.
+- **Fix:** extract the shared dashboard (app grid, favourites, badges, auth) into
+  `js/dashboard.js` and keep only layout deltas in the two files. Until then, every dashboard
+  feature must be applied twice or it silently diverges on Lite/Kobo.
+- **Effort:** large · **Risk:** high (needs the Lite build to be exercised).
 
 ### BL-26 · Dead files and dead code still shipped
-- **Where:** `manga.html` (51 KB) and `texasholdem.html` (38 KB) are unreachable (not in
-  `icons.js` APPS, no inbound links) yet still built, with locale keys and a third-party CDN
-  dependency; `sw-offline.js` and `sw-killswitch.js` are referenced by nothing but still deployed,
-  and `sw-offline.js` has its own asset list that would fight `sw.js`.
-- **Fix:** register the two apps (manga needs a MangaDex API review) or delete them plus their
-  locale keys / gamerules / score entries; delete the two stale service workers.
-- **Effort:** small · **Risk:** low.
+- **Shipped 2026-10-21:** `sw-offline.js` and `sw-killswitch.js` were referenced by nothing and are
+  now deleted (they also had their own asset lists that would fight `sw.js`).
+- **Still open:** `manga.html` (51 KB) and `texasholdem.html` (38 KB) are unreachable (not in
+  `icons.js` APPS, no inbound links) yet still built, with locale keys, a third-party CDN
+  dependency and a `gamerules`/score entry.
+- **Fix:** register the two apps (manga needs a MangaDex API review) **or** delete them plus their
+  locale keys / gamerules / score entries. This is a product decision, not a code one.
+- **Effort:** small · **Risk:** low (registering) / medium (deleting — bookmarkable URLs).
 
-### BL-27 · Backend payment/maintenance scripts
-- **`workers/rekindle-stripe/worker.js:371`, `:644`, `:1103`, `:1141`** — mints a fresh OAuth token
+### BL-27 · Backend payment/maintenance scripts — PARTIAL
+- **Shipped 2026-10-21:** Stripe OAuth token + Google JWK caches (no more token mint per call),
+  supporters add/remove now PATCH a single field with `updateMask` (concurrent webhooks can no
+  longer drop each other), and mail callables reuse a 60 s Pro-status cache. Private-key material
+  is no longer logged.
+- **Still open:** the mail callables open a cold IMAP session per call, and `mail.html` awaits
+  `loadFolders()` before `loadEmails()` because the latter needs `currentFolder`.
+- **Original evidence:** **`workers/rekindle-stripe/worker.js:371`, `:644`, `:1103`, `:1141`** — mints a fresh OAuth token
   per call and refetches Google JWKs per checkout; the moderate worker already caches both
   (`worker.js:25`, `:545`). Copy that pattern.
 - **`workers/rekindle-stripe/worker.js:958–1038`** — `addToSupportersConfig` /
@@ -305,33 +324,36 @@ Details are recorded in the matching `docs/agent/*.md`.
 - **Effort:** small each · **Risk:** medium–high (auth/payments; cannot be exercised locally).
 
 ### BL-28 · Remaining smaller items
-- `theme.js:647` presence poll ticks every second ×30 waiting for Firebase; replace with a hook on
-  `firebase.initializeApp`/`load`.
-- `topics.html:1328` re-maps all 200 docs per snapshot; use `docChanges()` like the comment feed.
-- `topics.html:2001` downloads the whole `pollVotes` collection per open and per vote; store an
-  aggregate count on the topic.
-- `index.html` attaches two full-node `matchmaking` listeners (badge at `:1506`, tab at `:2089`),
-  both before auth resolves, with no `pagehide` detach; filter server-side and reuse the cache.
-- `moderation.html` loads neither `theme.js` nor `js/i18n.js` (only page with a different shell);
-  decide whether that is intentional and comment it.
-- Repo-wide emoji sweep: only `books.html` and `mastodon.html` were fixed; dingbats (★/☆) are fine,
-  but any remaining emoji-presentation glyph needs the same treatment.
+- **`topics.html` poll votes:** `loadPollVotesOnce` downloads the whole `pollVotes` collection per
+  topic open and again after each vote, counting client-side. Store an aggregate count on the topic
+  doc (worker-incremented, like `commentCount`) or at least `.limit()` it.
+- **`index.html` matchmaking:** the Multiplayer tab attaches a second full-node listener and calls
+  `validateLiveMatch` directly, bypassing the 30 s cache. The badge listener is now auth-gated and
+  detached on `pagehide`, but the two still duplicate work — one server-filtered query
+  (`.orderByChild('status').equalTo('waiting')` + `.indexOn`) shared by both would fix it.
+- **`moderation.html` shell:** loads neither `theme.js` nor `js/i18n.js` and has zero `data-i18n`
+  attributes, so adding i18n alone is a no-op. Decide whether the admin page should adopt the
+  shared shell (zoom/rotation/font) and comment the choice either way.
 
 ---
 
 ## Partially done (and where it stopped)
 
+**After the 2026-10-21 pass this table only contains work that is still split.** Everything else
+that was listed here (report-button size, journal merge, mail append, chat translation patching)
+is now complete.
+
 | Item | Done | Not done |
 |---|---|---|
-| Report button | 20 → 32 px, layout footprint unchanged | full 48 px (BL-08) |
-| Journal persistence | debounced cache + `pagehide` flush + pending-save guard | `updated`-based merge (BL-07) |
-| Watchlist | seasons fetched in batches of 3 | lazy episode loading / store only season count |
+| Watchlist | seasons fetched in batches of 3 | lazy episode loading / store only the season count |
 | Bible | lazy dataset load, `onLibraryChange` awaits it | request sequencing (`reqId`/abort) and a chapter cache |
 | Dropbox | `has_more`/`cursor` pagination | per-path navigation cache (Back re-lists) |
-| Calendar | listener unsubscribes, no stacking | date-bounded event query (still `.get()` of the whole collection) |
-| Mail | mark-read patches one row | load-more append (BL-19) |
+| Calendar | listener unsubscribes; hour bucketing | date-bounded event query (still `.get()` of the whole collection) |
 | Reddit | feed cache capped at 5 subs | wrapper-level cache (relies on the proxy) |
-| Dropbox / Books / Readers | — | `contain:` additions need a visual pass (BL-22 covers the shared CSS) |
+| Books | incremental list rendering | `.limit()` on the reading-list query |
+| Stocks | batch of 4 + one retry | a multi-symbol proxy endpoint (Yahoo chart is per-symbol) |
+| KindleChat token | cached + retry on the general send | 3 forced refreshes remain (BL-09) |
+| Reader | — | `MAX_CHARS` still 2,000,000 and one DOM for the whole book (BL-10) |
 
 ## Verification notes for whoever picks these up
 
@@ -339,6 +361,6 @@ Details are recorded in the matching `docs/agent/*.md`.
   spam, DMs and Oregon Trail — but **not** layout, Firebase behaviour, or anything on a device.
 - Inline scripts can be syntax-checked without a browser:
   extract each `<script>` without `src` and `new Function(code)` (this is how the fix pass checked
-  160 scripts across 136 pages).
+  162 scripts across 138 pages).
 - After touching a shared script, bump `?v=` in **every** including page (and `sw.js`
   `ASSETS_TO_CACHE` if listed), then `npm run build` — the deploy ships `_deploy/main`.
