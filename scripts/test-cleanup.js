@@ -13,6 +13,7 @@ const {
     DAY_MS,
     TRANSLATION_LANGS,
     isSafeRtdbKey,
+    isQuotaError,
     cutoffMs,
     pushIdTimestamp,
     chunk,
@@ -58,6 +59,13 @@ const { CLEANUP_CONFIG, runSocialCleanup } = require('../firebase-functions/soci
     assert.ok(!isSafeRtdbKey('.'));
     assert.ok(!isSafeRtdbKey(''));
     assert.ok(!isSafeRtdbKey(null));
+
+    assert.strictEqual(isQuotaError({ code: 8 }), true);
+    assert.strictEqual(isQuotaError({ code: 'resource-exhausted' }), true);
+    assert.strictEqual(isQuotaError({ message: '8 RESOURCE_EXHAUSTED: Quota exceeded.' }), true);
+    assert.strictEqual(isQuotaError(new Error('Quota exceeded for quota metric')), true);
+    assert.strictEqual(isQuotaError(new Error('permission denied')), false);
+    assert.strictEqual(isQuotaError(null), false);
 
     const paths = buildChatDeletePaths(['-Nabc_123', 'bad/id'], ['en', 'es']);
     assert.deepStrictEqual(Object.keys(paths).sort(), [
@@ -136,6 +144,9 @@ const { CLEANUP_CONFIG, runSocialCleanup } = require('../firebase-functions/soci
     assert.strictEqual(CLEANUP_CONFIG.reportRetentionDays, 90);
     assert.strictEqual(CLEANUP_CONFIG.automodRetentionDays, 30);
     assert.strictEqual(CLEANUP_CONFIG.modActionsRetentionDays, 365);
+    assert.strictEqual(CLEANUP_CONFIG.maxTopicsPerRun, 500);
+    assert.strictEqual(CLEANUP_CONFIG.maxCommentDeletesPerRun, 4000);
+    assert.strictEqual(CLEANUP_CONFIG.maxPostDeletesPerRun, 100);
     assert.strictEqual(TRANSLATION_LANGS.length, 10);
     assert.deepStrictEqual(TRANSLATION_LANGS, ['en', 'es', 'pt', 'pl', 'de', 'it', 'fr', 'ru', 'zh', 'vi']);
     assert.strictEqual(typeof runSocialCleanup, 'function');

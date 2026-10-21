@@ -61,13 +61,21 @@ remote config document.
 | `keyPageSize` | 1000 keys per shallow RTDB page |
 | `firestorePageSize` | 200 topics per page |
 | `deleteBatchSize` | 400 comment deletes per Firestore batch |
+| `maxTopicsPerRun` | 500 |
 | `maxChatMessagesPerRun` | 5000 |
-| `maxCommentDeletesPerRun` | 10000 |
-| `maxPostDeletesPerRun` | 1000 |
+| `maxCommentDeletesPerRun` | 4000 |
+| `maxPostDeletesPerRun` | 100 |
 | `maxReportDeletesPerRun` | 5000 |
 | `maxAutomodDeletesPerRun` | 5000 |
 | `maxModActionDeletesPerRun` | 5000 |
 | `timeBudgetMs` | 480000 (8 min; the function timeout is 540 s) |
+
+The Firestore caps are sized for the **social project staying on the Spark/free
+tier** (20k document writes/day). Post deletes also consume one write per attached
+comment, so `maxPostDeletesPerRun` is deliberately lower than the topic-comment cap.
+The 04:00 Australia/Sydney schedule lands after the midnight-Pacific quota reset. If
+the social project is upgraded to Blaze, these caps can be raised (deletes cost about
+$0.18 per 100k writes).
 
 `dryRun` is enabled by setting `SOCIAL_CLEANUP_DRY_RUN=1` in
 `firebase-functions/.env` and redeploying. It performs all reads and logs the
@@ -104,7 +112,10 @@ candidates but no deletes, batches, transactions or recursive deletes.
   Pending reports are skipped. If the oldest report page is entirely pending, the task
   stops rather than re-reading it every day.
 - **Bounded work:** every task checks the 8-minute budget and per-run caps. A large
-  first backlog is deleted oldest-first over several days.
+  first backlog is deleted oldest-first over several days. Firestore
+  `RESOURCE_EXHAUSTED` is treated as a temporary quota limit: the task stops early,
+  logs `quotaExceeded`, and does **not** fail the scheduler invocation; the next daily
+  run resumes. Real errors still fail the invocation.
 
 ## Index requirements
 
@@ -201,9 +212,27 @@ decodes the first 8 characters of each push ID as the creation time. Do **not** 
 `orderBy` to a shallow GET again. Reports still use a normal ordered query because it
 needs the `status` field and already has the `createdAt` index.
 
+## 2026-10-21: social Firestore free-tier quota
+
+The first real run (10,347 topic comments + 1,000 neighbourhood posts + 157 topics)
+consumed the social project's daily Firestore write quota. The next run failed its
+topics and neighbourhood tasks with:
+
+```
+8 RESOURCE_EXHAUSTED: Quota exceeded.
+```
+
+The chat/reports/automod/mod-action tasks were unaffected because they use RTDB, which
+is not subject to the Firestore write quota. The social project is on the Spark/free
+tier (20k writes/day), so the caps were lowered to 4,000 topic comments / 100 posts /
+500 topics per run, and `RESOURCE_EXHAUSTED` is now logged as `quotaExceeded` without
+failing the scheduler invocation. The next daily run resumes after the quota resets at
+midnight Pacific Time. If this becomes a recurring problem, upgrading
+`rekindle-socials` to Blaze removes the cap for a few cents of delete charges.
+
 ## Tests
 
 `node scripts/test-cleanup.js` (also part of `npm test`) covers cutoff arithmetic,
-push-ID timestamp decoding, key/path safety, multi-path construction, report-status
-rules, timestamp coercion, and the concurrency helper. The I/O layer is verified in
-production with the dry-run rollout above.
+push-ID timestamp decoding, key/path safety, quota-error classification, multi-path
+construction, report-status rules, timestamp coercion, and the concurrency helper. The
+I/O layer is verified in production with the dry-run rollout above.

@@ -25,6 +25,13 @@ function isSafeRtdbKey(key) {
     return typeof key === 'string' && RTDB_KEY_RE.test(key);
 }
 
+function isQuotaError(error) {
+    if (!error) return false;
+    if (error.code === 8 || error.code === 'resource-exhausted') return true;
+    const text = error.message || String(error);
+    return /RESOURCE_EXHAUSTED|Quota exceeded/i.test(text);
+}
+
 function cutoffMs(nowMs, days) {
     if (!Number.isFinite(nowMs)) {
         throw new Error('cutoffMs: nowMs must be a finite number');
@@ -145,6 +152,7 @@ module.exports = {
     PUSH_CHARS,
     TRANSLATION_LANGS,
     isSafeRtdbKey,
+    isQuotaError,
     cutoffMs,
     pushIdTimestamp,
     chunk,

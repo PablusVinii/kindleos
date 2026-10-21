@@ -22,6 +22,7 @@
 const {
     TRANSLATION_LANGS,
     isSafeRtdbKey,
+    isQuotaError,
     cutoffMs,
     pushIdTimestamp,
     buildChatDeletePaths,
@@ -49,11 +50,15 @@ const CLEANUP_CONFIG = {
     deleteBatchSize: 400,
     keyPageSize: 1000,
 
-    // Per-run caps; the time budget is the hard stop.
-    maxTopicsPerRun: 2000,
+    // Per-run caps; the time budget is the hard stop. The social Firestore
+    // project stays on the free tier (20k writes/day), so these Firestore
+    // caps are deliberately sized to leave headroom for post comments and
+    // pollVotes. The daily 04:00 Australia/Sydney run lands after the
+    // midnight-Pacific quota reset.
+    maxTopicsPerRun: 500,
     maxChatMessagesPerRun: 5000,
-    maxCommentDeletesPerRun: 10000,
-    maxPostDeletesPerRun: 1000,
+    maxCommentDeletesPerRun: 4000,
+    maxPostDeletesPerRun: 100,
     maxReportDeletesPerRun: 5000,
     maxAutomodDeletesPerRun: 5000,
     maxModActionDeletesPerRun: 5000,
@@ -365,6 +370,7 @@ async function runSocialCleanup(options) {
         let topicsDeleted = 0;
         let topicsRepaired = 0;
         let topicErrors = 0;
+        let quotaExceeded = false;
         let truncated = topicDocs.length >= config.maxTopicsPerRun;
 
         async function commentCountFor(topicRef) {
@@ -491,10 +497,15 @@ async function runSocialCleanup(options) {
                 }
             } catch (e) {
                 topicErrors++;
-                warn('social-cleanup: topic task skipped', {
-                    path: topicDoc.ref.path,
-                    message: e.message
+                const message = e && e.message ? e.message : String(e);
+                warn(`social-cleanup: topic task skipped: ${message}`, {
+                    path: topicDoc.ref.path
                 });
+                if (isQuotaError(e)) {
+                    quotaExceeded = true;
+                    truncated = true;
+                    break;
+                }
             }
         }
 
@@ -504,6 +515,7 @@ async function runSocialCleanup(options) {
             topicsDeleted,
             topicsRepaired,
             topicErrors,
+            quotaExceeded,
             truncated: truncated || commentsDeleted >= config.maxCommentDeletesPerRun
         };
     }
@@ -526,10 +538,11 @@ async function runSocialCleanup(options) {
 
         let postsDeleted = 0;
         let errors = 0;
+        let quotaExceeded = false;
         let timeTruncated = false;
 
         await mapWithConcurrency(docs, 4, async function (doc) {
-            if (Date.now() >= deadline) {
+            if (quotaExceeded || Date.now() >= deadline) {
                 timeTruncated = true;
                 return;
             }
@@ -538,14 +551,18 @@ async function runSocialCleanup(options) {
                 postsDeleted++;
             } catch (e) {
                 errors++;
-                warn('social-cleanup: post delete failed', {
-                    path: doc.ref.path,
-                    message: e.message
+                const message = e && e.message ? e.message : String(e);
+                warn(`social-cleanup: post delete failed: ${message}`, {
+                    path: doc.ref.path
                 });
+                if (isQuotaError(e)) {
+                    quotaExceeded = true;
+                    timeTruncated = true;
+                }
             }
         });
 
-        return { postsDeleted, errors, truncated: truncated || timeTruncated };
+        return { postsDeleted, errors, quotaExceeded, truncated: truncated || timeTruncated };
     }
 
     async function cleanupReports() {
@@ -774,11 +791,21 @@ async function runSocialCleanup(options) {
         } catch (e) {
             const message = e && e.message ? e.message : String(e);
             summary.tasks[name] = { error: message, elapsedMs: Date.now() - taskStarted };
+
+            // Free-tier Firestore/RTDB quotas are an expected operational
+            // limit, not a code failure. Log it and let the next daily run
+            // continue instead of returning a scheduler 500.
+            if (isQuotaError(e)) {
+                summary.tasks[name].quotaExceeded = true;
+                warn(`social-cleanup: ${name} quota exceeded: ${message}`);
+                return;
+            }
+
             summary.errors.push({ task: name, message });
             if (typeof logger.error === 'function') {
-                logger.error(`social-cleanup: ${name} failed`, { message });
+                logger.error(`social-cleanup: ${name} failed: ${message}`, { task: name, error: message });
             } else {
-                warn(`social-cleanup: ${name} failed`, { message });
+                warn(`social-cleanup: ${name} failed: ${message}`, { task: name, error: message });
             }
         }
     }
