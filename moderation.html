@@ -1817,6 +1817,15 @@
                 await socialDb.collection('neighbourhood_posts').doc(parts[1]).set(revived);
             } else if (parts.length === 4 && parts[2] === 'comments') {
                 await socialDb.collection('neighbourhood_posts').doc(parts[1]).collection('comments').doc(parts[3]).set(revived);
+                // Undoing a comment delete must put the denormalised count back,
+                // otherwise the feed's "Comments (n)" stays one short.
+                try {
+                    await socialDb.collection('neighbourhood_posts').doc(parts[1]).update({
+                        commentCount: firebase.firestore.FieldValue.increment(1)
+                    });
+                } catch (e) {
+                    console.error('Failed to restore neighbourhood commentCount:', e);
+                }
             }
             return;
         }
@@ -1827,6 +1836,14 @@
             var revived = reviveFirestoreData(savedData);
             if (parts.length === 3) {
                 await socialDb.collection('topics').doc(parts[1]).collection('comments').doc(parts[2]).set(revived);
+                // Same as neighbourhood: put the topic's commentCount back.
+                try {
+                    await socialDb.collection('topics').doc(parts[1]).update({
+                        commentCount: firebase.firestore.FieldValue.increment(1)
+                    });
+                } catch (e) {
+                    console.error('Failed to restore topic commentCount:', e);
+                }
             }
             return;
         }

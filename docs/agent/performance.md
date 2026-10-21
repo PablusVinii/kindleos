@@ -80,3 +80,39 @@ Applied in one batch; each is independently revertable.
   rules require it) and detaches on `pagehide`.
 - **`sheetmusic.html`**: composer-image cache capped at 100 entries with an LRU index.
 - **`stocks`/`price`** unchanged beyond batching; `functions/api/price.js` cache landed earlier.
+
+### Neighbourhood comment counts are denormalised (2026-10-21)
+
+**Symptom:** the feed showed no comment count on a collapsed post. The only place a count was
+produced was inside `loadComments()`'s `onSnapshot` (`snapshot.size`), so a user had to expand a
+post — reading every comment document in it — before "Comments (3)" appeared, and any re-render
+(admin mode toggle, translation arriving, a `modified` post snapshot) threw the number away again.
+
+**Now:** `neighbourhood_posts/{id}.commentCount` is a denormalised counter and the single source of
+truth for the toggle label.
+
+- `renderPostItem()` prints it from `post.commentCount` — no extra reads, and no comments listener
+  is attached for a collapsed post.
+- `workers/rekindle-moderate/worker.js`, `neighbourhood_comment` handler: increments it in the same
+  request that creates the comment (`firestoreCommitTransform`), and `autoDeleteContent()`
+  decrements it for report-driven deletes (clamped at 0 via `adjustParentCommentCount()`).
+  `moderation.html` re-increments when a moderator undoes a delete.
+- `deleteComment()` in `neighbourhood.html` decrements with a `runTransaction` clamped at 0 (the
+  delete itself is client-side, so the worker never sees it).
+- `loadComments()` reconciles: while a list is open, `snapshot.size` wins (skipped at the 100-doc
+  query cap) and a mismatch is written back once, so posts that predate the field heal the first
+  time anyone opens them.
+- `firestore-social.rules` already allowed a `commentCount`-only update from any age-verified user,
+  which is what makes the client-side decrement legal.
+- A `commentCount`-only write reaches every other viewer as a `modified` post snapshot.
+  `postRenderSignature()` (uid + text + translation) lets the feed refresh just the number instead
+  of rebuilding the card — a rebuild drops the open comment list and re-reads it.
+- Topic comments got the same treatment in `autoDeleteContent()` (decrement
+  `topics/{topicId}.commentCount`) and in the moderation undo path.
+- Backfill for posts that predate the field: `node admin/backfill_neighbourhood_comment_counts.js`
+  (dry run by default; `--apply` writes).
+
+**Rule for future code:** any new comment create/delete path must adjust the parent's
+`commentCount` in the same code path, or the feed silently lies. `deleteComment()` and the worker
+were the only two paths when this landed.
+

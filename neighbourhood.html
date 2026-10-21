@@ -2855,6 +2855,8 @@
         let openCommentsPosts = new Set();
         const commentListeners = new Map();
         const PAGE_SIZE = 10;
+        // Matches the comments query limit in loadComments().
+        const COMMENT_PAGE_SIZE = 100;
         const renderedPostKeys = new Set();
         let oldestPostKey = null;
         let oldestPostDoc = null;
@@ -2934,11 +2936,21 @@
                             // arrive as `modified`. Without this branch an admin
                             // edit did nothing on screen and a fresh post stayed in
                             // its original language until a reload.
+                            const previous = postsById.get(post.id);
                             const idx = recentPosts.findIndex(p => p.id === change.doc.id);
                             if (idx !== -1) recentPosts[idx] = post;
                             postsById.set(post.id, post);
                             const existingCard = feed.querySelector('[data-post-id="' + change.doc.id + '"]');
                             if (existingCard) {
+                                // A new comment bumps commentCount on the post doc,
+                                // which arrives as `modified` for every viewer.
+                                // Rebuilding the card would throw away the open
+                                // comment list and re-read it, so only refresh the
+                                // number when nothing else changed.
+                                if (previous && postRenderSignature(previous) === postRenderSignature(post)) {
+                                    setCommentCount(post.id, post.commentCount);
+                                    return;
+                                }
                                 const nextNode = existingCard.nextSibling;
                                 existingCard.remove();
                                 renderPostItem(post, feed);
@@ -2967,6 +2979,13 @@
             }, err => {
                 console.error('[Posts] snapshot error:', err);
                 loader.style.display = 'none';
+                // A rejected read used to leave an empty feed that looked like
+                // "no posts yet" (the common cause is an exhausted Firestore
+                // quota or an auth problem, not an empty feed).
+                if (feed.children.length === 0) {
+                    const msg = window.t ? window.t('neighbourhood.msg.posts_failed', 'Could not load posts. Please try again later.') : 'Could not load posts. Please try again later.';
+                    feed.innerHTML = '<div style="text-align:center;padding:20px;font-size:0.8rem;color:#666;">' + msg + '</div>';
+                }
             });
 
             // Infinite scroll — listen on the scrollable view panel
@@ -3076,6 +3095,56 @@
             updateEndOfFeed(feed);
         }
 
+        // Everything renderPostItem() paints. commentCount is deliberately not
+        // part of the signature: a new comment bumps it and must refresh just
+        // the number, not rebuild the card (which would drop the open comment
+        // list and re-read it through the listener).
+        function postRenderSignature(post) {
+            if (!post) return '';
+            return (post.uid || '') + '\u0001' + (post.text || '') + '\u0001' +
+                (post.translation ? JSON.stringify(post.translation) : '');
+        }
+
+        // Comment counts are denormalised onto the post document (the worker
+        // increments it when it creates a comment) so the feed can show
+        // "Comments (3)" without subscribing to the comments subcollection of
+        // every visible post. Keep the cached post objects in step as well so a
+        // later re-render does not fall back to the old number.
+        function setCommentCount(postId, count) {
+            const n = (typeof count === 'number' && isFinite(count)) ? Math.max(0, Math.round(count)) : 0;
+            const cached = postsById.get(postId);
+            if (cached) cached.commentCount = n;
+            for (let i = 0; i < recentPosts.length; i++) {
+                if (recentPosts[i].id === postId) recentPosts[i].commentCount = n;
+            }
+            const countEl = document.getElementById('comments-count-' + postId);
+            if (countEl) countEl.innerText = n > 0 ? ' (' + n + ')' : '';
+        }
+
+        // Comments are deleted client-side (firestore-social rules allow the
+        // author, moderators and the developer), so the count has to be
+        // decremented client-side too. The transaction clamps at 0 so a legacy
+        // post without a counter, or a double delete, cannot go negative.
+        function adjustPostCommentCount(postId, delta) {
+            if (!postId || !delta) return;
+            const postRef = socialDb.collection('neighbourhood_posts').doc(postId);
+            socialDb.runTransaction(function (tx) {
+                return tx.get(postRef).then(function (snap) {
+                    if (!snap.exists) return null;
+                    const data = snap.data() || {};
+                    const current = (typeof data.commentCount === 'number') ? data.commentCount : 0;
+                    const next = Math.max(0, current + delta);
+                    tx.update(postRef, { commentCount: next });
+                    return next;
+                });
+            }).then(function (next) {
+                if (next === null || next === undefined) return;
+                setCommentCount(postId, next);
+            }).catch(function (e) {
+                console.error('[Comments] Failed to adjust commentCount:', e);
+            });
+        }
+
         function renderPostItem(post, container, prepend = false) {
             const div = document.createElement('div');
             div.className = 'post-card';
@@ -3176,6 +3245,8 @@
                     nameBadge = '<svg class="supporter-crown" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 4L5 18H19L22 4L15 11L12 4L9 11L2 4Z" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
                 }
 
+                const commentCount = (typeof post.commentCount === 'number' && post.commentCount > 0) ? Math.round(post.commentCount) : 0;
+
                 div.innerHTML = `
                     ${adminControls}
                     <div style="display:flex; align-items:flex-start;">
@@ -3199,7 +3270,7 @@
                     <div class="comments-section">
                         <span class="comments-toggle" onclick="toggleComments('${post.id}', this)">
                             <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 2px; display: inline-block;"><rect x="3" y="3" width="18" height="14" stroke="currentColor" stroke-width="2" fill="none"/><path d="M7 17v4l4-4" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-                            <span class="toggle-text">${openCommentsPosts.has(post.id) ? 'Hide Comments' : 'Comments'}</span><span id="comments-count-${post.id}"></span>
+                            <span class="toggle-text">${openCommentsPosts.has(post.id) ? 'Hide Comments' : 'Comments'}</span><span id="comments-count-${post.id}">${commentCount > 0 ? ' (' + commentCount + ')' : ''}</span>
                         </span>
                         <div id="comments-area-${post.id}" style="display:${openCommentsPosts.has(post.id) ? 'block' : 'none'};">
                             <div id="comments-list-${post.id}" class="comments-list"></div>
@@ -3276,13 +3347,28 @@
 
             const commentsRef = socialDb.collection('neighbourhood_posts').doc(postId).collection('comments')
                 .orderBy('timestamp', 'desc')
-                .limit(100);
+                .limit(COMMENT_PAGE_SIZE);
+            let isFirstSnapshot = true;
             const unsubscribe = commentsRef.onSnapshot(snapshot => {
-                // Update count in toggle
-                const countEl = document.getElementById('comments-count-' + postId);
-                if (countEl) {
-                    countEl.innerText = snapshot.size > 0 ? ' (' + snapshot.size + ')' : '';
+                // The open list is authoritative, so it also repairs a counter
+                // that drifted (a failed worker increment) and fills in a missing
+                // one on posts that predate the field. Skipped at the query cap
+                // because snapshot.size is then only a lower bound.
+                if (snapshot.size < COMMENT_PAGE_SIZE) {
+                    const cached = postsById.get(postId);
+                    const stored = (cached && typeof cached.commentCount === 'number') ? cached.commentCount : null;
+                    setCommentCount(postId, snapshot.size);
+                    // Only the first snapshot is written back. Re-checking on
+                    // every incremental snapshot would race the worker's own
+                    // increment and cost one extra write per comment for every
+                    // viewer with the section open.
+                    if (stored === null || (isFirstSnapshot && stored !== snapshot.size)) {
+                        socialDb.collection('neighbourhood_posts').doc(postId)
+                            .update({ commentCount: snapshot.size })
+                            .catch(function (e) { console.error('[Comments] count repair failed:', e); });
+                    }
                 }
+                isFirstSnapshot = false;
 
                 // Incremental updates: query is newest-first, DOM is oldest-first,
                 // so each doc is inserted before the element of the doc one index newer.
@@ -3303,6 +3389,15 @@
                     const beforeEl = newerDoc ? listContainer.querySelector('[data-comment-id="' + newerDoc.id + '"]') : null;
                     renderComment(comment, postId, listContainer, beforeEl);
                 });
+            }, err => {
+                // Without this the toggle silently stayed empty when the read was
+                // rejected (permission, quota, offline) and looked like "no
+                // comments" rather than a failure.
+                console.error('[Comments] snapshot error:', err);
+                if (listContainer) {
+                    const msg = window.t ? window.t('neighbourhood.msg.comments_failed', 'Could not load comments.') : 'Could not load comments.';
+                    listContainer.innerHTML = '<div style="font-size:0.75rem;color:#666;padding:4px 0;">' + msg + '</div>';
+                }
             });
             commentListeners.set(postId, { unsubscribe: unsubscribe });
         }
@@ -3639,14 +3734,21 @@
                             undone: false
                         };
                         socialDb.collection('neighbourhood_posts').doc(postId).collection('comments').doc(commentId).delete().then(() => {
+                            adjustPostCommentCount(postId, -1);
                             return db.ref().update(updates);
                         }).catch(e => showAlertModal("Delete failed: " + e.message, "Error"));
                     });
                 });
             } else {
                 showConfirmModal("Delete this comment?", () => {
-                    socialDb.collection('neighbourhood_posts').doc(postId).collection('comments').doc(commentId).delete()
-                        .catch(e => showAlertModal("Delete failed: " + e.message, "Error"));
+                    const commentRef = socialDb.collection('neighbourhood_posts').doc(postId).collection('comments').doc(commentId);
+                    // Confirm it still exists first: a stale list (or a second
+                    // tab) could delete an already-removed comment, and the
+                    // decrement below would then be one too many.
+                    commentRef.get().then(doc => {
+                        if (!doc.exists) return;
+                        return commentRef.delete().then(() => adjustPostCommentCount(postId, -1));
+                    }).catch(e => showAlertModal("Delete failed: " + e.message, "Error"));
                 });
             }
         }

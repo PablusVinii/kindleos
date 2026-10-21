@@ -137,7 +137,12 @@ async function firestoreCommitTransform(docPath, fieldTransforms, accessToken) {
                 transform: {
                     document: `projects/rekindle-socials/databases/(default)/documents/${docPath}`,
                     fieldTransforms
-                }
+                },
+                // A transform on a missing document would create a stub with only
+                // the transformed field (e.g. a `{commentCount: 1}` "post" for a
+                // comment posted against a deleted post id). Require the parent
+                // to exist; callers catch the resulting failure.
+                currentDocument: { exists: true }
             }
         ]
     };
@@ -332,6 +337,44 @@ async function rtdbUpdateReport(reportId, updates, accessToken) {
 /* ------------------------------------------------------------------ */
 /*  CONTENT DELETION                                                   */
 /* ------------------------------------------------------------------ */
+
+// Comment documents live one level below their parent, so a bare comment id
+// cannot identify the parent on its own. Only accept the exact shape the
+// reporting client writes: {root}/{parentId}/comments/{commentId}.
+function parseCommentPath(contentPath, root) {
+    if (!contentPath) return null;
+    const parts = String(contentPath).split("/");
+    if (parts.length === 4 && parts[0] === root && parts[2] === "comments") {
+        return { parentId: parts[1], commentId: parts[3] };
+    }
+    return null;
+}
+
+// Adjust a parent document's denormalised commentCount after a comment is
+// removed. Reads first so a legacy document with no counter (or a double
+// delete) cannot drive the value negative.
+async function adjustParentCommentCount(parentPath, delta, accessToken) {
+    if (!parentPath || !delta) return;
+    try {
+        const url = `https://firestore.googleapis.com/v1/projects/rekindle-socials/databases/(default)/documents/${parentPath}`;
+        const resp = await fetch(url, {
+            headers: { "Authorization": `Bearer ${accessToken}` }
+        });
+        if (!resp.ok) return; // Parent already gone (404) - nothing to fix.
+        const doc = await resp.json();
+        const raw = doc.fields && doc.fields.commentCount;
+        let current = 0;
+        if (raw) {
+            if (raw.integerValue !== undefined) current = parseInt(raw.integerValue, 10) || 0;
+            else if (raw.doubleValue !== undefined) current = Math.round(raw.doubleValue) || 0;
+        }
+        const next = Math.max(0, current + delta);
+        await firestorePatch(parentPath, { commentCount: next }, accessToken);
+    } catch (e) {
+        console.error(`[COMMENT-COUNT] Failed to adjust ${parentPath}:`, e.message);
+    }
+}
+
 async function autoDeleteContent(contentType, contentId, contentPath, accessToken) {
     try {
         if (contentType === "kindlechat") {
@@ -349,7 +392,13 @@ async function autoDeleteContent(contentType, contentId, contentPath, accessToke
         }
         if (contentType === "topic_comment") {
             // contentPath is like "topics/{topicId}/comments/{commentId}"
+            const parsed = parseCommentPath(contentPath, "topics");
+            if (!parsed || parsed.commentId !== contentId) {
+                console.error("[AUTO-DELETE] Refusing invalid topic comment path:", contentPath);
+                return false;
+            }
             await firestoreDelete(contentPath, accessToken);
+            await adjustParentCommentCount(`topics/${parsed.parentId}`, -1, accessToken);
             console.log(`[AUTO-DELETE] Deleted topic comment ${contentId}`);
             return true;
         }
@@ -360,7 +409,13 @@ async function autoDeleteContent(contentType, contentId, contentPath, accessToke
         }
         if (contentType === "neighbourhood_comment") {
             // contentPath is like "neighbourhood_posts/{postId}/comments/{commentId}"
+            const parsed = parseCommentPath(contentPath, "neighbourhood_posts");
+            if (!parsed || parsed.commentId !== contentId) {
+                console.error("[AUTO-DELETE] Refusing invalid neighbourhood comment path:", contentPath);
+                return false;
+            }
             await firestoreDelete(contentPath, accessToken);
+            await adjustParentCommentCount(`neighbourhood_posts/${parsed.parentId}`, -1, accessToken);
             console.log(`[AUTO-DELETE] Deleted neighbourhood comment ${contentId}`);
             return true;
         }
@@ -372,6 +427,11 @@ async function autoDeleteContent(contentType, contentId, contentPath, accessToke
         }
         if (contentType === "suggestion_comment") {
             // contentPath is like "suggestions/{suggestionId}/comments/{commentKey}"
+            const parsed = parseCommentPath(contentPath, "suggestions");
+            if (!parsed || parsed.commentId !== contentId) {
+                console.error("[AUTO-DELETE] Refusing invalid suggestion comment path:", contentPath);
+                return false;
+            }
             await rtdbDeletePrimaryWithAccessToken(contentPath, accessToken);
             console.log(`[AUTO-DELETE] Deleted suggestion comment ${contentId}`);
             return true;
@@ -1688,9 +1748,11 @@ async function handleDiscordInteraction(request, env) {
         try {
             if (action === "delete") {
                 let contentPath = getContentPath(contentType, contentId);
-                // A DM message id alone cannot identify its thread; use the
-                // path stored on the pending report.
-                if (contentType === "dm_message") {
+                // A comment id does not identify its parent post/topic, and a
+                // DM message id only identifies its thread, so fall back to the
+                // path stored on the pending report (getContentPath returns ""
+                // for those types).
+                if (!contentPath) {
                     const report = await getExistingPendingReport(contentType, contentId, accessToken);
                     if (report && report.contentPath) contentPath = report.contentPath;
                 }
@@ -1740,13 +1802,15 @@ async function handleDiscordInteraction(request, env) {
 function getContentPath(contentType, contentId) {
     if (contentType === "kindlechat") return `kindlechat/messages/${contentId}`;
     if (contentType === "topic") return `topics/${contentId}`;
-    if (contentType === "topic_comment") return `topics/${contentId}`;
     if (contentType === "neighbourhood_post") return `neighbourhood_posts/${contentId}`;
-    if (contentType === "neighbourhood_comment") return `neighbourhood_posts/${contentId}`;
     if (contentType === "suggestion") return `suggestions/${contentId}`;
-    if (contentType === "suggestion_comment") return `suggestions/${contentId}`;
-    // DM message ids are only unique inside their thread, so the thread id
-    // must come from the stored report's contentPath (see handleDiscordInteraction).
+    // Comment ids are only unique inside their parent document, so the parent
+    // path has to come from the stored report's contentPath. The same is true
+    // for DM messages (only unique inside their thread) and suggestion
+    // comments (inside their suggestion). See handleDiscordInteraction.
+    if (contentType === "topic_comment") return "";
+    if (contentType === "neighbourhood_comment") return "";
+    if (contentType === "suggestion_comment") return "";
     if (contentType === "dm_message") return "";
     return "";
 }
@@ -2481,6 +2545,19 @@ export default {
                     text: trimmed,
                     timestamp: new Date()
                 }, accessToken);
+
+                // Keep the denormalised counter on the post in step. The feed
+                // renders it straight from the post document, so showing a
+                // count never costs a read of the comments subcollection.
+                // Rules allow a commentCount-only update from any age-verified
+                // client, so the client can do the same on delete.
+                try {
+                    await firestoreCommitTransform(`neighbourhood_posts/${postId}`, [
+                        { fieldPath: "commentCount", increment: { integerValue: "1" } }
+                    ], accessToken);
+                } catch (e) {
+                    console.error("Error incrementing neighbourhood commentCount:", e);
+                }
 
                 return new Response(JSON.stringify({ success: true, id }), { status: 200, headers });
             }

@@ -126,3 +126,12 @@ New findings for this area go here, not in `AGENTS.md` (65,536-byte budget).
 - **Report buttons are 48×48 touch targets**: the 20 px circle is now a `.report-dot` inside a
   transparent `.report-btn` that occupies real layout space (no overlap with the timestamp /
   Edit button). Applied in `neighbourhood.html` and `topics.html`.
+- **Discord "Delete" now resolves comment paths from the stored report.** `getContentPath()` used
+  to return `topics/{commentId}` / `neighbourhood_posts/{commentId}` for `topic_comment` /
+  `neighbourhood_comment`, i.e. it treated a comment id as a parent id — the delete hit a
+  non-existent document and did nothing. Those types (and `suggestion_comment`, `dm_message`) now
+  return `""` from `getContentPath()` and `handleDiscordInteraction()` falls back to the
+  `contentPath` stored on the pending report. `autoDeleteContent()` also validates the path shape
+  (`parseCommentPath()`) and that the trailing id matches `contentId` before deleting, and adjusts
+  the parent's `commentCount` afterwards (see `performance.md`).
+
