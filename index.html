@@ -2610,13 +2610,13 @@
             return recentApps.map(function (id) {
                 return APPS.find(function (app) { return app.id === id; });
             }).filter(function (app) {
-                return app && !app.featured && hiddenApps.indexOf(app.id) === -1;
+                return app && (!app.featured || featuredHidden) && hiddenApps.indexOf(app.id) === -1;
             });
         }
 
         function recordRecentApp(id) {
             const app = APPS.find(function (candidate) { return candidate.id === id; });
-            if (!app || app.featured || app.isFolder || app.disabled) return;
+            if (!app || (app.featured && !featuredHidden) || app.isFolder || app.disabled) return;
             if (!id || recentApps[0] === id) return;
             recentApps = [id].concat(recentApps.filter(function (savedId) { return savedId !== id; })).slice(0, 6);
             try { localStorage.setItem('rekindle_recent_apps', JSON.stringify(recentApps)); } catch (e) { }

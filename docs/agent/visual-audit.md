@@ -151,10 +151,12 @@ Tasks, Calendar, Books, News, and the live/multiplayer gates.
   all ten locales.
 - **`index.html` Recent row** — last six launches in `rekindle_recent_apps`
   (localStorage), rendered between Featured and "All Applications" with a Clear
-  action. Featured apps are never recorded or shown there (stored legacy
-  entries are filtered), and any app currently in Recent is removed from the
-  All Applications grid (exact ids, before game folder grouping). Clearing
-  recents re-renders All so those apps return. Edit mode adds a "Recent: ON/OFF"
+  action. Featured apps are excluded while the Featured section is enabled;
+  turning Featured off makes them eligible for Recent (and they are then
+  removed from All as recent), while turning it back on hides them from Recent
+  again. Any app currently in Recent is removed from the All Applications grid
+  (exact ids, before game folder grouping). Clearing recents re-renders All so
+  those apps return. Edit mode adds a "Recent: ON/OFF"
   button next to Featured; the choice persists in `rekindle_recent_hidden`,
   hiding the row also returns its apps to All, and Reset restores it. Folders,
   disabled apps and Pro-locked tiles do not record; hidden apps are filtered;
