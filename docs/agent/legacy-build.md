@@ -142,6 +142,27 @@ cell-size patches for months. Match the minified form (either quote style), not 
 `crossword.html` also gained an English fallback for `crossword.direction.*`; the clue bar used to
 show the raw key.
 
+## Follow-up from the Lite visual audit (2026-10-22)
+
+- **Browser empty state** — `browser.html` declared a page-local `let history`, which shadowed
+  `window.history` and left `history.forEach` undefined, so `renderHistory()` threw and the RECENT
+  pane stayed blank. Renamed to `visitHistory` in the source; the old post-build rename patch was
+  removed (it ran after Babel and never matched the minified form).
+- **Calendar first paint** — the page waited for `onAuthStateChanged` before calling
+  `initNativeMode()`, so Guests saw "Loading..." for the whole auth round-trip. `loadLocalEvents()`
+  now renders the local cache immediately; the cloud snapshot replaces it when auth resolves.
+- **KindleChat guest state** — the auth handler waits 2.5 s for slow e-ink auth, and if the callback
+  never fires the chat stayed on "Connecting..." indefinitely. Added a 6 s fallback to
+  `handleKindlechatGuest()`. The guest overlay is now a dim scrim + white `.guest-card` instead of
+  a 95% white wash.
+- **Weather** — the 5-day list started empty and a slow/blocked request left it blank. It now shows
+  a LOADING row, aborts the fetch after 12 s, and replaces the list with "Connection Error" on
+  failure. (The audit harness showed the same blank on `main`; the loading/error state is the
+  durable fix.)
+- **Solitaire** — card widths came from a CSS custom property that the build strips, so the
+  `@media` card-size overrides never applied and every card stayed 45×65. Explicit responsive sizes
+  are injected for 600 px (65×94) and 800 px (80×116).
+
 ## Things still not fixed here
 
 - `crypto.subtle` (WebCrypto) has no realistic polyfill. Mail/Substack/Mastodon/Bluesky/Dropbox

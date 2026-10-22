@@ -640,7 +640,7 @@
 
     <script>
         const READER_WORKER_URL = "https://rekindle-reader.timjarnott.workers.dev";
-        let history = JSON.parse(localStorage.getItem('netlite_history')) || [];
+        let visitHistory = JSON.parse(localStorage.getItem('netlite_history')) || [];
         let tabs = []; let activeTabId = null; let tabCounter = 0;
         const MAX_TABS = 5; // Reduced for Kindle RAM
 
@@ -861,12 +861,12 @@
             updateTabTitle(tab.id, "New Tab"); switchTab(tab.id);
         }
         function addToHistory(label, urlVal) {
-            history = history.filter(h => h.url !== urlVal); history.unshift({ label, url: urlVal });
-            if (history.length > 5) history.pop(); localStorage.setItem('netlite_history', JSON.stringify(history)); renderHistory();
+            visitHistory = visitHistory.filter(h => h.url !== urlVal); visitHistory.unshift({ label, url: urlVal });
+            if (visitHistory.length > 5) visitHistory.pop(); localStorage.setItem('netlite_history', JSON.stringify(visitHistory)); renderHistory();
         }
         function renderHistory() {
             const container = document.getElementById('history-container'); container.innerHTML = '';
-            if (history.length === 0) {
+            if (visitHistory.length === 0) {
                 container.innerHTML = window.rekindleEmptyState(
                     window.t('browser.msg.no_history', 'No recent history'),
                     {
@@ -877,13 +877,13 @@
                 );
                 return;
             }
-            history.forEach(item => {
+            visitHistory.forEach(item => {
                 const div = document.createElement('div'); div.className = 'history-item';
                 div.onclick = () => { document.getElementById('search-input').value = item.url; handleGo(); };
                 div.innerHTML = `<span class="item-text">${item.label}</span><span>&rarr;</span>`; container.appendChild(div);
             });
         }
-        function clearHistory() { history = []; localStorage.removeItem('netlite_history'); renderHistory(); }
+        function clearHistory() { visitHistory = []; localStorage.removeItem('netlite_history'); renderHistory(); }
         function toggleFullScreen() { document.querySelector('.window').classList.toggle('fullscreen'); }
         function openInBrowser() {
             var tab = tabs.find(function(t) { return t.id === activeTabId; });

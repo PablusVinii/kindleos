@@ -1184,6 +1184,16 @@
 
             // Note: Persistence disabled due to IndexedDB hangs on some browsers (Safari)
 
+            // Render the local cache immediately. Firebase auth can take seconds on
+            // e-ink, and the page previously sat on the "Loading..." placeholder
+            // until onAuthStateChanged fired. A signed-in user is re-rendered by
+            // the cloud snapshot below.
+            try {
+                loadLocalEvents();
+            } catch (e) {
+                console.error('Error rendering local calendar cache:', e);
+            }
+
             // db.enablePersistence({ synchronizeTabs: true }) ...
             auth.onAuthStateChanged(async user => {
                 if (user) {

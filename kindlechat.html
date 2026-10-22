@@ -1167,7 +1167,7 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(0, 0, 0, 0.45);
             z-index: 10001;
             display: none;
             /* Default hidden */
@@ -1181,6 +1181,22 @@
         #guest-overlay h2 {
             margin-top: 0;
             font-size: 1.5rem;
+        }
+
+        .guest-card {
+            background: white;
+            border: 2px solid black;
+            box-shadow: 4px 4px 0 black;
+            padding: 24px 20px;
+            width: 100%;
+            max-width: 360px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .guest-card .sys-btn {
+            display: inline-block !important;
+            margin: 12px auto 0 auto !important;
         }
 
         /* --- USER THEMES --- */
@@ -1799,12 +1815,13 @@
 
         <!-- GUEST OVERLAY HTML -->
         <div id="guest-overlay">
-            <h2 id="guest-overlay-title" data-i18n="kindlechat.guest_overlay">You need to be logged in to use KindleChat
-            </h2>
-            <p id="guest-overlay-message" style="font-size: 0.9rem; color: #666; margin: 10px 0; max-width: 300px;"></p>
-            <br>
-            <button class="sys-btn" onclick="window.location.href='index?login=true'"
-                data-i18n="kindlechat.btn.login">Log In</button>
+            <div class="guest-card">
+                <h2 id="guest-overlay-title" data-i18n="kindlechat.guest_overlay">You need to be logged in to use KindleChat
+                </h2>
+                <p id="guest-overlay-message" style="font-size: 0.9rem; color: #666; margin: 10px 0;"></p>
+                <button class="sys-btn" onclick="window.location.href='index?login=true'"
+                    data-i18n="kindlechat.btn.login">Log In</button>
+            </div>
         </div>
 
         <!-- NEW: REACTION SELECTION MODAL (Moved inside .window to inherit scaling) -->
@@ -2384,6 +2401,8 @@
 
             function handleKindlechatGuest() {
                 currentUser = null;
+                var titleEl = document.querySelector('.title-text');
+                if (titleEl) titleEl.innerText = 'KindleChat';
                 document.getElementById('app-layout').style.display = 'none';
                 var overlay = document.getElementById('guest-overlay');
                 if (overlay) {
@@ -2440,6 +2459,13 @@
                     }, 2500);
                 }
             });
+
+            // Never leave the chat on "Connecting..." if auth never resolves.
+            setTimeout(function () {
+                if (authInitHandled) return;
+                authInitHandled = true;
+                handleKindlechatGuest();
+            }, 6000);
 
             // Listen for Pro status changes from other tabs (e.g. after subscribing)
             window.addEventListener('storage', function (e) {

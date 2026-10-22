@@ -611,9 +611,18 @@ async function downloadAndTranspileLib(url, baseDir, customFilename = null, tran
 
     // For efficiency, we check existence so we don't redownload/retranspile for every page.
     if (!fs.existsSync(destPath)) {
+        const partPath = destPath + '.part';
         try {
             console.log(`    Downloading & Transpiling ${filename}...`);
-            execSync(`curl -L "${url}" -o "${destPath}"`, { stdio: 'ignore' });
+            // Download to a .part file first: a killed build used to leave a
+            // truncated lib that the next build silently reused. The timeout
+            // stops a stalled CDN connection from hanging the whole build.
+            fs.removeSync(partPath);
+            execSync(`curl -L --fail --silent --show-error --connect-timeout 15 --max-time 90 --retry 2 --retry-delay 2 "${url}" -o "${partPath}"`, { stdio: 'ignore', timeout: 120000 });
+            if (!fs.existsSync(partPath) || fs.statSync(partPath).size === 0) {
+                throw new Error('empty download');
+            }
+            fs.renameSync(partPath, destPath);
 
             // If it's a JS file, transpile it
             if (filename.endsWith('.js')) {
@@ -648,6 +657,8 @@ async function downloadAndTranspileLib(url, baseDir, customFilename = null, tran
             }
         } catch (e) {
             console.error(`    Failed to download/transpile ${url}:`, e.message);
+            try { fs.removeSync(partPath); } catch (_) {}
+            try { fs.removeSync(destPath); } catch (_) {}
             return url;
         }
     }
@@ -1053,43 +1064,9 @@ async function transpileHtml(htmlContent, filename = '') {
             );
         }
 
-        // B. Browser: Fix 'history' variable collision (rename to visitHistory)
-        if (finalHtml.includes('id="browser-view"')) {
-            console.log("  [Browser] Renaming 'history' variable...");
-
-            // 1. Rename declaration and add safety check
-            // Pattern: let history = JSON.parse(...) || [];
-            // We replace it with var visitHistory...
-            finalHtml = finalHtml.replace(
-                /let history\s*=\s*JSON\.parse\(localStorage\.getItem\('netlite_history'\)\)\s*\|\|\s*\[\];/,
-                `var visitHistory = []; try { var s = JSON.parse(localStorage.getItem('netlite_history')); if(Array.isArray(s)) visitHistory = s; } catch(e) {}`
-            );
-
-            // 2. Rename usages
-            // Replaces usage in functions (addToHistory, renderHistory, clearHistory)
-            // Be careful not to break CSS classes 'history-item', 'history-section'
-            // Strategy: Replace 'history' identifier where it is a variable.
-
-            // history. -> visitHistory.
-            finalHtml = finalHtml.replace(/history\./g, 'visitHistory.');
-
-            // history = -> visitHistory =
-            finalHtml = finalHtml.replace(/history\s*=/g, 'visitHistory =');
-
-            // (history) -> (visitHistory) (e.g. stringify)
-            finalHtml = finalHtml.replace(/\(history\)/g, '(visitHistory)');
-
-            // Fix CSS class breakage caused by "history." replacement if any?
-            // "history-item" -> "visitHistory-item" ? No, '.' is not in class name in CSS usually.
-            // But wait: "div.className = 'history-item';" -> "div.className = 'visitHistory-item';" IF regex matched?
-            // No, string is 'history-item'. Regex /history\./ matches "history" followed by dot.
-            // String 'history-item' does not contain dot. Safe.
-            // CSS references: .history-item { ... } -> Safe.
-
-            // Special case: "history.pushState" (if it existed) -> "visitHistory.pushState".
-            // Browser.html doesn't use history API. Safe.
-        }
-
+        // B. Browser: the page-local history store is named visitHistory in
+        // browser.html. The old post-build rename ran after Babel and matched
+        // nothing (minified code uses double quotes), so it was removed.
         // C. Pixel App: Fix Grid Layout (Convert to Flex)
         if (finalHtml.includes('id="pixel-canvas"')) {
             console.log("  [Pixel] Injecting Grid -> Flexbox fixes...");
@@ -1181,6 +1158,22 @@ async function transpileHtml(htmlContent, filename = '') {
             .lvl-sub-line { font-size: 0.65rem !important; }
         `;
             finalHtml = finalHtml.replace('</style>', cubeCss + '</style>');
+        }
+        // I3. Solitaire: custom properties are stripped, so the media-query
+        // --card-width overrides never reached .pile/.card (cards stayed 45px).
+        if (finalHtml.includes('<title>Solitaire</title>')) {
+            console.log("  [Solitaire] Injecting responsive card sizes...");
+            const solCss = `
+            @media (min-width: 600px) {
+                .pile, .card { width: 65px !important; height: 94px !important; }
+                .column { width: 65px !important; }
+            }
+            @media (min-width: 800px) {
+                .pile, .card { width: 80px !important; height: 116px !important; }
+                .column { width: 80px !important; }
+            }
+        `;
+            finalHtml = finalHtml.replace('</style>', solCss + '</style>');
         }
 
         // J. Settings (Pixel Drawer): Fix Grid
@@ -1717,18 +1710,8 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
             );
         }
 
-        // B. Browser: Fix 'history' variable collision (rename to visitHistory)
-        if (finalHtml.includes('id="browser-view"')) {
-            console.log("  [Browser] Renaming 'history' variable...");
-            finalHtml = finalHtml.replace(
-                /let history\s*=\s*JSON\.parse\(localStorage\.getItem\('netlite_history'\)\)\s*\|\|\s*\[\];/,
-                `var visitHistory = []; try { var s = JSON.parse(localStorage.getItem('netlite_history')); if(Array.isArray(s)) visitHistory = s; } catch(e) {}`
-            );
-            finalHtml = finalHtml.replace(/history\./g, 'visitHistory.');
-            finalHtml = finalHtml.replace(/history\s*=/g, 'visitHistory =');
-            finalHtml = finalHtml.replace(/\(history\)/g, '(visitHistory)');
-        }
-
+        // B. Browser: see the Lite build note. The page-local store is
+        // visitHistory in browser.html; the old rename patch was dead.
         // C. Pixel App: Fix Grid Layout (Convert to Flex)
         if (finalHtml.includes('id="pixel-canvas"')) {
             console.log("  [Pixel] Injecting Grid -> Flexbox fixes...");
@@ -1816,6 +1799,22 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
             .lvl-sub-line { font-size: 0.65rem !important; }
         `;
             finalHtml = finalHtml.replace('</style>', cubeCss + '</style>');
+        }
+        // I3. Solitaire: custom properties are stripped, so the media-query
+        // --card-width overrides never reached .pile/.card (cards stayed 45px).
+        if (finalHtml.includes('<title>Solitaire</title>')) {
+            console.log("  [Solitaire] Injecting responsive card sizes...");
+            const solCss = `
+            @media (min-width: 600px) {
+                .pile, .card { width: 65px !important; height: 94px !important; }
+                .column { width: 65px !important; }
+            }
+            @media (min-width: 800px) {
+                .pile, .card { width: 80px !important; height: 116px !important; }
+                .column { width: 80px !important; }
+            }
+        `;
+            finalHtml = finalHtml.replace('</style>', solCss + '</style>');
         }
 
         // J. Settings (Pixel Drawer): Fix Grid
