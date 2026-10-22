@@ -330,6 +330,26 @@ const OLD_BROWSER_DOM_SHIMS = `
     })();
 </script>`;
 
+// Refuse to report success when a constrained build still points at a remote
+// library. A flaky CDN used to produce a "complete" Lite build with eight
+// libs missing because downloadAndTranspileLib returned the CDN URL.
+async function assertLocalLibs() {
+    for (const dir of [LITE_DIR, LEGACY_DIR]) {
+        const missing = new Set();
+        for (const file of glob.sync(path.join(dir, '**/*.html'), { nodir: true })) {
+            const html = await fs.readFile(file, 'utf8');
+            const re = /<script[^>]*src="(libs\/[^"]+)"/g;
+            let match;
+            while ((match = re.exec(html))) {
+                if (!(await fs.pathExists(path.join(dir, match[1])))) missing.add(match[1]);
+            }
+        }
+        if (missing.size) {
+            throw new Error(`Missing local libraries in ${dir}: ${[...missing].join(', ')}`);
+        }
+    }
+}
+
 async function assertNoSecretsInDeploy() {
     const problems = [];
     for (const dir of [MAIN_DIR, LITE_DIR, LEGACY_DIR]) {
@@ -618,10 +638,22 @@ async function downloadAndTranspileLib(url, baseDir, customFilename = null, tran
             // truncated lib that the next build silently reused. The timeout
             // stops a stalled CDN connection from hanging the whole build.
             fs.removeSync(partPath);
-            execSync(`curl -L --fail --silent --show-error --connect-timeout 15 --max-time 90 --retry 2 --retry-delay 2 "${url}" -o "${partPath}"`, { stdio: 'ignore', timeout: 120000 });
-            if (!fs.existsSync(partPath) || fs.statSync(partPath).size === 0) {
-                throw new Error('empty download');
+            let lastError = null;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    execSync(`curl -L --fail --silent --show-error --connect-timeout 15 --max-time 60 --retry 1 --retry-delay 2 "${url}" -o "${partPath}"`, { stdio: 'ignore', timeout: 120000 });
+                    if (!fs.existsSync(partPath) || fs.statSync(partPath).size === 0) {
+                        throw new Error('empty download');
+                    }
+                    lastError = null;
+                    break;
+                } catch (attemptError) {
+                    lastError = attemptError;
+                    fs.removeSync(partPath);
+                    if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 3000));
+                }
             }
+            if (lastError) throw lastError;
             fs.renameSync(partPath, destPath);
 
             // If it's a JS file, transpile it
@@ -2196,6 +2228,9 @@ async function run() {
 
     // 10. Refuse to publish credentials (see FORBIDDEN_IN_DEPLOY above)
     await assertNoSecretsInDeploy();
+
+    // 11. Old builds must not silently fall back to CDN libraries.
+    await assertLocalLibs();
 
     console.log("✅ Build Complete!");
 }
