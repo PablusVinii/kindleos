@@ -140,6 +140,193 @@ const OLD_BROWSER_DOM_SHIMS = `
         if (!window.performance.now) {
             window.performance.now = window.performance.webkitNow || function () { return Date.now(); };
         }
+
+        // --- ES5 polyfills for APIs the app calls unguarded ---
+        // core-js only covers language built-ins, so these are the Web APIs
+        // that are missing on QtWebKit 538.1 (Kobo) and WebKit 534 (old Kindles).
+        // Keep this block ES5: it is injected after Babel has run.
+
+        if (!window.AbortController) {
+            var AbortSignalShim = function () {
+                this.aborted = false;
+                this.onabort = null;
+                this._listeners = [];
+            };
+            AbortSignalShim.prototype.addEventListener = function (type, fn) {
+                if (type === 'abort' && typeof fn === 'function') this._listeners.push(fn);
+            };
+            AbortSignalShim.prototype.removeEventListener = function (type, fn) {
+                if (type !== 'abort') return;
+                var idx = this._listeners.indexOf(fn);
+                if (idx !== -1) this._listeners.splice(idx, 1);
+            };
+            AbortSignalShim.prototype.dispatchEvent = function (evt) {
+                if (typeof this.onabort === 'function') this.onabort.call(this, evt);
+                for (var i = 0; i < this._listeners.length; i++) this._listeners[i].call(this, evt);
+                return true;
+            };
+            var AbortControllerShim = function () { this.signal = new AbortSignalShim(); };
+            AbortControllerShim.prototype.abort = function () {
+                if (this.signal.aborted) return;
+                this.signal.aborted = true;
+                this.signal.dispatchEvent({ type: 'abort', target: this.signal });
+            };
+            window.AbortController = AbortControllerShim;
+            window.AbortSignal = AbortSignalShim;
+        }
+
+        if (!window.TextEncoder && window.Uint8Array) {
+            window.TextEncoder = function () {};
+            window.TextEncoder.prototype.encode = function (input) {
+                var str = String(input == null ? '' : input);
+                var bytes = [];
+                for (var i = 0; i < str.length; i++) {
+                    var c = str.charCodeAt(i);
+                    if (c < 0x80) {
+                        bytes.push(c);
+                    } else if (c < 0x800) {
+                        bytes.push(0xC0 | (c >> 6), 0x80 | (c & 0x3F));
+                    } else if (c >= 0xD800 && c <= 0xDBFF && i + 1 < str.length) {
+                        var c2 = str.charCodeAt(++i);
+                        var cp = 0x10000 + ((c - 0xD800) << 10) + (c2 - 0xDC00);
+                        bytes.push(0xF0 | (cp >> 18), 0x80 | ((cp >> 12) & 0x3F), 0x80 | ((cp >> 6) & 0x3F), 0x80 | (cp & 0x3F));
+                    } else {
+                        bytes.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 0x3F), 0x80 | (c & 0x3F));
+                    }
+                }
+                return new Uint8Array(bytes);
+            };
+        }
+
+        if (!window.TextDecoder && window.Uint8Array) {
+            window.TextDecoder = function () {};
+            window.TextDecoder.prototype.decode = function (input) {
+                var bytes = (input instanceof Uint8Array) ? input : new Uint8Array(input || []);
+                var out = '';
+                for (var i = 0; i < bytes.length;) {
+                    var c = bytes[i++];
+                    if (c < 0x80) {
+                        out += String.fromCharCode(c);
+                    } else if (c >= 0xC0 && c < 0xE0) {
+                        out += String.fromCharCode(((c & 0x1F) << 6) | (bytes[i++] & 0x3F));
+                    } else if (c >= 0xE0 && c < 0xF0) {
+                        out += String.fromCharCode(((c & 0x0F) << 12) | ((bytes[i++] & 0x3F) << 6) | (bytes[i++] & 0x3F));
+                    } else if (c >= 0xF0) {
+                        var point = ((c & 0x07) << 18) | ((bytes[i++] & 0x3F) << 12) | ((bytes[i++] & 0x3F) << 6) | (bytes[i++] & 0x3F);
+                        point -= 0x10000;
+                        out += String.fromCharCode(0xD800 + (point >> 10), 0xDC00 + (point & 0x3FF));
+                    }
+                }
+                return out;
+            };
+        }
+
+        // bad_words.js calls String#matchAll at runtime; core-js 2.6 predates it.
+        if (!String.prototype.matchAll) {
+            String.prototype.matchAll = function (regexp) {
+                var str = String(this);
+                if (!regexp || typeof regexp.exec !== 'function') {
+                    throw new TypeError('matchAll requires a RegExp');
+                }
+                var flags = 'g';
+                if (regexp.ignoreCase) flags += 'i';
+                if (regexp.multiline) flags += 'm';
+                var re = new RegExp(regexp.source, flags);
+                var matches = [];
+                var m;
+                while ((m = re.exec(str)) !== null) {
+                    matches.push(m);
+                    if (m[0] === '') re.lastIndex++;
+                }
+                return matches;
+            };
+        }
+
+        if (window.Element) {
+            var asNode = function (doc, item) {
+                return typeof item === 'string' ? doc.createTextNode(item) : item;
+            };
+            if (!Element.prototype.append) {
+                Element.prototype.append = function () {
+                    for (var i = 0; i < arguments.length; i++) this.appendChild(asNode(this.ownerDocument || document, arguments[i]));
+                };
+            }
+            if (!Element.prototype.prepend) {
+                Element.prototype.prepend = function () {
+                    var first = this.firstChild;
+                    for (var i = 0; i < arguments.length; i++) this.insertBefore(asNode(this.ownerDocument || document, arguments[i]), first);
+                };
+            }
+            if (!Element.prototype.before) {
+                Element.prototype.before = function () {
+                    if (!this.parentNode) return;
+                    for (var i = 0; i < arguments.length; i++) this.parentNode.insertBefore(asNode(this.ownerDocument || document, arguments[i]), this);
+                };
+            }
+            if (!Element.prototype.after) {
+                Element.prototype.after = function () {
+                    if (!this.parentNode) return;
+                    var next = this.nextSibling;
+                    for (var i = 0; i < arguments.length; i++) this.parentNode.insertBefore(asNode(this.ownerDocument || document, arguments[i]), next);
+                };
+            }
+            if (!Element.prototype.replaceWith) {
+                Element.prototype.replaceWith = function () {
+                    if (!this.parentNode) return;
+                    var parent = this.parentNode;
+                    var next = this.nextSibling;
+                    parent.removeChild(this);
+                    for (var i = 0; i < arguments.length; i++) parent.insertBefore(asNode(this.ownerDocument || document, arguments[i]), next);
+                };
+            }
+        }
+
+        if (window.HTMLCanvasElement && window.Blob && window.Uint8Array && window.atob && !HTMLCanvasElement.prototype.toBlob) {
+            HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+                var dataURL;
+                try { dataURL = this.toDataURL(type || 'image/png', quality); } catch (e) { callback(null); return; }
+                var parts = String(dataURL).split(',');
+                if (parts.length < 2) { callback(null); return; }
+                var mimeMatch = parts[0].match(/:(.*?);/);
+                var mime = mimeMatch ? mimeMatch[1] : (type || 'image/png');
+                var binary;
+                try { binary = atob(parts[1]); } catch (e2) { callback(null); return; }
+                var buffer = new ArrayBuffer(binary.length);
+                var view = new Uint8Array(buffer);
+                for (var i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i) & 0xFF;
+                try { callback(new Blob([buffer], { type: mime })); } catch (e3) { callback(null); }
+            };
+        }
+
+        window.rekindleHasWebCrypto = !!(window.crypto && window.crypto.subtle);
+
+        // Cloudflare Pages serves extensionless routes, and a *.html request gets
+        // a 308 first. QtWebKit 538.1 / WebKit 534 cannot follow 308, so strip
+        // .html from local links before the tap turns into a navigation.
+        window.rekindleExtensionlessHref = function (href) {
+            if (!href) return href;
+            if (/^(?:[a-z][a-z0-9+.-]*:|\\/\\/|#)/i.test(href)) return href;
+            var match = String(href).match(/^([^?#]*?)\\.html([?#].*)?$/i);
+            if (!match) return href;
+            var linkPath = match[1];
+            if (/(^|\\/)index$/i.test(linkPath)) linkPath = linkPath.replace(/index$/i, '');
+            if (!linkPath) linkPath = '/';
+            return linkPath + (match[2] || '');
+        };
+
+        if (document.addEventListener) {
+            document.addEventListener('click', function (e) {
+                var el = e.target;
+                while (el && el.nodeType === 1 && el.tagName !== 'A') el = el.parentNode;
+                if (!el || el.tagName !== 'A' || !el.getAttribute) return;
+                var href = el.getAttribute('href');
+                if (!href) return;
+                var fixed = window.rekindleExtensionlessHref(href);
+                if (fixed === href) return;
+                if (e.preventDefault) e.preventDefault();
+                window.location.href = fixed;
+            }, true);
+        }
     })();
 </script>`;
 
@@ -179,6 +366,53 @@ async function assertDeviceRouting() {
     }
 }
 
+
+// --- OLD-BUILD HTML REWRITES ---
+
+// Cloudflare Pages answers *.html with a 308 to the extensionless route. QtWebKit
+// 538.1 (Kobo) and WebKit 534 (pre-Chromium Kindle) predate 308 support, and the
+// old builds have no service worker to intercept the navigation. Rewriting local
+// links here keeps the tap on the first request. index.html maps to "/" because
+// /index is itself a 308 on Pages; external URLs are left untouched.
+function extensionlessLocalHtmlLink(href) {
+    if (!href) return href;
+    if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)) return href;
+    const match = String(href).match(/^([^?#]*?)\.html([?#].*)?$/i);
+    if (!match) return href;
+    let linkPath = match[1];
+    if (/(^|\/)index$/i.test(linkPath)) linkPath = linkPath.replace(/index$/i, '');
+    if (!linkPath) linkPath = '/';
+    return linkPath + (match[2] || '');
+}
+
+function rewriteLocalHtmlLinks(html) {
+    return String(html)
+        // Static href attributes (and href attributes inside JS template strings).
+        .replace(/(\bhref\s*=\s*["'])([^"']+)(["'])/gi, (m, pre, url, post) => {
+            return pre + extensionlessLocalHtmlLink(url) + post;
+        })
+        // Inline handlers and scripts that assign location directly.
+        .replace(/(location(?:\.href)?\s*=\s*["'])([^"']+)(["'])/g, (m, pre, url, post) => {
+            return pre + extensionlessLocalHtmlLink(url) + post;
+        })
+        .replace(/(location\.replace\(\s*["'])([^"']+)(["'])/g, (m, pre, url, post) => {
+            return pre + extensionlessLocalHtmlLink(url) + post;
+        });
+}
+
+// A locally transpiled library can never match the CDN Subresource Integrity
+// hash copied from the source HTML. Keeping the hash makes the browser refuse
+// to execute the file (chess/reader/interactive/flipbook/epub/docs/airtype/2pchess
+// were all dead because of this). Strip SRI from every same-origin script; remote
+// CDN scripts keep theirs.
+function stripLocalScriptIntegrity($) {
+    $('script[src]').each((i, el) => {
+        const src = $(el).attr('src') || '';
+        if (/^(?:https?:)?\/\//i.test(src)) return;
+        $(el).removeAttr('integrity');
+        $(el).removeAttr('crossorigin');
+    });
+}
 
 // --- MINIFICATION HELPERS ---
 
@@ -445,6 +679,10 @@ async function transpileHtml(htmlContent, filename = '') {
             }
         }
 
+        // 2b. A localized copy no longer matches the CDN integrity hash it was
+        // shipped with; keeping it makes the browser refuse to run the script.
+        stripLocalScriptIntegrity($);
+
         // 3. TRANSPILE INLINE JS
         const scripts = $('script');
         for (let i = 0; i < scripts.length; i++) {
@@ -691,7 +929,7 @@ async function transpileHtml(htmlContent, filename = '') {
                 var modal = document.getElementById('es6-warning-modal');
                 var btn = document.getElementById('es6-proceed-btn');
                 btn.onclick = function() {
-                    window.location.href = appId + ".html";
+                    window.location.href = window.rekindleExtensionlessHref ? window.rekindleExtensionlessHref(appId + ".html") : appId + ".html";
                 };
                 modal.style.display = 'flex';
             }
@@ -712,6 +950,16 @@ async function transpileHtml(htmlContent, filename = '') {
              #featured-grid { justify-content: center !important; }
              #featured-grid .featured-card { width: 45% !important; min-width: 200px !important; margin: 5px !important; flex: none !important; }
              /* Fix View Header in Flex Container */
+             /* Old -webkit-box shrinks a 220px flex child to its content width,
+                which clipped "MULTIPLAYER GAMES". Float the sidebar and let the
+                BFC app view sit beside it. Do NOT target .app-view: legacy-patch
+                rewrites every .app-view rule after the build. */
+             .dashboard { display: block !important; }
+             .sidebar { float: left !important; width: 220px !important; min-width: 220px !important; height: 100% !important; -webkit-box-sizing: border-box !important; box-sizing: border-box !important; }
+             .nav-item { white-space: normal !important; }
+             @media (max-width: 520px) {
+                 .sidebar { float: none !important; display: -webkit-box !important; width: 100% !important; height: auto !important; border-right: none !important; border-bottom: 2px solid black !important; }
+             }
              .view-header { width: 100% !important; flex: none !important; margin-top: 25px !important; margin-bottom: 15px !important; }
              @media (max-width: 520px) { #featured-grid .featured-card { width: 96% !important; margin: 2% !important; } }
              `;
@@ -1049,6 +1297,10 @@ async function transpileHtml(htmlContent, filename = '') {
             finalHtml = finalHtml.replace('</style>', wordleCss + '</style>');
         }
 
+        // 9. Extensionless local links: Cloudflare Pages 308s *.html, which the
+        // pre-Chromium Kindle WebKit (and Kobo) cannot follow.
+        finalHtml = rewriteLocalHtmlLinks(finalHtml);
+
         return await minifyHtmlContent(finalHtml);
     } catch (err) {
         console.error(`    [ERROR] Failed to transpile HTML for ${filename}:`, err);
@@ -1155,6 +1407,10 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
             }
         }
 
+        // 2b. A localized copy no longer matches the CDN integrity hash it was
+        // shipped with; keeping it makes the browser refuse to run the script.
+        stripLocalScriptIntegrity($);
+
         // 3. TRANSPILE INLINE JS
         const scripts = $('script');
         for (let i = 0; i < scripts.length; i++) {
@@ -1260,6 +1516,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
                 <h3 style="margin-top:0; border-bottom:2px solid black; padding-bottom:10px;">Legacy Version</h3>
                 <p style="margin:15px 0;">This version is designed for Kobo e-readers and other older devices.</p>
                 <p style="margin:15px 0; font-size:0.9em;">Some apps are hidden or disabled due to hardware limitations.</p>
+                <p style="margin:15px 0; font-size:0.9em;"><a href="/probe" style="color:black;font-weight:bold;">Run the browser probe</a> to check this device.</p>
                 <button style="background:white; border:2px solid black; padding:8px 20px; font-weight:bold; cursor:pointer; box-shadow:2px 2px 0 black;" onclick="document.getElementById('lite-info-modal').style.display='none'">OK</button>
             </div>
         </div>
@@ -1283,7 +1540,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
             function showEs6Warning(appId) {
                 var modal = document.getElementById('es6-warning-modal');
                 var btn = document.getElementById('es6-proceed-btn');
-                btn.onclick = function() { window.location.href = appId + ".html"; };
+                btn.onclick = function() { window.location.href = window.rekindleExtensionlessHref ? window.rekindleExtensionlessHref(appId + ".html") : appId + ".html"; };
                 modal.style.display = 'flex';
             }
         </script>
@@ -1347,7 +1604,17 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
               #featured-grid { justify-content: center !important; }
               #featured-grid .featured-card { width: 45% !important; min-width: 200px !important; margin: 5px !important; flex: none !important; }
               /* Fix View Header in Flex Container */
-              .view-header { width: 100% !important; flex: none !important; margin-top: 25px !important; margin-bottom: 15px !important; }
+              /* Old -webkit-box shrinks a 220px flex child to its content width,
+                which clipped "MULTIPLAYER GAMES". Float the sidebar and let the
+                BFC app view sit beside it. Do NOT target .app-view: legacy-patch
+                rewrites every .app-view rule after the build. */
+             .dashboard { display: block !important; }
+             .sidebar { float: left !important; width: 220px !important; min-width: 220px !important; height: 100% !important; -webkit-box-sizing: border-box !important; box-sizing: border-box !important; }
+             .nav-item { white-space: normal !important; }
+             @media (max-width: 520px) {
+                 .sidebar { float: none !important; display: -webkit-box !important; width: 100% !important; height: auto !important; border-right: none !important; border-bottom: 2px solid black !important; }
+             }
+             .view-header { width: 100% !important; flex: none !important; margin-top: 25px !important; margin-bottom: 15px !important; }
               @media (max-width: 520px) { #featured-grid .featured-card { width: 96% !important; margin: 2% !important; } }
               `;
 
@@ -1618,6 +1885,10 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         `;
             finalHtml = finalHtml.replace('</style>', wordleCss + '</style>');
         }
+
+        // 9. Extensionless local links: Cloudflare Pages 308s *.html, and
+        // QtWebKit 538.1 on the Kobo cannot follow a 308.
+        finalHtml = rewriteLocalHtmlLinks(finalHtml);
 
         // Minify HTML *before* applying final legacy patches to prevent re-processing from stripping them
         let finalMinifiedHtml = await minifyHtmlContent(finalHtml);

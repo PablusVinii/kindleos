@@ -1,0 +1,116 @@
+# Lite & Legacy build pipeline (e-reader browsers)
+
+Read this before changing `build-automation.js`'s `transpileHtml` (Lite) or
+`transpileLegacyHtml` (Legacy), or before debugging a page that works on desktop but not on a
+Kobo/pre-Chromium Kindle.
+
+## What the targets actually are
+
+| Build | Devices | Engine |
+| :--- | :--- | :--- |
+| `main` | Chromium Kindles, desktop, phones | modern Chromium |
+| `lite` | pre-Chromium Kindles (Mesquite) | WebKit ~534, ES5 only |
+| `legacy` | Kobo Clara/HD/2E/BW/Colour, Libra, Sage, Elipsa | QtWebKit **AppleWebKit/538.1** (~2014), ES5 only |
+
+Kobo's UA is a template: `Mozilla/5.0 (Linux; U; Android 2.0; en-us;) AppleWebKit/538.1 ...
+(Kobo Touch <device-code>/<firmware>)`. It says "Kobo Touch" even on a Clara, and `index.html`
+routes on `/Kobo/i` (`index.html:22`). All Clara models on 4.x firmware report 538.1; the 5.x
+Tolino-derived beta is the only thing that may change that.
+
+**Do not assume Kobo == Chromium 75.** The `chrome 12` Babel/PostCSS target is an approximation
+for an even older desktop engine; 538.1 is between the two.
+
+## The browser probe (`/probe`)
+
+`probe.html` is shipped to all builds and linked from the LEGACY info modal. Open
+`https://legacy.rekindle.ink/probe` on the device. It reports UA, build flag, JS APIs, CSS
+support, and does a real `XMLHttpRequest` GET and a `fetch` GET for `/manifest.json`.
+
+The critical row is **XHR GET manifest**. The whatwg-fetch polyfill is XHR-based. If XHR is
+missing, defining `fetch` does not help and no Firebase/Auth/Firestore/AI/RSS feature can work.
+The 2026 on-device report from a Libra Colour says both `fetch` and `XMLHttpRequest` are missing
+(<https://robertcedwards.com/posts/eink-notepad-kobo/>), which conflicts with what QtWebKit
+538.1 normally provides. Verify on the actual unit before promising network features.
+
+## Subresource Integrity (fixed 2026-10-22)
+
+The build localizes and transpiles CDN libraries into `libs/`. The source HTML kept the CDN
+`integrity="sha384-..."` attribute, which can never match Babel's output, so the browser refused
+to execute the local file. Nine pages were dead on every browser (not just Kobo): `reader`,
+`chess`, `livechess`, `2pchess`, `interactive`, `flipbook`, `epub`, `docs`, `airtype`.
+
+- Fix: `stripLocalScriptIntegrity($)` in `build-automation.js` removes `integrity` and
+  `crossorigin` from every same-origin `<script src>`, called after the library replacement loop
+  in **both** `transpileHtml` (Lite) and `transpileLegacyHtml` (Legacy).
+- Verification: `grep -c integrity= _deploy/legacy/chess.html` should be `0` after a build, and
+  `typeof firebase` / `typeof Chess` on `chess.html` should be `object` / `function` in WebKit.
+- Do not "fix" this by recomputing hashes: the build regenerates `libs/` on every run.
+
+## Extensionless local links (fixed 2026-10-22)
+
+Cloudflare Pages answers `*.html` with **308** to the extensionless route. QtWebKit 538.1 and
+WebKit 534 predate 308 support, and Lite/Legacy have no service worker to intercept it. A normal
+tap on an app icon went to `/calculator.html` → 308 → blank.
+
+- `rewriteLocalHtmlLinks(html)` in `build-automation.js` rewrites local `href="*.html"` values,
+  inline `onclick` strings and `location.href`/`location.replace` literals. `index.html` maps to
+  `/` because `/index` is itself a 308 on Pages. External URLs are skipped.
+- `window.rekindleExtensionlessHref()` plus a capture-phase click handler in
+  `OLD_BROWSER_DOM_SHIMS` catches anchors created at runtime by `index_old.html`.
+- `index_old.html` also calls the helper for its two app-card generators.
+- Verify: `grep -rho 'href="[^"]*\.html' _deploy/legacy/*.html` should return nothing.
+
+## Polyfills for the old engine (`OLD_BROWSER_DOM_SHIMS`)
+
+`core-js@2.6.12` covers language built-ins only. The injection block in `build-automation.js`
+now also provides, before any page script:
+
+- `AbortController` / `AbortSignal` (whatwg-fetch listens for `signal` abort events)
+- `TextEncoder` / `TextDecoder` (UTF-8; WebCrypto credential apps)
+- `String.prototype.matchAll` (`bad_words.js` calls it during filtering)
+- `Element.prototype.append/prepend/before/after/replaceWith` (`journal`, `moderation`)
+- `HTMLCanvasElement.prototype.toBlob` (`photoframe`, `mindmap` export)
+- `window.rekindleExtensionlessHref` + click shim
+- `window.rekindleHasWebCrypto` flag (for feature detection; `crypto.subtle` itself is **not**
+  polyfilled — the apps using AES-GCM/PBKDF2 degrade when it is absent)
+
+`OLD_BROWSER_DOM_SHIMS` is injected by both Lite and Legacy. Keep it ES5: it is inserted after
+Babel has run, so `let`/arrow/template-literal syntax would parse-fail on the target devices.
+
+## Dashboard layout
+
+Old `-webkit-box` shrinks a fixed-width flex child: at 600px the 220px sidebar laid out at
+166px even with `width: 220px !important` and `-webkit-box-flex: 0`, clipping "MULTIPLAYER
+GAMES". The home CSS injection in both transpilers now switches `.dashboard` to `display: block`,
+floats a 220px `.sidebar`, gives `.app-view` a 220px left margin, and stacks the sidebar above
+the app view below 520px. Re-check at 600×800 and 732×762.
+
+## Build order and verification
+
+```bash
+node build-automation.js                 # all three targets
+node --check build-automation.js         # syntax
+npm test                                 # i18n/compat/proxy/claims/chat/DM/cleanup/OregonTrail/akinator
+
+# no stale SRI
+grep -c 'integrity=' _deploy/legacy/chess.html    # 0
+# no .html navigation links in old builds (the only hit is /reddit.html inside
+# a browser.html query string, not a path)
+grep -rho 'href="[^"]*\.html' _deploy/legacy/*.html | head
+# probe shipped
+ls _deploy/legacy/probe.html _deploy/lite/probe.html _deploy/main/probe.html
+
+scripts/shot-webkit.sh "http://127.0.0.1:8991/chess.html" 800 1000 /tmp/chess.png \
+  'document.title="firebase:"+typeof firebase+" chess:"+typeof Chess'
+```
+
+## Things still not fixed here
+
+- `crypto.subtle` (WebCrypto) has no realistic polyfill. Mail/Substack/Mastodon/Bluesky/Dropbox
+  credential save/load will fail on a browser without it; the app code catches the rejection but
+  the user loses saved credentials.
+- `canvas.toBlob` is polyfilled via `toDataURL`/`atob`; large canvases are slow and can hit memory
+  limits on a 512MB device.
+- QtWebKit 538.1 has no devtools or console. Use `/probe` for on-device diagnosis.
+- The Kobo repaint quirk (post-load `<body>` class changes dropping elements) still applies to
+  any new post-load styling; prefer setting classes on `<html>` in `<head>`.

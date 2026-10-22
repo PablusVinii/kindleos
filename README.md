@@ -158,7 +158,7 @@ This creates three optimized targets in the `_deploy` directory:
 
 1.  **Main (`_deploy/main`):** For modern devices (Chromium-based Kindles on firmware 5.16.4+, desktop, mobile). Minified with ES6+ features.
 2.  **Lite (`_deploy/lite`):** Optimized for **pre-Chromium Kindles** (Mesquite / WebKit ~534, firmware below 5.16.4). All app JavaScript is down-levelled to ES5, with local polyfills and the older-device rendering fixes.
-3.  **Legacy (`_deploy/legacy`):** Optimized for **Kobo** e-readers and other very old browsers (Chrome 12+ target). Features aggressive transpilation, heavy polyfills, Kobo window/navigation shims, and visual warnings for unsupported applications.
+3.  **Legacy (`_deploy/legacy`):** Optimized for **Kobo** e-readers (QtWebKit 538.1, ES5 only) and other very old browsers. Features aggressive transpilation, heavy polyfills (AbortController, TextEncoder/Decoder, matchAll, DOM insertion methods), Kobo window/navigation shims, extensionless links (Cloudflare 308 compatibility), and visual warnings for unsupported applications. Open `/probe` on a device to print its capability report.
 
 ---
 

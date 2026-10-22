@@ -1335,7 +1335,7 @@
 
         function createAppElement(app) {
             const a = document.createElement('a');
-            a.href = `${app.id}.html`;
+            a.href = window.rekindleExtensionlessHref ? window.rekindleExtensionlessHref(`${app.id}.html`) : `${app.id}.html`;
             a.className = 'app-icon';
             a.id = `icon-${app.id}`;
             
@@ -1460,7 +1460,7 @@
 
             featuredApps.forEach(app => {
                 const a = document.createElement('a');
-                a.href = `${app.id}.html`;
+                a.href = window.rekindleExtensionlessHref ? window.rekindleExtensionlessHref(`${app.id}.html`) : `${app.id}.html`;
                 if (app.id === 'discord') { a.onclick = (e) => { e.preventDefault(); openDiscordModal(); }; a.href = "javascript:void(0)"; }
                 a.className = 'featured-card';
                 const subheading = app.desc || '';
