@@ -718,7 +718,9 @@
             const noClue = window.t ? window.t('crossword.label.no_clue', "(No Clue)") : "(No Clue)";
             const clueText = currentPuzzle.clues[direction][num] || noClue;
 
-            const dirLabel = window.t ? window.t(`crossword.direction.${direction}`) : direction.toUpperCase();
+            const dirKey = `crossword.direction.${direction}`;
+            const dirFallback = direction === 'across' ? 'Across' : 'Down';
+            const dirLabel = window.t ? window.t(dirKey, dirFallback) : direction.toUpperCase();
             document.getElementById('clue-bar').innerText = `${num} ${dirLabel}: ${clueText}`;
             document.getElementById('clue-bar').removeAttribute('data-i18n');
         }

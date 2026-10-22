@@ -104,6 +104,44 @@ scripts/shot-webkit.sh "http://127.0.0.1:8991/chess.html" 800 1000 /tmp/chess.pn
   'document.title="firebase:"+typeof firebase+" chess:"+typeof Chess'
 ```
 
+## Old-engine layout fallbacks (2026-10-22)
+
+Both old engines only have the 2009 flexbox. `addOldEngineLayoutFallbacks(html)` in
+`build-automation.js` runs on the final HTML for Lite and Legacy, after PostCSS and the
+app-specific CSS injections. It covers what PostCSS cannot see:
+
+- `<style>` blocks and inline `style="..."` attributes: adds `display:-webkit-box` (and
+  `-webkit-box-lines:multiple` for `flex-wrap:wrap`), plus `-webkit-box-align` / `-webkit-box-pack`
+  for `align-items` / `justify-content`.
+- Inline scripts and `onclick`/`onchange` handlers: rewrites `style.display = 'flex'` (including
+  ternaries such as `open ? 'flex' : 'none'`) to `'-webkit-box'`. `paint`-time display switches are
+  how modals and tabs open; without this they stay hidden on WebKit 534/538.1.
+- It leaves the unprefixed value last in CSS, so modern WebKit still uses `flex`.
+
+The visible symptoms this fixed: modals opening invisible or un-centred, tab panels never showing,
+and game boards rendering as a single row.
+
+### Game grids
+
+The old-game CSS fixes now use `display:block` + `display:inline-block` cells rather than flex.
+Inline-block wrapping is supported by every engine, so Lite and Legacy render the same board:
+
+- 2048: 64px cells, `gap:0`, 300px board (fits the 282px content box).
+- Sudoku: max-width 400px (leaves room for the number pad), `gap:0`, 11.11% cells.
+- Minesweeper: 7.14% cells, 1px cell borders (the grid lines used to be the 1px flex gap).
+- Crossword: 15x15 percentage cells, white background while the puzzle loads.
+- Memory: 4 cards per row (`gap:0`, 22% + 1% margin).
+- Chess/checkers: `#board` block, 12.5% squares.
+- Battleship: 10x10 block/inline-block grid with `gap:0` (the 1px gap used to push the last column out).
+- Cube Dash: level rows use floats (73% / 23%) so the PRACTICE button cannot be clipped.
+
+`injectAfterCellClass()` exists because Babel/minification rewrites `cell.className = 'cell';`
+to `cell.className="cell";`, which silently defeated the Crossword, Minesweeper and Nonograms
+cell-size patches for months. Match the minified form (either quote style), not one literal string.
+
+`crossword.html` also gained an English fallback for `crossword.direction.*`; the clue bar used to
+show the raw key.
+
 ## Things still not fixed here
 
 - `crypto.subtle` (WebCrypto) has no realistic polyfill. Mail/Substack/Mastodon/Bluesky/Dropbox

@@ -400,6 +400,83 @@ function rewriteLocalHtmlLinks(html) {
         });
 }
 
+// WebKit 534 (Lite) and QtWebKit 538.1 (Legacy) only have the 2009 flexbox
+// (-webkit-box), not unprefixed flex, and they need -webkit-box-lines to wrap.
+// processCss() handles the source <style> blocks, but inline style attributes,
+// JS `style.display = 'flex'` assignments and the app-specific CSS injected
+// after PostCSS all bypass it. This pass covers those, and is safe on modern
+// engines because the unprefixed value stays last in CSS.
+function addOldEngineLayoutFallbacks(html) {
+    const fixCssText = (css) => css
+        .replace(/(?<!-webkit-inline-box;)display\s*:\s*inline-flex\b/gi, 'display:-webkit-inline-box;display:inline-flex')
+        .replace(/(?<!-webkit-box;)display\s*:\s*flex\b/gi, 'display:-webkit-box;display:flex')
+        .replace(/display\s*:\s*grid\b/gi, 'display:-webkit-box;display:flex;-webkit-box-lines:multiple;flex-wrap:wrap')
+        .replace(/(?<!-webkit-box-lines:multiple;)flex-wrap\s*:\s*wrap\b/gi, '-webkit-box-lines:multiple;flex-wrap:wrap')
+        // Old flexbox equivalents for alignment. .modal-overlay and many tabs set
+        // display via JS, so PostCSS never saw a display:flex in their rule and
+        // did not emit these prefixes.
+        .replace(/\balign-items\s*:\s*center\b/gi, '-webkit-box-align:center;align-items:center')
+        .replace(/\balign-items\s*:\s*flex-start\b/gi, '-webkit-box-align:start;align-items:flex-start')
+        .replace(/\balign-items\s*:\s*start\b/gi, '-webkit-box-align:start;align-items:start')
+        .replace(/\balign-items\s*:\s*flex-end\b/gi, '-webkit-box-align:end;align-items:flex-end')
+        .replace(/\balign-items\s*:\s*end\b/gi, '-webkit-box-align:end;align-items:end')
+        .replace(/\balign-items\s*:\s*stretch\b/gi, '-webkit-box-align:stretch;align-items:stretch')
+        .replace(/\bjustify-content\s*:\s*center\b/gi, '-webkit-box-pack:center;justify-content:center')
+        .replace(/\bjustify-content\s*:\s*space-between\b/gi, '-webkit-box-pack:justify;justify-content:space-between')
+        .replace(/\bjustify-content\s*:\s*space-around\b/gi, '-webkit-box-pack:justify;justify-content:space-around')
+        .replace(/\bjustify-content\s*:\s*flex-start\b/gi, '-webkit-box-pack:start;justify-content:flex-start')
+        .replace(/\bjustify-content\s*:\s*start\b/gi, '-webkit-box-pack:start;justify-content:start')
+        .replace(/\bjustify-content\s*:\s*flex-end\b/gi, '-webkit-box-pack:end;justify-content:flex-end')
+        .replace(/\bjustify-content\s*:\s*end\b/gi, '-webkit-box-pack:end;justify-content:end')
+        .replace(/\bflex-direction\s*:\s*column\b/gi, '-webkit-box-orient:vertical;-webkit-box-direction:normal;flex-direction:column')
+        .replace(/\bflex-direction\s*:\s*column-reverse\b/gi, '-webkit-box-orient:vertical;-webkit-box-direction:reverse;flex-direction:column-reverse')
+        .replace(/\bflex-direction\s*:\s*row-reverse\b/gi, '-webkit-box-orient:horizontal;-webkit-box-direction:reverse;flex-direction:row-reverse')
+        .replace(/\bflex-grow\s*:\s*1\b/gi, '-webkit-box-flex:1;flex-grow:1')
+        .replace(/\bflex\s*:\s*1\b/gi, '-webkit-box-flex:1;flex:1');
+
+    const fixJsText = (js) => {
+        // Replace every quoted flex value in a style.display assignment, including
+        // ternaries like `style.display = open ? 'flex' : 'none'`.
+        let fixed = js.replace(/\.style\.display\s*=\s*[^;\n]+/g, (stmt) => {
+            return stmt.replace(/(["'])(inline-flex|flex|grid)\1/g, (m, q, value) => {
+                return q + (value === 'inline-flex' ? '-webkit-inline-box' : '-webkit-box') + q;
+            });
+        });
+        return fixCssText(fixed);
+    };
+
+    let out = String(html);
+
+    // Source <style> blocks plus app-specific CSS injected after PostCSS.
+    out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (m, open, css, close) => {
+        return open + fixCssText(css) + close;
+    });
+
+    // Inline style="display:flex; align-items:center" attributes.
+    out = out.replace(/(\sstyle\s*=\s*["'])([^"']*)(["'])/gi, (m, pre, css, post) => {
+        return pre + fixCssText(css) + post;
+    });
+
+    // Inline scripts: assignments plus HTML strings passed to innerHTML.
+    out = out.replace(/(<script\b[^>]*>)([\s\S]*?)(<\/script>)/gi, (m, open, js, close) => {
+        return open + fixJsText(js) + close;
+    });
+
+    // Inline event handlers (onclick, onchange, ...) also navigate/flex directly.
+    out = out.replace(/(\son[a-z]+\s*=\s*)(["'])([\s\S]*?)\2/gi, (m, pre, quote, js) => {
+        return pre + quote + fixJsText(js) + quote;
+    });
+
+    return out;
+}
+
+// Babel/minification rewrites `cell.className = 'cell';` to double quotes, which
+// silently defeated the Crossword, Minesweeper and Nonograms cell-size patches.
+// Match either quote style instead of a single hard-coded string.
+function injectAfterCellClass(html, statement) {
+    return String(html).replace(/(cell\.className\s*=\s*["']cell["'];)/, '$1 ' + statement);
+}
+
 // A locally transpiled library can never match the CDN Subresource Integrity
 // hash copied from the source HTML. Keeping the hash makes the browser refuse
 // to execute the file (chess/reader/interactive/flipbook/epub/docs/airtype/2pchess
@@ -1050,8 +1127,8 @@ async function transpileHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>2048</title>')) {
             console.log("  [2048] Injecting 4x4 Grid Fixes...");
             const g2048Css = `
-            #grid-container { display: flex !important; flex-wrap: wrap !important; width: 300px !important; height: 300px !important; align-content: flex-start !important; }
-            .cell { width: 68px !important; height: 68px !important; margin: 2px !important; flex: none !important; }
+            #grid-container { display: block !important; font-size: 0 !important; width: 300px !important; height: 300px !important; gap: 0 !important; }
+            .cell { display: inline-block !important; vertical-align: top !important; width: 64px !important; height: 64px !important; margin: 2px !important; flex: none !important; }
             /* Override generic grid container children styles if they bleed in */
             .grid-container > * { margin: 2px !important; } 
         `;
@@ -1075,8 +1152,8 @@ async function transpileHtml(htmlContent, filename = '') {
                 console.log("  [Board Game] Injecting 8x8 Board Fixes...");
                 const boardCss = `
                 /* We need to override the generic grid replacement that might have happened to #board */
-                #board { display: flex !important; flex-wrap: wrap !important; width: 300px !important; height: 300px !important; align-content: flex-start !important; border: 4px solid black !important; }
-                .square { width: 12.5% !important; height: 12.5% !important; flex: none !important; margin: 0 !important; padding: 0 !important; }
+                #board { display: block !important; font-size: 0 !important; width: 300px !important; height: 300px !important; border: 4px solid black !important; }
+                .square { display: inline-block !important; vertical-align: top !important; width: 12.5% !important; height: 12.5% !important; flex: none !important; margin: 0 !important; padding: 0 !important; }
             `;
                 finalHtml = finalHtml.replace('</style>', boardCss + '</style>');
             }
@@ -1087,11 +1164,23 @@ async function transpileHtml(htmlContent, filename = '') {
             console.log("  [Battleship] Injecting 10x10 Grid Fixes...");
             const battleCss = `
             /* Fix Setup and Game Boards */
-            .grid-container { display: flex !important; flex-wrap: wrap !important; width: 300px !important; height: 300px !important; align-content: flex-start !important; }
+            .grid-container { display: block !important; font-size: 0 !important; width: 300px !important; height: 300px !important; gap: 0 !important; }
             /* Override generic .grid-container > * rule which might set margin: 10px */
-            .grid-container > .cell { width: 10% !important; height: 10% !important; flex: none !important; margin: 0 !important; border: 1px solid #ccc; box-sizing: border-box; }
+            .grid-container > .cell { display: inline-block !important; vertical-align: top !important; width: 10% !important; height: 10% !important; flex: none !important; margin: 0 !important; border: 1px solid #ccc; box-sizing: border-box; }
         `;
             finalHtml = finalHtml.replace('</style>', battleCss + '</style>');
+        }
+        // I2. Cube Dash: keep the PRACTICE button inside the menu row.
+        if (finalHtml.includes('<title>Cube Dash</title>')) {
+            console.log("  [Cube Dash] Injecting level-row layout fixes...");
+            const cubeCss = `
+            .lvl-row { display: block !important; overflow: hidden !important; }
+            .lvl-main { float: left !important; width: 73% !important; margin-right: 2% !important; }
+            .lvl-prac { float: right !important; width: 23% !important; min-width: 0 !important; }
+            .lvl-name-line { font-size: 0.8rem !important; }
+            .lvl-sub-line { font-size: 0.65rem !important; }
+        `;
+            finalHtml = finalHtml.replace('</style>', cubeCss + '</style>');
         }
 
         // J. Settings (Pixel Drawer): Fix Grid
@@ -1108,8 +1197,8 @@ async function transpileHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Memory</title>')) {
             console.log("  [Memory] Injecting Grid Fixes...");
             const memoryCss = `
-            #game-grid { display: flex !important; flex-wrap: wrap !important; justify-content: center !important; }
-            .card { width: 22% !important; margin: 1% !important; height: 90px !important; flex: none !important; }
+            #game-grid { display: block !important; font-size: 0 !important; gap: 0 !important; text-align: center !important; }
+            .card { display: inline-block !important; vertical-align: top !important; width: 22% !important; margin: 1% !important; height: 90px !important; flex: none !important; }
         `;
             finalHtml = finalHtml.replace('</style>', memoryCss + '</style>');
         }
@@ -1144,32 +1233,26 @@ async function transpileHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Crossword</title>')) {
             console.log("  [Crossword] Injecting Flexbox & JS Patch...");
             const crossCss = `
-            #grid-container { display: flex !important; flex-wrap: wrap !important; align-content: flex-start !important; gap: 0 !important; }
-            .cell { margin: 0 !important; box-sizing: border-box; flex: none !important; border: 1px solid #999; }
+            #grid-container { display: block !important; font-size: 0 !important; gap: 0 !important; background: #fff !important; }
+            .cell { display: inline-block !important; vertical-align: top !important; margin: 0 !important; box-sizing: border-box !important; flex: none !important; border: 1px solid #999; }
         `;
             finalHtml = finalHtml.replace('</style>', crossCss + '</style>');
 
             // Patch JS to set width/height
-            finalHtml = finalHtml.replace(
-                "cell.className = 'cell';",
-                "cell.className = 'cell'; cell.style.width = (100/currentPuzzle.cols) + '%'; cell.style.height = (100/currentPuzzle.rows) + '%';"
-            );
+            finalHtml = injectAfterCellClass(finalHtml, "cell.style.width = (100/currentPuzzle.cols) + '%'; cell.style.height = (100/currentPuzzle.rows) + '%';");
         }
 
         // O. Minesweeper: Fix Dynamic Grid
         if (finalHtml.includes('<title>Minesweeper</title>')) {
             console.log("  [Minesweeper] Injecting Flexbox & JS Patch...");
             const mineCss = `
-            #grid-container { display: flex !important; flex-wrap: wrap !important; align-content: flex-start !important; gap: 0 !important; }
-            .cell { margin: 0 !important; box-sizing: border-box; flex: none !important; }
+            #grid-container { display: block !important; font-size: 0 !important; gap: 0 !important; }
+            .cell { display: inline-block !important; vertical-align: top !important; margin: 0 !important; box-sizing: border-box !important; border: 1px solid #999 !important; flex: none !important; }
         `;
             finalHtml = finalHtml.replace('</style>', mineCss + '</style>');
 
             // Patch JS
-            finalHtml = finalHtml.replace(
-                "cell.className = 'cell';",
-                "cell.className = 'cell'; cell.style.width = (100/COLS) + '%';"
-            );
+            finalHtml = injectAfterCellClass(finalHtml, "cell.style.width = (100/COLS) + '%';");
         }
 
         // P. Nerdle: Fix Flexbox Layout
@@ -1216,10 +1299,7 @@ async function transpileHtml(htmlContent, filename = '') {
             // We can insert a style calculator.
 
             if (finalHtml.includes('function renderGameGrid()')) {
-                finalHtml = finalHtml.replace(
-                    "cell.className = 'cell';",
-                    "cell.className = 'cell'; cell.style.width = (100/cols) + '%'; cell.style.height = (100/cols) + '%';"
-                );
+                finalHtml = injectAfterCellClass(finalHtml, "cell.style.width = (100/cols) + '%'; cell.style.height = (100/cols) + '%';");
             }
         }
 
@@ -1237,8 +1317,8 @@ async function transpileHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Sudoku</title>')) {
             console.log("  [Sudoku] Injecting Flexbox Layout fixes...");
             const sudokuCss = `
-            #game-container { display: flex !important; flex-wrap: wrap !important; }
-            .cell { width: 11.11% !important; height: 11.11% !important; flex: none !important; margin: 0 !important; box-sizing: border-box !important; }
+            #game-container { display: block !important; font-size: 0 !important; gap: 0 !important; max-width: 400px !important; margin: 0 auto 8px auto !important; }
+            .cell { display: inline-block !important; vertical-align: top !important; width: 11.11% !important; height: 11.11% !important; flex: none !important; margin: 0 !important; box-sizing: border-box !important; }
             
             /* Restore Borders for 3x3 Blocks manually if needed, or rely on existing nth-child if they work with flex items (they should) */
             /* Flex items are elements, so nth-child works fine. */
@@ -1299,6 +1379,7 @@ async function transpileHtml(htmlContent, filename = '') {
 
         // 9. Extensionless local links: Cloudflare Pages 308s *.html, which the
         // pre-Chromium Kindle WebKit (and Kobo) cannot follow.
+        finalHtml = addOldEngineLayoutFallbacks(finalHtml);
         finalHtml = rewriteLocalHtmlLinks(finalHtml);
 
         return await minifyHtmlContent(finalHtml);
@@ -1685,8 +1766,8 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>2048</title>')) {
             console.log("  [2048] Injecting 4x4 Grid Fixes...");
             let g2048Css = `
-            #grid-container { display: flex !important; flex-wrap: wrap !important; width: 300px !important; height: 300px !important; align-content: flex-start !important; }
-            .cell { width: 68px !important; height: 68px !important; margin: 2px !important; flex: none !important; }
+            #grid-container { display: block !important; font-size: 0 !important; width: 300px !important; height: 300px !important; gap: 0 !important; }
+            .cell { display: inline-block !important; vertical-align: top !important; width: 64px !important; height: 64px !important; margin: 2px !important; flex: none !important; }
             .grid-container > * { margin: 2px !important; } 
         `;
             finalHtml = finalHtml.replace('</style>', g2048Css + '</style>');
@@ -1707,8 +1788,8 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
             if (finalHtml.includes('id="board"')) {
                 console.log("  [Board Game] Injecting 8x8 Board Fixes...");
                 let boardCss = `
-                #board { display: flex !important; flex-wrap: wrap !important; width: 300px !important; height: 300px !important; align-content: flex-start !important; border: 4px solid black !important; }
-                .square { width: 12.5% !important; height: 12.5% !important; flex: none !important; margin: 0 !important; padding: 0 !important; }
+                #board { display: block !important; font-size: 0 !important; width: 300px !important; height: 300px !important; border: 4px solid black !important; }
+                .square { display: inline-block !important; vertical-align: top !important; width: 12.5% !important; height: 12.5% !important; flex: none !important; margin: 0 !important; padding: 0 !important; }
             `;
                 finalHtml = finalHtml.replace('</style>', boardCss + '</style>');
             }
@@ -1718,10 +1799,23 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Battleship</title>')) {
             console.log("  [Battleship] Injecting 10x10 Grid Fixes...");
             let battleCss = `
-            .grid-container { display: flex !important; flex-wrap: wrap !important; width: 300px !important; height: 300px !important; align-content: flex-start !important; }
-            .grid-container > .cell { width: 10% !important; height: 10% !important; flex: none !important; margin: 0 !important; border: 1px solid #ccc; box-sizing: border-box; }
+            .grid-container { display: block !important; font-size: 0 !important; width: 300px !important; height: 300px !important; gap: 0 !important; }
+            /* Override generic .grid-container > * rule which might set margin: 10px */
+            .grid-container > .cell { display: inline-block !important; vertical-align: top !important; width: 10% !important; height: 10% !important; flex: none !important; margin: 0 !important; border: 1px solid #ccc; box-sizing: border-box; }
         `;
             finalHtml = finalHtml.replace('</style>', battleCss + '</style>');
+        }
+        // I2. Cube Dash: keep the PRACTICE button inside the menu row.
+        if (finalHtml.includes('<title>Cube Dash</title>')) {
+            console.log("  [Cube Dash] Injecting level-row layout fixes...");
+            const cubeCss = `
+            .lvl-row { display: block !important; overflow: hidden !important; }
+            .lvl-main { float: left !important; width: 73% !important; margin-right: 2% !important; }
+            .lvl-prac { float: right !important; width: 23% !important; min-width: 0 !important; }
+            .lvl-name-line { font-size: 0.8rem !important; }
+            .lvl-sub-line { font-size: 0.65rem !important; }
+        `;
+            finalHtml = finalHtml.replace('</style>', cubeCss + '</style>');
         }
 
         // J. Settings (Pixel Drawer): Fix Grid
@@ -1738,8 +1832,8 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Memory</title>')) {
             console.log("  [Memory] Injecting Grid Fixes...");
             let memoryCss = `
-            #game-grid { display: flex !important; flex-wrap: wrap !important; justify-content: center !important; }
-            .card { width: 22% !important; margin: 1% !important; height: 90px !important; flex: none !important; }
+            #game-grid { display: block !important; font-size: 0 !important; gap: 0 !important; text-align: center !important; }
+            .card { display: inline-block !important; vertical-align: top !important; width: 22% !important; margin: 1% !important; height: 90px !important; flex: none !important; }
         `;
             finalHtml = finalHtml.replace('</style>', memoryCss + '</style>');
         }
@@ -1772,28 +1866,22 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Crossword</title>')) {
             console.log("  [Crossword] Injecting Flexbox & JS Patch...");
             const crossCss = `
-            #grid-container { display: flex !important; flex-wrap: wrap !important; align-content: flex-start !important; gap: 0 !important; }
-            .cell { margin: 0 !important; box-sizing: border-box; flex: none !important; border: 1px solid #999; }
+            #grid-container { display: block !important; font-size: 0 !important; gap: 0 !important; background: #fff !important; }
+            .cell { display: inline-block !important; vertical-align: top !important; margin: 0 !important; box-sizing: border-box !important; flex: none !important; border: 1px solid #999; }
         `;
             finalHtml = finalHtml.replace('</style>', crossCss + '</style>');
-            finalHtml = finalHtml.replace(
-                "cell.className = 'cell';",
-                "cell.className = 'cell'; cell.style.width = (100/currentPuzzle.cols) + '%'; cell.style.height = (100/currentPuzzle.rows) + '%';"
-            );
+            finalHtml = injectAfterCellClass(finalHtml, "cell.style.width = (100/currentPuzzle.cols) + '%'; cell.style.height = (100/currentPuzzle.rows) + '%';");
         }
 
         // O. Minesweeper: Fix Dynamic Grid
         if (finalHtml.includes('<title>Minesweeper</title>')) {
             console.log("  [Minesweeper] Injecting Flexbox & JS Patch...");
             const mineCss = `
-            #grid-container { display: flex !important; flex-wrap: wrap !important; align-content: flex-start !important; gap: 0 !important; }
-            .cell { margin: 0 !important; box-sizing: border-box; flex: none !important; }
+            #grid-container { display: block !important; font-size: 0 !important; gap: 0 !important; }
+            .cell { display: inline-block !important; vertical-align: top !important; margin: 0 !important; box-sizing: border-box !important; border: 1px solid #999 !important; flex: none !important; }
         `;
             finalHtml = finalHtml.replace('</style>', mineCss + '</style>');
-            finalHtml = finalHtml.replace(
-                "cell.className = 'cell';",
-                "cell.className = 'cell'; cell.style.width = (100/COLS) + '%';"
-            );
+            finalHtml = injectAfterCellClass(finalHtml, "cell.style.width = (100/COLS) + '%';");
         }
 
         // P. Nerdle: Fix Flexbox Layout
@@ -1820,10 +1908,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         `;
             finalHtml = finalHtml.replace('</style>', nonoCss + '</style>');
             if (finalHtml.includes('function renderGameGrid()')) {
-                finalHtml = finalHtml.replace(
-                    "cell.className = 'cell';",
-                    "cell.className = 'cell'; cell.style.width = (100/cols) + '%'; cell.style.height = (100/cols) + '%';"
-                );
+                finalHtml = injectAfterCellClass(finalHtml, "cell.style.width = (100/cols) + '%'; cell.style.height = (100/cols) + '%';");
             }
         }
 
@@ -1841,8 +1926,8 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
         if (finalHtml.includes('<title>Sudoku</title>')) {
             console.log("  [Sudoku] Injecting Flexbox Layout fixes...");
             let sudokuCss = `
-            #game-container { display: flex !important; flex-wrap: wrap !important; }
-            .cell { width: 11.11% !important; height: 11.11% !important; flex: none !important; margin: 0 !important; box-sizing: border-box !important; }
+            #game-container { display: block !important; font-size: 0 !important; gap: 0 !important; max-width: 400px !important; margin: 0 auto 8px auto !important; }
+            .cell { display: inline-block !important; vertical-align: top !important; width: 11.11% !important; height: 11.11% !important; flex: none !important; margin: 0 !important; box-sizing: border-box !important; }
         `;
             finalHtml = finalHtml.replace('</style>', sudokuCss + '</style>');
         }
@@ -1888,6 +1973,7 @@ async function transpileLegacyHtml(htmlContent, filename = '') {
 
         // 9. Extensionless local links: Cloudflare Pages 308s *.html, and
         // QtWebKit 538.1 on the Kobo cannot follow a 308.
+        finalHtml = addOldEngineLayoutFallbacks(finalHtml);
         finalHtml = rewriteLocalHtmlLinks(finalHtml);
 
         // Minify HTML *before* applying final legacy patches to prevent re-processing from stripping them
