@@ -1,4 +1,5 @@
 {
+  "outputDirectory": "_deploy/main",
   "cleanUrls": true,
   "trailingSlash": false
 }
