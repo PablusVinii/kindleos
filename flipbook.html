@@ -955,14 +955,7 @@
 
         // --- DRAWING / EDITOR LOGIC ---
         function requirePro() {
-            if (isPro) return true;
-            if (currentUser && !subChecked) {
-                showInfoModal("Verifying subscription... please try again in a moment.");
-            } else {
-                document.getElementById('paywall-overlay').style.display = 'flex';
-                document.getElementById('paywall-status').innerText = "Pro subscription required to create animations.";
-            }
-            return false;
+            return true;
         }
 
         function createNew() {
@@ -1849,76 +1842,13 @@
 
             // 1. CACHE CHECK (Instant)
             try {
-                const cachedExpiry = localStorage.getItem('rekindle_pro_expiry');
-                if (cachedExpiry && parseInt(cachedExpiry) > Date.now()) {
-                    isPro = true;
-                    if (overlay) overlay.style.display = 'none';
-                    // We don't return early here because we might want to refresh the cache in background
-                    // but we ensure UI is unlocked.
-                }
+                isPro = true;
+                subChecked = true;
+                if (overlay) overlay.style.display = 'none';
             } catch (e) { }
-
-            if (user) {
-                // Timeout fallback
-                const timeoutId = setTimeout(() => {
-                    console.warn("Subscription check timed out");
-                    subChecked = true;
-                    status.innerText = "Verification timed out. Please refresh.";
-                    // If not already pro by cache, show overlay
-                    if (!isPro) overlay.style.display = 'flex';
-                }, 10000);
-
-                db.collection('users').doc(user.uid).get()
-                    .then(doc => {
-                        clearTimeout(timeoutId);
-                        subChecked = true;
-                        if (doc.exists) {
-                            const data = doc.data();
-                            const now = Date.now();
-                            let expires = 0;
-                            if (data.proExpiresAt) {
-                                expires = typeof data.proExpiresAt.toMillis === 'function'
-                                    ? data.proExpiresAt.toMillis()
-                                    : new Date(data.proExpiresAt).getTime();
-                            }
-
-                            // UPDATE CACHE
-                            if (expires > now) {
-                                localStorage.setItem('rekindle_pro_expiry', expires.toString());
-                            } else {
-                                localStorage.removeItem('rekindle_pro_expiry');
-                            }
-
-                            if (expires > now) {
-                                isPro = true;
-                                // Update UI if needed
-                            } else {
-                                isPro = false;
-                            }
-                        } else {
-                            isPro = false;
-                        }
-                        // We don't force overlay here, we let actions trigger it or checks elsewhere
-                        // But if we want to mimic other apps behavior of hiding overlay if pro:
-                        if (isPro) {
-                            if (overlay) overlay.style.display = 'none';
-                        } else {
-                            status.innerText = expires > 0 ? "Subscription expired." : "Subscription required.";
-                            overlay.style.display = 'flex';
-                        }
-                    })
-                    .catch(e => {
-                        clearTimeout(timeoutId);
-                        subChecked = true;
-                        console.error("Error checking sub", e);
-                        status.innerText = "Error verifying. Try again.";
-                        overlay.style.display = 'flex';
-                    });
-            } else {
-                // NOT LOGGED IN
-                status.innerText = "Please log in.";
-                overlay.style.display = 'flex';
-            }
+            isPro = true;
+            subChecked = true;
+            if (overlay) overlay.style.display = 'none';
         }
     </script>
     <script src="time.js?v=4"></script>

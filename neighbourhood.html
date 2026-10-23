@@ -1409,7 +1409,7 @@
             });
 
             // Initial Pro check from storage
-            isPlus = localStorage.getItem('rekindle_is_pro') !== 'false';
+            isPlus = true;
 
             // Age verification check (server-side enforced)
             ensureAgeVerified(auth, { closable: false }).then(function () {
@@ -2300,31 +2300,18 @@
         }
 
         function lockPixelPickerItem(el) {
-            if (!el || el.classList.contains('locked')) return;
-            el.classList.add('locked');
-            el.onclick = function () { showGradientPaywallAlert(); };
-            const badge = document.createElement('div');
-            badge.className = 'pixel-picker-lock-badge';
-            badge.innerText = (typeof window.t === 'function') ? window.t('neighbourhood.lbl.plus', 'PLUS') : 'PLUS';
-            el.appendChild(badge);
+            // All avatars unlocked - no locking needed
+            return;
         }
 
         function showGradientPaywallAlert() {
-            const msg = (typeof window.t === 'function')
-                ? window.t('neighbourhood.pixel_art.plus_required', 'This pixel art uses gradients. Gradient avatars require ReKindle+.')
-                : 'This pixel art uses gradients. Gradient avatars require ReKindle+.';
-            showAlertModal(msg, 'ReKindle+');
+            // No-op
         }
 
         async function selectPixelArtAsAvatar(id) {
             const grid = await loadPixelDrawingData(id);
             if (!grid) {
                 showAlertModal('Could not load that drawing.');
-                return;
-            }
-
-            if (!isPlus && gridHasGradients(grid)) {
-                showGradientPaywallAlert();
                 return;
             }
 

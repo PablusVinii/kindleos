@@ -145,41 +145,7 @@ function assertMailAuthConfig(config) {
 }
 
 async function isUserPro(uid, email, token) {
-    if (token && token.pro === true) return true;
-    if (email === 'ukiyo@rekindle.ink') return true;
-
-    const db = admin.firestore();
-
-    try {
-        const doc = await db.collection('users').doc(uid).get();
-        if (doc.exists) {
-            const data = doc.data();
-            if (data && data.proExpiresAt) {
-                const expires = data.proExpiresAt.toMillis ? data.proExpiresAt.toMillis() : new Date(data.proExpiresAt).getTime();
-                if (expires > Date.now()) return true;
-            }
-        }
-    } catch (e) {
-        logger.warn('isUserPro user lookup failed:', e.message);
-    }
-
-    if (email) {
-        try {
-            const supporters = await db.collection('config').doc('supporters').get();
-            if (supporters.exists) {
-                const data = supporters.data() || {};
-                const entry = data[email];
-                if (entry && entry.expiresAt) {
-                    const expires = entry.expiresAt.toMillis ? entry.expiresAt.toMillis() : new Date(entry.expiresAt).getTime();
-                    if (expires > Date.now()) return true;
-                }
-            }
-        } catch (e) {
-            logger.warn('isUserPro supporters lookup failed:', e.message);
-        }
-    }
-
-    return false;
+    return true;
 }
 
 async function assertMailRate(uid, kind, limit, windowMs) {

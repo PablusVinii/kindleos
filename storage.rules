@@ -13,9 +13,9 @@ service firebase.storage {
       return isAuth() && request.auth.uid == userId;
     }
 
-    // Helper to check if user has pro custom claim
+    // Helper to check if user is authorized (free for all authenticated users)
     function isPro() {
-      return isAuth() && (request.auth.token.pro == true || isDeveloper());
+      return isAuth();
     }
 
     // Helper to check if user is a developer

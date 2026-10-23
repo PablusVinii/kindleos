@@ -874,107 +874,26 @@
 
         function checkSubscription() {
             const overlay = document.getElementById('paywall-overlay');
-            const status = document.getElementById('paywall-status');
-            const sendBtn = document.getElementById('send-btn');
-
-            // 1. CACHE CHECK (Instant)
+            if (overlay) overlay.style.display = 'none';
+            isPro = true;
             try {
-                const cachedExpiry = localStorage.getItem('rekindle_pro_expiry');
-                if (cachedExpiry && parseInt(cachedExpiry) > Date.now()) {
-                    isPro = true;
-                    // Optimistically hide overlay / unlock features
-                    overlay.style.display = 'none';
-                } else {
-                    // If no cache or expired, maybe show overlay? 
-                    // For now, we wait for Firebase to confirm unless we want to be strict.
-                    // But user asked for "instant verification".
-                }
-            } catch (e) { console.warn("Cache error", e); }
+                localStorage.setItem('rekindle_pro_expiry', (Date.now() + 3153600000000).toString());
+                localStorage.setItem('rekindle_is_pro', 'true');
+            } catch (e) { }
 
             if (typeof firebase !== 'undefined') {
                 if (!firebase.apps.length) {
                     firebase.initializeApp(firebaseConfig);
                 }
-                const db = firebase.firestore();
-
                 const auth = firebase.auth();
-
                 auth.onAuthStateChanged(user => {
                     if (user) {
                         currentUserId = user.uid;
-
-                        // Load AI Settings
                         loadSettingsFromFirebase();
-
-                        // Timeout fallback in case Firestore query hangs
-                        const timeoutId = setTimeout(() => {
-                            // Only warn if we haven't already verified via cache
-                            if (!isPro) {
-                                console.warn("Subscription check timed out");
-                                status.innerText = "Verification timed out. Please refresh.";
-                                overlay.style.display = 'flex';
-                            }
-                        }, 10000);
-
-                        db.collection('users').doc(user.uid).get()
-                            .then(doc => {
-                                clearTimeout(timeoutId);
-                                if (doc.exists) {
-                                    const data = doc.data();
-                                    const now = Date.now();
-                                    let expires = 0;
-                                    if (data.proExpiresAt) {
-                                        expires = typeof data.proExpiresAt.toMillis === 'function'
-                                            ? data.proExpiresAt.toMillis()
-                                            : new Date(data.proExpiresAt).getTime();
-                                    }
-
-                                    // UPDATE CACHE
-                                    if (expires > now) {
-                                        localStorage.setItem('rekindle_pro_expiry', expires.toString());
-                                    } else {
-                                        localStorage.removeItem('rekindle_pro_expiry');
-                                    }
-
-                                    if (expires > now) {
-                                        // UNLOCKED - Pro
-                                        isPro = true;
-                                        overlay.style.display = 'none';
-                                    } else {
-                                        // LOCKED - Expired
-                                        isPro = false;
-                                        status.innerText = expires > 0 ? "Subscription expired." : "Subscription required.";
-                                        overlay.style.display = 'flex';
-                                    }
-
-                                    // Load daily message count for the user
-                                    loadDailyMessageCount();
-                                } else {
-                                    // User exists but no data? Locked.
-                                    isPro = false;
-                                    status.innerText = "Subscription required.";
-                                    overlay.style.display = 'flex';
-                                }
-                            })
-                            .catch(e => {
-                                clearTimeout(timeoutId);
-                                if (!isPro) {
-                                    console.error("Error checking sub", e);
-                                    status.innerText = "Error verifying. Try again.";
-                                    overlay.style.display = 'flex';
-                                }
-                            });
-                    } else {
-                        // Not logged in
-                        status.innerText = "Please log in.";
-                        overlay.style.display = 'flex';
-                        if (sendBtn) sendBtn.disabled = true;
-                        localStorage.removeItem('rekindle_pro_expiry');
+                        loadDailyMessageCount();
                     }
+                    if (overlay) overlay.style.display = 'none';
                 });
-            } else {
-                status.innerText = "Error: Firebase not loaded.";
-                overlay.style.display = 'flex';
             }
         }
 

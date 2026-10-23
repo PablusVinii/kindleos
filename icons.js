@@ -31,7 +31,6 @@ const APPS = [
         featured: true,
         featuredOrder: 3,
 
-        plus: true,
         desc: 'Now supporting all mail!',
         icon: '<rect x="4" y="8" width="24" height="16" rx="2" stroke="black" stroke-width="2" fill="none"/><path d="M4 10 L16 18 L28 10" fill="none" stroke="black" stroke-width="2"/>'
     },
@@ -79,14 +78,12 @@ const APPS = [
         name: 'Dropbox',
         cat: 'tools',
         beta: true,
-        plus: true,
         icon: '<g transform="translate(4, 4)"><path d="M6 1.807L0 5.629l6 3.822 6.001-3.822L6 1.807zM18 1.807l-6 3.822 6 3.822 6-3.822-6-3.822zM0 13.274l6 3.822 6.001-3.822L6 9.452l-6 3.822zM18 9.452l-6 3.822 6 3.822 6-3.822-6-3.822zM6 20.371l6.001 3.822 6-3.822-6-3.822L6 20.371z" fill="black"/></g>'
     },
     {
         id: 'chat',
         name: 'AI Assistant',
         cat: 'tools',
-        plus: true,
         icon: '<path d="M16 3 L19 11 L27 14 L19 17 L16 25 L13 17 L5 14 L13 11 Z M6 3 L8 7 L12 8 L8 9 L6 13 L4 9 L0 8 L4 7 Z" fill="black" stroke="none"/>'
     },
     {
@@ -110,7 +107,6 @@ const APPS = [
     {
         id: 'files',
         name: 'Files',
-        plus: true,
         cat: 'tools',
         // Folder Icon
         icon: '<path d="M4 6 h8 l2 2 h14 v16 h-24 z" fill="white" stroke="black" stroke-width="2"/><line x1="4" y1="11" x2="28" y2="11" stroke="black" stroke-width="2"/>'
@@ -118,7 +114,6 @@ const APPS = [
     {
         id: 'docs',
         name: 'Docs',
-        plus: true,
         cat: 'tools',
         icon: '<path d="M6 4 h14 l6 6 v18 h-20 z" fill="white" stroke="black" stroke-width="2"/><polyline points="20 4 20 10 26 10" fill="none" stroke="black" stroke-width="2"/><line x1="10" y1="14" x2="22" y2="14" stroke="black" stroke-width="2"/><line x1="10" y1="18" x2="22" y2="18" stroke="black" stroke-width="2"/><line x1="10" y1="22" x2="18" y2="22" stroke="black" stroke-width="2"/>'
     },
@@ -177,7 +172,6 @@ const APPS = [
         name: 'Quick ToDo',
         es6: true,
         cat: 'tools',
-        plus: true,
         desc: 'Handwritten, sync-able todos!',
         icon: '<rect x="6" y="4" width="20" height="24" fill="white" stroke="black" stroke-width="2"/><path d="M9 10l3 3 7-7" fill="none" stroke="black" stroke-width="2"/><line x1="9" y1="18" x2="23" y2="18" stroke="black" stroke-width="2"/><line x1="9" y1="24" x2="18" y2="24" stroke="black" stroke-width="2"/><path d="M28 8h2 M28 16h3 M27 24h3" stroke="black" stroke-width="2" stroke-linecap="round"/>'
     },
@@ -185,7 +179,6 @@ const APPS = [
         id: 'quicknotes',
         name: 'Quick Notes',
         cat: 'tools',
-        plus: true,
         desc: 'Handwritten notes',
         icon: '<rect x="6" y="4" width="20" height="24" fill="white" stroke="black" stroke-width="2"/><path d="M10 10 H22 M10 16 H22 M10 22 H18" stroke="black" stroke-width="2" stroke-linecap="round"/><path d="M28 8h2 M28 16h3 M27 24h3" stroke="black" stroke-width="2" stroke-linecap="round"/>'
     },*/
@@ -217,7 +210,6 @@ const APPS = [
         id: 'airtype',
         name: 'AirType',
         cat: 'tools',
-        plus: true,
         desc: 'Phone-based typewriter',
         icon: '<path d="M4 24 L 28 12 L 4 4 L 10 14 L 4 24 Z M 10 14 L 28 12" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>',
     },
@@ -227,7 +219,6 @@ const APPS = [
         id: 'bluesky',
         name: 'Bluesky',
         cat: 'lifestyle',
-        plus: true,
         desc: 'Social social.',
         icon: '<path d="M16 8 C16 8 20 4 26 6 C28 8 26 14 24 16 C28 18 30 24 26 28 C20 30 16 26 16 26 C16 26 12 30 6 28 C2 24 4 18 8 16 C6 14 4 8 6 6 C12 4 16 8 16 8 Z" fill="white" stroke="black" stroke-width="2"/><path d="M16 8 L16 26" stroke="black" stroke-width="2"/>'
     },
@@ -261,7 +252,6 @@ const APPS = [
         id: 'mastodon',
         name: 'Mastodon',
         cat: 'lifestyle',
-        plus: true,
         filled: true,
         desc: 'Decentralized social.',
         icon: '<path d="M21.3,4.5c-2.2-1.1-4.7-1.1-6.9-0.2c-0.6-0.3-1.3-0.4-1.9-0.4c-0.7,0-1.4,0.1-2,0.4C8.2,3.4,5.7,3.5,3.5,4.5C1.3,5.6,0,8.5,0,8.5v11c0,3,2.2,5.5,5,5.5h3v-7c0-1.1,0.9-2,2-2s2,0.9,2,2v6h1v-6c0-1.1,0.9-2,2-2s2,0.9,2,2v7h3c2.8,0,5-2.5,5-5.5v-11C25,8.5,23.6,5.6,21.3,4.5z" fill="black"/>'
@@ -373,7 +363,6 @@ const APPS = [
         id: 'pinterest',
         name: 'Pinterest',
         cat: 'lifestyle',
-        plus: true,
         beta: true,
         filled: true,
         desc: 'Browse and save ideas.',
@@ -392,7 +381,6 @@ const APPS = [
         id: 'substack',
         name: 'Substack',
         cat: 'lifestyle',
-        plus: true,
         featured: true,
         filled: true,
         featuredOrder: 2,
@@ -410,7 +398,6 @@ const APPS = [
         id: 'flipbook',
         name: 'Flipbook',
         cat: 'lifestyle',
-        plus: true,
         icon: '<rect x="8" y="5" width="20" height="18" fill="white" stroke="black" stroke-width="2"/><rect x="4" y="9" width="20" height="18" fill="white" stroke="black" stroke-width="2"/><circle cx="14" cy="15" r="2" fill="black"/><line x1="14" y1="17" x2="14" y2="21" stroke="black" stroke-width="1.5"/><path d="M11 19 l6 -1" stroke="black" stroke-width="1.5"/><path d="M11 25 l3 -4 l3 4" stroke="black" stroke-width="1.5" fill="none"/>',
         desc: 'Create pixel animations.'
     },
@@ -468,7 +455,6 @@ const APPS = [
         id: 'photoframe',
         name: 'Photo Frame',
         cat: 'lifestyle',
-        plus: true,
         desc: 'Digital photo slideshow.',
         icon: '<rect x="4" y="6" width="24" height="20" fill="none" stroke="black" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="black"/><path d="M4 26 l8 -8 l4 4 l6 -6 l6 6" fill="none" stroke="black" stroke-width="2"/>'
     },

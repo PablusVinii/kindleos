@@ -972,49 +972,15 @@
         });
 
         function checkProStatus(uid) {
-            unsubscribeProListener = db.collection('users').doc(uid).onSnapshot(doc => {
-                let isPro = false;
-                let expires = 0;
-                let subType = 'recurring'; // default
-
-                if (doc.exists) {
-                    const data = doc.data();
-                    const now = Date.now();
-                    if (data.proExpiresAt) {
-                        expires = typeof data.proExpiresAt.toMillis === 'function'
-                            ? data.proExpiresAt.toMillis()
-                            : new Date(data.proExpiresAt).getTime();
-                    }
-                    if (data.subscriptionType) {
-                        subType = data.subscriptionType;
-                    }
-                    if (expires > now) isPro = true;
-                }
-
-                if (isPro) {
-                    document.getElementById('pro-upgrade-banner').style.display = 'none';
-                    document.getElementById('pro-status-banner').style.display = 'block';
-
-
-
-                    if (subType === 'lifetime') {
-                        document.getElementById('pro-expiry-date').innerText = "Lifetime Membership";
-                    } else {
-                        const dateStr = window.rekindleFormatTime ? window.rekindleFormatTime(new Date(expires), { year: 'numeric', month: 'long', day: 'numeric' }) : new Date(expires).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-                        document.getElementById('pro-expiry-date').innerText = "Renews: " + dateStr;
-                    }
-                } else {
-                    showUpgradeBanner();
-                }
-            }, error => {
-                console.error("Error listening to pro status update:", error);
-                showUpgradeBanner();
-            });
+            document.getElementById('pro-upgrade-banner').style.display = 'none';
+            document.getElementById('pro-status-banner').style.display = 'block';
+            document.getElementById('pro-expiry-date').innerText = "Lifetime (All Features Unlocked)";
         }
 
         function showUpgradeBanner() {
-            document.getElementById('pro-upgrade-banner').style.display = 'block';
-            document.getElementById('pro-status-banner').style.display = 'none';
+            document.getElementById('pro-upgrade-banner').style.display = 'none';
+            document.getElementById('pro-status-banner').style.display = 'block';
+            document.getElementById('pro-expiry-date').innerText = "Lifetime (All Features Unlocked)";
         }
 
         function openPasswordModal() {

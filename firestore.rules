@@ -43,28 +43,9 @@ service cloud.firestore {
       );
     }
 
-    // Helper to check if user is Pro
+    // Helper to check if user is Pro (now free for all authenticated users)
     function isProUser() {
-      let uid = request.auth.uid;
-      let email = request.auth.token.email;
-      
-      // 1. Check legacy proExpiresAt on user document
-      let userDoc = get(/databases/$(database)/documents/users/$(uid));
-      let hasLegacyPro = userDoc != null && 
-             'proExpiresAt' in userDoc.data && 
-             userDoc.data.proExpiresAt != null &&
-             userDoc.data.proExpiresAt > request.time;
-             
-      // 2. Check /config/supporters document (the new source of truth)
-      // Note: We check by email as it's the most reliable backend identifier.
-      let supportersDoc = get(/databases/$(database)/documents/config/supporters);
-      let isSupporter = supportersDoc != null && 
-                        email != null && 
-                        email in supportersDoc.data && 
-                        supportersDoc.data[email].expiresAt != null &&
-                        supportersDoc.data[email].expiresAt > request.time;
-      
-      return isDeveloper() || hasLegacyPro || isSupporter;
+      return request.auth != null;
     }
 
     // 1. USER PRIVATE DATA (e.g., settings, notes, substack_sid)

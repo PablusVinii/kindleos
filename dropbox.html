@@ -953,108 +953,32 @@
         // INITIALIZATION
         // =====================
 
-        let isPro = false;
+        let isPro = true;
 
         function waitForFirebase(callback, attempts = 0) {
-            if (typeof firebase !== 'undefined') {
-                callback();
-            } else if (attempts < 50) {
-                setTimeout(() => waitForFirebase(callback, attempts + 1), 100);
-            } else {
-                const overlay = document.getElementById('paywall-overlay');
-                const status = document.getElementById('paywall-status');
-                status.innerText = "Error: Firebase failed to load.";
-                overlay.style.display = 'flex';
-            }
+            callback();
         }
 
         window.onload = function () {
             if (window.rekindleApplyWallpaper) window.rekindleApplyWallpaper();
             if (window.rekindleApplyDefaultFullscreen) window.rekindleApplyDefaultFullscreen();
             loadViewPreference();
-            waitForFirebase(checkSubscription);
+            checkSubscription();
         };
 
-        let currentUserId = null; // Added for the new checkSubscription logic
+        let currentUserId = null;
 
         function checkSubscription() {
             const overlay = document.getElementById('paywall-overlay');
-            const status = document.getElementById('paywall-status');
+            if (overlay) overlay.style.display = 'none';
             const btnLogin = document.getElementById('btn-login');
-
-            // 1. CACHE CHECK (Instant)
+            if (btnLogin) btnLogin.disabled = false;
+            isPro = true;
             try {
-                const cachedExpiry = localStorage.getItem('rekindle_pro_expiry');
-                if (cachedExpiry && parseInt(cachedExpiry) > Date.now()) {
-                    isPro = true;
-                    if (btnLogin) btnLogin.disabled = false;
-                    overlay.style.display = 'none';
-                    initDropboxApp(); // Initialize app if pro via cache
-                    return; // Exit early if pro via cache
-                }
+                localStorage.setItem('rekindle_pro_expiry', (Date.now() + 3153600000000).toString());
+                localStorage.setItem('rekindle_is_pro', 'true');
             } catch (e) { }
-
-            if (typeof firebase !== 'undefined') {
-                const db = firebase.firestore();
-
-                const auth = firebase.auth();
-
-                auth.onAuthStateChanged(user => {
-                    if (user) {
-                        currentUserId = user.uid;
-
-                        // Timeout fallback in case Firestore query hangs
-                        const timeoutId = setTimeout(() => {
-                            if (!isPro) {
-                                console.warn("Subscription check timed out");
-                                // Don't block, just keep disabled if not verified
-                                overlay.style.display = 'none';
-                            }
-                        }, 10000);
-
-                        db.collection('users').doc(user.uid).get()
-                            .then(doc => {
-                                clearTimeout(timeoutId);
-                                if (doc.exists) {
-                                    const data = doc.data();
-                                    const now = Date.now();
-                                    let expires = 0;
-                                    if (data.proExpiresAt) {
-                                        expires = typeof data.proExpiresAt.toMillis === 'function'
-                                            ? data.proExpiresAt.toMillis()
-                                            : new Date(data.proExpiresAt).getTime();
-                                    }
-
-                                    if (expires > now) {
-                                        // UNLOCKED - overlay stays hidden
-                                        isPro = true;
-                                        initDropboxApp();
-                                    } else {
-                                        // LOCKED
-                                        status.innerText = expires > 0 ? "Subscription expired." : "Subscription required.";
-                                        overlay.style.display = 'flex';
-                                    }
-                                } else {
-                                    status.innerText = "Subscription required.";
-                                    overlay.style.display = 'flex';
-                                }
-                            })
-                            .catch(e => {
-                                clearTimeout(timeoutId);
-                                console.error("Error checking sub", e);
-                                status.innerText = "Error verifying. Try again.";
-                                overlay.style.display = 'flex';
-                            });
-                    } else {
-                        // NOT LOGGED IN
-                        status.innerText = "Please log in.";
-                        overlay.style.display = 'flex';
-                    }
-                });
-            } else {
-                status.innerText = "System Error";
-                overlay.style.display = 'flex';
-            }
+            initDropboxApp();
         }
 
         async function initDropboxApp() {

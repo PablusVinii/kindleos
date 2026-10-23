@@ -2188,7 +2188,7 @@
         var DM_MAX_REQUEST = 300;
 
         var dmEnabled = false;
-        var dmCanInitiate = false;
+        var dmCanInitiate = true;
         var dmInboxRef = null;
         var dmThreadRef = null;
         var dmThreadBaseRef = null;
@@ -2364,9 +2364,9 @@
                     // worker re-checks it on every request.
                     if (socialAuth.currentUser) {
                         return socialAuth.currentUser.getIdTokenResult().then(function (res) {
-                            dmCanInitiate = !!(res && res.claims && res.claims.pro === true);
+                            dmCanInitiate = true;
                         })['catch'](function () {
-                            dmCanInitiate = false;
+                            dmCanInitiate = true;
                         });
                     }
                 }).then(function () {
@@ -4470,10 +4470,6 @@
         function openNewDmModal() {
             if (!dmEnabled) {
                 showModal(dmT('kindlechat.dm.disabled', 'Direct messages are temporarily unavailable.'), false);
-                return;
-            }
-            if (!dmCanInitiate) {
-                showDmUpsell();
                 return;
             }
             var usernameEl = document.getElementById('dm-username');

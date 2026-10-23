@@ -737,35 +737,15 @@
 
         // --- Pro Status Check (Custom for Mindmap to avoid auto paywall) ---
         async function isCurrentUserPro() {
-            if (!currentUser) return false;
-            try {
-                const doc = await db.collection('users').doc(currentUser.uid).get();
-                if (doc.exists) {
-                    const data = doc.data();
-                    const now = Date.now();
-                    let expires = 0;
-                    if (data.proExpiresAt) {
-                        expires = typeof data.proExpiresAt.toMillis === 'function' ? data.proExpiresAt.toMillis() : new Date(data.proExpiresAt).getTime();
-                    }
-                    return expires > now;
-                }
-            } catch (e) {
-                console.error("Pro check failed", e);
-            }
-            return false;
+            return true;
         }
 
         async function checkProAndOpenExport() {
-            const isPro = await isCurrentUserPro();
-            if (isPro) {
-                const titleEl = document.getElementById('mindmap-title');
-                const currentTitle = titleEl.innerText !== window.t('mindmap.node.untitled', 'Untitled') ? titleEl.innerText : 'mindmap';
-                document.getElementById('export-filename').value = currentTitle.replace(/[^a-zA-Z0-9-_ ]/g, ''); // Simple sanitize
-                document.getElementById('export-status').innerText = "";
-                document.getElementById('export-modal').style.display = 'flex';
-            } else {
-                showMindmapPaywall();
-            }
+            const titleEl = document.getElementById('mindmap-title');
+            const currentTitle = titleEl.innerText !== window.t('mindmap.node.untitled', 'Untitled') ? titleEl.innerText : 'mindmap';
+            document.getElementById('export-filename').value = currentTitle.replace(/[^a-zA-Z0-9-_ ]/g, ''); // Simple sanitize
+            document.getElementById('export-status').innerText = "";
+            document.getElementById('export-modal').style.display = 'flex';
         }
 
         function showMindmapPaywall() {

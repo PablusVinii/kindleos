@@ -635,92 +635,23 @@
         let selectedNoteData = null; // Store note data when clicked
         let userDeviceType = null;   // 'Phone' or 'Tablet'
         let initialJoinAttempted = false;
-        let isPro = false;
+        let isPro = true;
 
         function checkSubscription() {
             const overlay = document.getElementById('paywall-overlay');
-            const status = document.getElementById('paywall-status');
+            if (overlay) overlay.style.display = 'none';
 
             // Buttons to update
             const btnDisplay = document.getElementById('btn-startup-display');
             const btnInput = document.getElementById('btn-startup-input');
 
-            function updateButtons(pro) {
-                if (btnDisplay) btnDisplay.disabled = !pro;
-                if (btnInput) btnInput.disabled = !pro;
-            }
-
-            // 1. CACHE CHECK (Instant)
+            if (btnDisplay) btnDisplay.disabled = false;
+            if (btnInput) btnInput.disabled = false;
+            isPro = true;
             try {
-                const cachedExpiry = localStorage.getItem('rekindle_pro_expiry');
-                if (cachedExpiry && parseInt(cachedExpiry) > Date.now()) {
-                    isPro = true;
-                    updateButtons(true);
-                    overlay.style.display = 'none';
-                }
+                localStorage.setItem('rekindle_pro_expiry', (Date.now() + 3153600000000).toString());
+                localStorage.setItem('rekindle_is_pro', 'true');
             } catch (e) { }
-
-            if (typeof firebase === 'undefined') {
-                status.innerText = window.t('airtype.modal.error.firebase', "Error: Firebase not loaded.");
-                overlay.style.display = 'flex';
-                return;
-            }
-
-            if (!currentUser) {
-                // Not logged in is handled by guest overlay usually
-                overlay.style.display = 'none';
-                return;
-            }
-
-            // Timeout fallback
-            const timeoutId = setTimeout(() => {
-                if (!isPro) {
-                    console.warn("Subscription check timed out");
-                    // Don't block, just leave disabled
-                    overlay.style.display = 'none';
-                }
-            }, 10000);
-
-            db.collection('users').doc(currentUser.uid).get()
-                .then(doc => {
-                    clearTimeout(timeoutId);
-                    if (doc.exists) {
-                        const data = doc.data();
-                        const now = Date.now();
-                        let expires = 0;
-                        if (data.proExpiresAt) {
-                            expires = typeof data.proExpiresAt.toMillis === 'function'
-                                ? data.proExpiresAt.toMillis()
-                                : new Date(data.proExpiresAt).getTime();
-                        }
-
-                        // UPDATE CACHE
-                        if (expires > now) {
-                            localStorage.setItem('rekindle_pro_expiry', expires.toString());
-                        } else {
-                            localStorage.removeItem('rekindle_pro_expiry');
-                        }
-
-                        if (expires > now) {
-                            isPro = true;
-                            updateButtons(true);
-                        } else {
-                            isPro = false;
-                            updateButtons(false);
-                        }
-                    } else {
-                        isPro = false;
-                        updateButtons(false);
-                    }
-                    // Hide overlay regardless, access controlled by buttons
-                    overlay.style.display = 'none';
-                })
-                .catch(e => {
-                    clearTimeout(timeoutId);
-                    console.error("Error checking sub", e);
-                    // Hide overlay, features disabled
-                    overlay.style.display = 'none';
-                });
         }
 
         // --- AUTH & INIT ---

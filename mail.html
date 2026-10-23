@@ -824,25 +824,18 @@
         };
 
         let auth, db;
-        let isPro = false;
+        let isPro = true;
 
         function checkSubscription() {
             const overlay = document.getElementById('paywall-overlay');
-            const status = document.getElementById('paywall-status');
+            if (overlay) overlay.style.display = 'none';
             const btnLogin = document.getElementById('btn-login');
-
-            // 1. CACHE CHECK (Instant)
+            if (btnLogin) btnLogin.disabled = false;
+            isPro = true;
             try {
-                const cachedExpiry = localStorage.getItem('rekindle_pro_expiry');
-                if (cachedExpiry && parseInt(cachedExpiry) > Date.now()) {
-                    isPro = true;
-                    if (btnLogin) btnLogin.disabled = false;
-                    // Optimistically hide overlay / unlock features
-                    overlay.style.display = 'none';
-                    // REMOVED: initGmailMode(); return; 
-                    // We must fall through to init Firebase so 'db' is defined for initGmailMode later.
-                }
-            } catch (e) { console.warn("Cache error", e); }
+                localStorage.setItem('rekindle_pro_expiry', (Date.now() + 3153600000000).toString());
+                localStorage.setItem('rekindle_is_pro', 'true');
+            } catch (e) { }
 
             if (typeof firebase !== 'undefined') {
                 if (!auth) {
@@ -853,71 +846,14 @@
 
                 auth.onAuthStateChanged(user => {
                     if (user) {
-                        // Timeout fallback in case Firestore query hangs
-                        const timeoutId = setTimeout(() => {
-                            if (!isPro) {
-                                console.warn("Subscription check timed out");
-                                status.innerText = "Verification timed out. Please refresh.";
-                                overlay.style.display = 'flex';
-                            }
-                        }, 10000);
-
-                        db.collection('users').doc(user.uid).get()
-                            .then(doc => {
-                                clearTimeout(timeoutId);
-                                if (doc.exists) {
-                                    const data = doc.data();
-                                    const now = Date.now();
-                                    let expires = 0;
-                                    if (data.proExpiresAt) {
-                                        expires = typeof data.proExpiresAt.toMillis === 'function'
-                                            ? data.proExpiresAt.toMillis()
-                                            : new Date(data.proExpiresAt).getTime();
-                                    }
-
-                                    // UPDATE CACHE
-                                    if (expires > now) {
-                                        localStorage.setItem('rekindle_pro_expiry', expires.toString());
-                                    } else {
-                                        localStorage.removeItem('rekindle_pro_expiry');
-                                    }
-
-                                    if (expires > now) {
-                                        // UNLOCKED - overlay stays hidden
-                                        isPro = true;
-                                        if (btnLogin) btnLogin.disabled = false;
-                                        // Load settings from cloud
-                                        loadSettingsFromFirebase(user.uid).then(() => {
-                                            initGmailMode();
-                                        });
-                                    } else {
-                                        // LOCKED
-                                        status.innerText = expires > 0 ? "Subscription expired." : "Subscription required.";
-                                        overlay.style.display = 'flex';
-                                    }
-                                } else {
-                                    status.innerText = "Subscription required.";
-                                    overlay.style.display = 'flex';
-                                }
-                            })
-                            .catch(e => {
-                                clearTimeout(timeoutId);
-                                if (!isPro) {
-                                    console.error("Error checking sub", e);
-                                    status.innerText = "Error verifying. Try again.";
-                                    overlay.style.display = 'flex';
-                                }
-                            });
-                    } else {
-                        // NOT LOGGED IN
-                        status.innerText = "Please log in.";
-                        overlay.style.display = 'flex';
-                        localStorage.removeItem('rekindle_pro_expiry');
+                        isPro = true;
+                        if (btnLogin) btnLogin.disabled = false;
+                        loadSettingsFromFirebase(user.uid).then(() => {
+                            initGmailMode();
+                        });
                     }
+                    if (overlay) overlay.style.display = 'none';
                 });
-            } else {
-                status.innerText = "System Error";
-                overlay.style.display = 'flex';
             }
         }
 

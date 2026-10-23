@@ -960,9 +960,9 @@
         let saveTimer = null;
         let fetchCount = 10; // Items per source to fetch
         let readerFontSize = 16; // Default article font size in px
-        let isPro = false;
-        let proCheckDone = false;
-        const FREE_FEED_LIMIT = 2;
+        let isPro = true;
+        let proCheckDone = true;
+        const FREE_FEED_LIMIT = 999999;
 
         // --- INIT ---
         window.onload = () => {
@@ -992,8 +992,9 @@
                     });
                 } else {
                     currentUser = null;
-                    isPro = false;
+                    isPro = true;
                     proCheckDone = true;
+                    applyProUI();
                     document.getElementById('status-bar').innerText = "Guest Mode (Local)";
                     loadLocalFeeds();
                 }
@@ -1003,61 +1004,10 @@
         // --- PRO STATUS ---
 
         async function checkProStatus(user) {
-            if (!user) {
-                isPro = false;
-                proCheckDone = true;
-                return false;
-            }
-
-            const now = Date.now();
-
-            // 1. Check legacy proExpiresAt on user document
-            try {
-                const userDoc = await db.collection('users').doc(user.uid).get();
-                if (userDoc.exists) {
-                    const data = userDoc.data();
-                    if (data.proExpiresAt) {
-                        const exp = typeof data.proExpiresAt.toMillis === 'function'
-                            ? data.proExpiresAt.toMillis()
-                            : new Date(data.proExpiresAt).getTime();
-                        if (exp > now) {
-                            isPro = true;
-                            proCheckDone = true;
-                            applyProUI();
-                            return true;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn('Pro check (userDoc) failed:', e);
-            }
-
-            // 2. Check config/supporters by email
-            try {
-                const supportersDoc = await db.collection('config').doc('supporters').get();
-                if (supportersDoc.exists) {
-                    const data = supportersDoc.data();
-                    const email = user.email;
-                    if (email && email in data && data[email] && data[email].expiresAt) {
-                        const exp = typeof data[email].expiresAt.toMillis === 'function'
-                            ? data[email].expiresAt.toMillis()
-                            : new Date(data[email].expiresAt).getTime();
-                        if (exp > now) {
-                            isPro = true;
-                            proCheckDone = true;
-                            applyProUI();
-                            return true;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn('Pro check (supporters) failed:', e);
-            }
-
-            isPro = false;
+            isPro = true;
             proCheckDone = true;
-            applyFreeUI();
-            return false;
+            applyProUI();
+            return true;
         }
 
         function applyProUI() {
@@ -1067,9 +1017,7 @@
         }
 
         function applyFreeUI() {
-            const catGroup = document.getElementById('category-input-group');
-            if (catGroup) catGroup.style.display = 'none';
-            updateAddSourceButton();
+            applyProUI();
         }
 
         function updateAddSourceButton() {
