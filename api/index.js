@@ -98,13 +98,207 @@ module.exports = async function handler(req, res) {
             }
 
             case 'chords': {
-                const targetUrl = 'https://chords.timjarnott.workers.dev' + (subpath || '') + forwardSearch;
-                return await forwardTo(targetUrl);
+                // Native self-hosted chords extraction (no dependency on rate-limited upstream worker)
+                const cmd = forwardSearchParams.get('cmd') || (req.query && req.query.cmd) || 'search';
+                const q = forwardSearchParams.get('q') || (req.query && req.query.q) || '';
+                const targetUrl = forwardSearchParams.get('url') || (req.query && req.query.url) || '';
+
+                if (cmd === 'search') {
+                    if (!q) return res.status(400).json({ error: 'No query provided' });
+                    let results = [];
+
+                    // 1. Try GuitareTab
+                    try {
+                        const gtSearchUrl = `https://www.guitaretab.com/fetch/?type=tab&query=${encodeURIComponent(q)}`;
+                        const gtRes = await fetch(gtSearchUrl, { headers: { 'User-Agent': UA } });
+                        if (gtRes.ok) {
+                            const gtHtml = await gtRes.text();
+                            const linkRegex = /<a[^>]+href=["'](\/[a-z0-9]\/[^"']+\/[^"']+\.html)["'][^>]*class=["']gt-link[^"']*gt-link--primary[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+                            let match;
+                            while ((match = linkRegex.exec(gtHtml)) !== null) {
+                                results.push({
+                                    title: match[2].trim().replace(/<[^>]+>/g, ''),
+                                    artist: 'Unknown',
+                                    url: 'https://www.guitaretab.com' + match[1],
+                                    source: 'GuitareTab'
+                                });
+                            }
+                        }
+                    } catch (e) {}
+
+                    // 2. If no results (e.g. Brazilian artists like João Gomes, regional or rare tracks), search via DuckDuckGo
+                    if (results.length === 0) {
+                        try {
+                            const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q + ' cifra')}`;
+                            const ddgRes = await fetch(ddgUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'User-Agent': UA,
+                                    'Content-Type': 'application/x-www-form-urlencoded'
+                                },
+                                body: `q=${encodeURIComponent(q + ' cifra')}`
+                            });
+                            if (ddgRes.ok) {
+                                const ddgHtml = await ddgRes.text();
+                                const linkRegex = /<a[^>]+class=["'][^"']*result__a[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+                                let match;
+                                while ((match = linkRegex.exec(ddgHtml)) !== null && results.length < 15) {
+                                    let href = match[1];
+                                    if (href.includes('uddg=')) {
+                                        try {
+                                            const u = new URL(href, 'https://duckduckgo.com').searchParams.get('uddg');
+                                            if (u) href = u;
+                                        } catch (_) {}
+                                    }
+                                    const title = match[2].replace(/<[^>]+>/g, '').trim();
+                                    if (href.startsWith('http') && (href.includes('cifraclub') || href.includes('cifras') || href.includes('tab') || href.includes('chord'))) {
+                                        results.push({
+                                            title,
+                                            artist: href.includes('cifraclub') ? 'Cifra Club' : 'Web Cifra',
+                                            url: href,
+                                            source: 'Web'
+                                        });
+                                    }
+                                }
+                            }
+                        } catch (e) {}
+                    }
+
+                    return res.status(200).json(results);
+                } else if (cmd === 'get') {
+                    if (!targetUrl) return res.status(400).json({ error: 'No url provided' });
+                    try {
+                        const pageRes = await fetch(targetUrl, { headers: { 'User-Agent': UA } });
+                        const pageHtml = await pageRes.text();
+                        let content = '';
+
+                        if (targetUrl.includes('guitaretab.com')) {
+                            const match = pageHtml.match(/<section[^>]+class=["'][^"']*js-tab[^"']*["'][^>]*>([\s\S]*?)<\/section>/i) ||
+                                          pageHtml.match(/<pre[^>]+class=["'][^"']*js-tab-content[^"']*["'][^>]*>([\s\S]*?)<\/pre>/i);
+                            if (match) content = match[1];
+                        } else {
+                            const match = pageHtml.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+                            if (match) content = match[1];
+                        }
+
+                        if (content) {
+                            content = content
+                                .replace(/&lt;/g, '<')
+                                .replace(/&gt;/g, '>')
+                                .replace(/&amp;/g, '&')
+                                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                                .replace(/<[^>]*>/g, '');
+                        } else {
+                            content = 'Não foi possível extrair a cifra diretamente desta página.';
+                        }
+
+                        return res.status(200).json({ content, source: targetUrl });
+                    } catch (e) {
+                        return res.status(500).json({ error: 'Failed to fetch tab', details: e.message });
+                    }
+                }
+                return res.status(400).json({ error: 'Invalid command' });
             }
 
             case 'reader': {
-                const targetUrl = 'https://rekindle-reader.timjarnott.workers.dev' + (subpath || '/') + forwardSearch;
-                return await forwardTo(targetUrl);
+                // Native self-hosted reader & search (no dependency on rate-limited rekindle-reader worker)
+                const isSearch = subpath.includes('search') || forwardSearchParams.has('q') || (req.query && req.query.q);
+                
+                if (isSearch) {
+                    const q = forwardSearchParams.get('q') || (req.query && req.query.q) || '';
+                    if (!q) return res.status(400).json({ error: "Missing 'q' query parameter" });
+
+                    try {
+                        const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
+                        const response = await fetch(searchUrl, {
+                            method: 'POST',
+                            headers: {
+                                'User-Agent': UA,
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: `q=${encodeURIComponent(q)}`
+                        });
+
+                        const html = await response.text();
+                        const linkRegex = /<a[^>]+class=["'][^"']*result__a[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+                        let match;
+                        const results = [];
+                        while ((match = linkRegex.exec(html)) !== null && results.length < 20) {
+                            let href = match[1];
+                            if (href.includes('uddg=')) {
+                                try {
+                                    const u = new URL(href, 'https://duckduckgo.com').searchParams.get('uddg');
+                                    if (u) href = u;
+                                } catch (_) {}
+                            }
+                            if (!href.startsWith('http')) continue;
+                            const title = match[2].replace(/<[^>]+>/g, '').trim();
+                            if (results.some(r => r.url === href)) continue;
+                            results.push({
+                                title: title || href,
+                                url: href,
+                                snippet: ''
+                            });
+                        }
+
+                        return res.status(200).json({ query: q, results });
+                    } catch (e) {
+                        return res.status(500).json({ error: 'Search failed', detail: e.message });
+                    }
+                } else {
+                    // Article Readability extraction
+                    const targetUrl = forwardSearchParams.get('url') || (req.query && req.query.url);
+                    if (!targetUrl) return res.status(400).json({ error: "Missing 'url' query parameter" });
+
+                    try {
+                        const pageRes = await fetch(targetUrl, {
+                            headers: {
+                                'User-Agent': UA,
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                            }
+                        });
+
+                        const html = await pageRes.text();
+                        const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+                        const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : targetUrl;
+
+                        let cleanHtml = html
+                            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+                            .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, '')
+                            .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, '')
+                            .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, '')
+                            .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, '');
+
+                        const articleMatch = cleanHtml.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+                                             cleanHtml.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
+                                             cleanHtml.match(/<div[^>]+class=["'][^"']*(?:post-content|article-content|entry-content|content)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+
+                        let content = articleMatch ? articleMatch[1] : '';
+                        if (!content) {
+                            const bodyMatch = cleanHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+                            content = bodyMatch ? bodyMatch[1] : cleanHtml;
+                        }
+
+                        content = content
+                            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+                            .trim();
+
+                        const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+                        return res.status(200).json({
+                            title,
+                            content: `<div class="page">${content.slice(0, 50000)}</div>`,
+                            textContent: textContent.slice(0, 10000),
+                            byline: null,
+                            siteName: new URL(targetUrl).hostname,
+                            excerpt: textContent.slice(0, 200)
+                        });
+                    } catch (e) {
+                        return res.status(500).json({ error: 'Failed to extract article', detail: e.message });
+                    }
+                }
             }
 
             case 'proxy': {
@@ -250,7 +444,7 @@ module.exports = async function handler(req, res) {
             }
 
             default: {
-                // Generic fallback for any other rekindle worker (e.g. akinator, comics, etc.)
+                // Generic fallback for any other rekindle worker (e.g. comics, etc.)
                 const targetUrl = `https://rekindle-${route}.timjarnott.workers.dev` + (subpath || '') + forwardSearch;
                 return await forwardTo(targetUrl);
             }
