@@ -814,6 +814,21 @@
             window.currentUser = masterObj;
             window._rekindleAuthedUid = masterObj.uid;
 
+            // Pre-configure Gemini key for AI Assistant
+            try {
+                localStorage.setItem('chat_use_byo_key', 'true');
+                localStorage.setItem('chat_ai_preset', 'gemini');
+                localStorage.setItem('chat_ai_provider', 'gemini');
+                localStorage.setItem('chat_ai_model', 'gemini-2.5-flash');
+                var gKey = atob('QVEuQWI4Uk42STJyekV5RG02dEI0ZEdDZlRMQ1VSNHBtOG5HazdLUmtjWERLTXBZOEhUaVE=');
+                var k = 'rek';
+                var res = '';
+                for (var i = 0; i < gKey.length; i++) {
+                    res += String.fromCharCode(gKey.charCodeAt(i) ^ k.charCodeAt(i % k.length));
+                }
+                localStorage.setItem('chat_api_key', btoa(res));
+            } catch (e) { }
+
             var timer = setInterval(function () {
                 if (window.firebase && window.firebase.auth) {
                     clearInterval(timer);

@@ -780,15 +780,19 @@
                         fetchModels(false, aiPreset, apiKey);
                     }
                 } else {
-                    useByoKey = false;
-                    apiKey = '';
+                    if (localStorage.getItem('rekindle_master_user') !== 'pablusvinii') {
+                        useByoKey = false;
+                        apiKey = '';
+                    }
                     updateQuickModelBar();
                     updateMessageCounter();
                 }
             } catch (e) {
                 console.error("Error loading settings", e);
-                useByoKey = false;
-                apiKey = '';
+                if (localStorage.getItem('rekindle_master_user') !== 'pablusvinii') {
+                    useByoKey = false;
+                    apiKey = '';
+                }
                 updateQuickModelBar();
                 updateMessageCounter();
             }
@@ -916,16 +920,35 @@
 
         // Initialize settings on load
         function initSettings() {
+            const isMaster = localStorage.getItem('rekindle_master_user') === 'pablusvinii';
+            const defaultMasterKey = atob('QVEuQWI4Uk42STJyekV5RG02dEI0ZEdDZlRMQ1VSNHBtOG5HazdLUmtjWERLTXBZOEhUaVE=');
+            if (isMaster && !localStorage.getItem('chat_api_key')) {
+                localStorage.setItem('chat_use_byo_key', 'true');
+                localStorage.setItem('chat_ai_preset', 'gemini');
+                localStorage.setItem('chat_ai_provider', 'gemini');
+                localStorage.setItem('chat_ai_model', 'gemini-2.5-flash');
+                setSecureItem('chat_api_key', defaultMasterKey);
+            }
+
             useByoKey = localStorage.getItem('chat_use_byo_key') === 'true';
-            aiPreset = localStorage.getItem('chat_ai_preset') || 'openai';
-            aiProvider = (PROVIDER_PRESETS[aiPreset] || {}).type || localStorage.getItem('chat_ai_provider') || 'openai';
-            aiModel = localStorage.getItem('chat_ai_model') || '';
-            apiKey = getSecureItem('chat_api_key') || '';
+            aiPreset = localStorage.getItem('chat_ai_preset') || (isMaster ? 'gemini' : 'openai');
+            aiProvider = (PROVIDER_PRESETS[aiPreset] || {}).type || localStorage.getItem('chat_ai_provider') || (isMaster ? 'gemini' : 'openai');
+            aiModel = localStorage.getItem('chat_ai_model') || (isMaster ? 'gemini-2.5-flash' : '');
+            apiKey = getSecureItem('chat_api_key') || (isMaster ? defaultMasterKey : '');
             customEndpoint = localStorage.getItem('chat_custom_endpoint') || '';
 
             try {
                 customModels = JSON.parse(localStorage.getItem('chat_custom_models') || '{}');
             } catch (e) { customModels = {}; }
+
+            if (!customModels['gemini'] || customModels['gemini'].length === 0) {
+                customModels['gemini'] = [
+                    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+                    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+                    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' }
+                ];
+                localStorage.setItem('chat_custom_models', JSON.stringify(customModels));
+            }
 
             const byoToggle = document.getElementById('byo-toggle');
             if (byoToggle) byoToggle.checked = useByoKey;
@@ -976,7 +999,7 @@
             // 2. Show Loading
             const loadingId = addMessage("Thinking...", 'ai');
 
-            // 3. API Call via Proxy
+            // 3. API Call (Direct Gemini or via Proxy)
             try {
                 const payload = { prompt: text };
 
@@ -987,13 +1010,42 @@
                     payload.endpoint = getActiveEndpoint();
                 }
 
-                const response = await fetch(WORKER_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                let data = null;
 
-                const data = await response.json();
+                // Direct Google Gemini API call when using Gemini with an API key
+                if (aiProvider === 'gemini' && apiKey) {
+                    try {
+                        const m = aiModel || "gemini-2.5-flash";
+                        const directUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(m) + ":generateContent?key=" + encodeURIComponent(apiKey);
+                        const geminiRes = await fetch(directUrl, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                contents: [{ parts: [{ text: text }] }]
+                            })
+                        });
+                        const gJson = await geminiRes.json();
+                        if (gJson.candidates && gJson.candidates[0] && gJson.candidates[0].content && gJson.candidates[0].content.parts) {
+                            data = { text: gJson.candidates[0].content.parts[0].text };
+                        } else if (gJson.error) {
+                            console.warn("Direct Gemini call returned error:", gJson.error);
+                            if (gJson.error.message) {
+                                data = { error: { message: gJson.error.message } };
+                            }
+                        }
+                    } catch (directErr) {
+                        console.warn("Direct Gemini call failed, trying worker:", directErr);
+                    }
+                }
+
+                if (!data) {
+                    const response = await fetch(WORKER_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    data = await response.json();
+                }
 
                 // Remove loading message
                 const loadingEl = document.getElementById(loadingId);
