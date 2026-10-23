@@ -639,7 +639,7 @@
     </div>
 
     <script>
-        const READER_WORKER_URL = "https://rekindle-reader.timjarnott.workers.dev";
+        const READER_WORKER_URL = "/api/reader";
         let visitHistory = JSON.parse(localStorage.getItem('netlite_history')) || [];
         let tabs = []; let activeTabId = null; let tabCounter = 0;
         const MAX_TABS = 5; // Reduced for Kindle RAM

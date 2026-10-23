@@ -711,7 +711,7 @@
                 // 2. Fallback to Proxy
                 else {
                     // Update this URL to match your deployed worker
-                    const PROXY_URL = "https://rekindle-tmdb.timjarnott.workers.dev/search/multi";
+                    const PROXY_URL = "/api/tmdb/search/multi";
                     const url = `${PROXY_URL}?query=${encodeURIComponent(query)}`;
                     const res = await fetch(url);
                     if (!res.ok) throw new Error("Proxy error");
@@ -779,7 +779,7 @@
             } else {
                 // Proxy
                 // Base: https://rekindle-tmdb.timjarnott.workers.dev
-                const PROXY_BASE = "https://rekindle-tmdb.timjarnott.workers.dev";
+                const PROXY_BASE = "/api/tmdb";
                 url = `${PROXY_BASE}${path}?${qs}`;
             }
 

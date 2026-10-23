@@ -1231,7 +1231,7 @@
         const mainDb = firebase.firestore();
         const socialDb = socialApp.firestore();
         const socialAuth = socialApp.auth();
-        const MODERATION_WORKER_URL = "https://rekindle-moderate.timjarnott.workers.dev";
+        const MODERATION_WORKER_URL = "/api/moderate";
 
         // Mock Kindle+ check (In real app, check claims or subscription status)
         // For now, let's treat everyone as potentially plus if they have the flag, 
@@ -1252,7 +1252,7 @@
         let isPlus = false;
         let myProfile = {};
 
-        var TRANSLATION_WORKER_URL = "https://rekindle-translate.timjarnott.workers.dev";
+        var TRANSLATION_WORKER_URL = "/api/translate";
         function resolveUserLanguage() {
             var lang = localStorage.getItem('rekindle_language') || 'auto';
             if (lang === 'auto') {

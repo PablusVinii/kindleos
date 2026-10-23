@@ -68,7 +68,7 @@
         if (typeof MODERATION_WORKER_URL !== 'undefined' && MODERATION_WORKER_URL) {
             return MODERATION_WORKER_URL;
         }
-        return 'https://rekindle-moderate.timjarnott.workers.dev';
+        return '/api/moderate';
     }
 
     function getAuthToken() {

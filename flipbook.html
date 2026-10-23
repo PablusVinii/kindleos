@@ -1756,7 +1756,7 @@
                 frames: getAllFrameUrls()
             };
 
-            const MODERATION_WORKER_URL = "https://rekindle-moderate.timjarnott.workers.dev";
+            const MODERATION_WORKER_URL = "/api/moderate";
             try {
                 const token = await getSocialAuthToken();
                 const resp = await fetch(MODERATION_WORKER_URL, {

@@ -325,7 +325,13 @@
                 // Encode URI components to handle special characters
                 const url = `${API_BASE}/${source}/${target}/${encodeURIComponent(text)}`;
 
-                const response = await fetch(url);
+                let response;
+                try {
+                    response = await fetch(url);
+                    if (!response.ok) throw new Error('Direct failed');
+                } catch (netErr) {
+                    response = await fetch('/api/proxy?url=' + encodeURIComponent(url));
+                }
                 const data = await response.json();
 
                 if (data.translation) {
