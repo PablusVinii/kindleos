@@ -9,8 +9,9 @@ export default async function handler(req, res) {
 
     try {
         const urlObj = new URL(req.url, 'http://localhost');
-        const subpath = urlObj.pathname.replace(/^\/api\/pinterest/, '');
-        const targetUrl = 'https://rekindle-pinterest.timjarnott.workers.dev' + (subpath || '/') + urlObj.search;
+        const subpath = req.query.__subpath ? '/' + req.query.__subpath : (urlObj.pathname.replace(/^\/api\/readwise/, '') || '');
+        urlObj.searchParams.delete('__subpath');
+        const targetUrl = 'https://rekindle-readwise.timjarnott.workers.dev' + (subpath || '/') + (urlObj.search ? urlObj.search : '');
 
         const headers = {
             'Origin': 'https://rekindle.ink',
@@ -44,6 +45,6 @@ export default async function handler(req, res) {
         }
         return res.send(data);
     } catch (err) {
-        return res.status(502).json({ error: 'Pinterest gateway failed', details: err.message });
+        return res.status(502).json({ error: 'Readwise gateway failed', details: err.message });
     }
 }

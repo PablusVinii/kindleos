@@ -22,7 +22,7 @@ fs.removeSync('./_deploy/legacy/libs');
 // IGNORE LIST
 // Prevents system files and backend configs from being published
 const ignoreList = [
-    'node_modules', '.git', '.github', '_deploy',
+    'node_modules', '.git', '.github', '_deploy', 'api',
     'build-automation.js', 'package.json', 'package-lock.json',
     'wrangler.toml', '.gitignore', '.DS_Store',
     'workers', 'scripts', 'screenshots', 'admin', 'Sync', 'pocketbase',
@@ -2231,6 +2231,11 @@ async function run() {
 
     // 11. Old builds must not silently fall back to CDN libraries.
     await assertLocalLibs();
+
+    // 12. Copy api to MAIN_DIR for Vercel serverless functions support
+    if (await fs.pathExists(path.join(SOURCE_DIR, 'api'))) {
+        await fs.copy(path.join(SOURCE_DIR, 'api'), path.join(MAIN_DIR, 'api'));
+    }
 
     console.log("✅ Build Complete!");
 }
