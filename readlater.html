@@ -680,7 +680,7 @@
             };
 
             try {
-                const workerUrl = `${READER_WORKER_URL}/?url=${encodeURIComponent(urlVal)}`;
+                const workerUrl = `${READER_WORKER_URL}?url=${encodeURIComponent(urlVal)}`;
                 const res = await timeoutPromise(15000, fetch(workerUrl));
                 if (res.ok) {
                     const article = await res.json();

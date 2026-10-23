@@ -981,7 +981,7 @@
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 20000);
 
-                const res = await fetch(`${READER_WORKER_URL}/?url=${encodeURIComponent(doc.source_url)}`, {
+                const res = await fetch(`${READER_WORKER_URL}?url=${encodeURIComponent(doc.source_url)}`, {
                     signal: controller.signal
                 });
                 clearTimeout(timeout);

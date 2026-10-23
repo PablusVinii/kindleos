@@ -805,7 +805,7 @@
         async function loadArticle(tab, targetUrl, skipNavPush) {
             showTabLoading(tab, 'Extracting article...');
             try {
-                const workerUrl = `${READER_WORKER_URL}/?url=${encodeURIComponent(targetUrl)}`;
+                const workerUrl = `${READER_WORKER_URL}?url=${encodeURIComponent(targetUrl)}`;
                 const res = await fetchWithTimeout(workerUrl, 20000);
                 if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `HTTP ${res.status}`); }
                 const article = await res.json(); renderArticle(tab, article, targetUrl);
