@@ -1,12 +1,5 @@
 {
   "outputDirectory": "_deploy/main",
   "cleanUrls": true,
-  "trailingSlash": false,
-  "rewrites": [
-    { "source": "/api/reader/:slug*", "destination": "/api/reader" },
-    { "source": "/api/pinterest/:slug*", "destination": "/api/pinterest" },
-    { "source": "/api/readwise/:slug*", "destination": "/api/readwise" },
-    { "source": "/api/substack/:slug*", "destination": "/api/substack" },
-    { "source": "/api/tmdb/:slug*", "destination": "/api/tmdb" }
-  ]
+  "trailingSlash": false
 }
