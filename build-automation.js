@@ -2232,11 +2232,6 @@ async function run() {
     // 11. Old builds must not silently fall back to CDN libraries.
     await assertLocalLibs();
 
-    // 12. Copy api to MAIN_DIR for Vercel serverless functions support
-    if (await fs.pathExists(path.join(SOURCE_DIR, 'api'))) {
-        await fs.copy(path.join(SOURCE_DIR, 'api'), path.join(MAIN_DIR, 'api'));
-    }
-
     console.log("✅ Build Complete!");
 }
 

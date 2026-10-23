@@ -8,9 +8,10 @@ export default async function handler(req, res) {
     }
 
     try {
+        const slugPart = Array.isArray(req.query.slug) ? req.query.slug.join('/') : (req.query.slug || '');
         const urlObj = new URL(req.url, 'http://localhost');
-        const subpath = req.query.__subpath ? '/' + req.query.__subpath : (urlObj.pathname.replace(/^\/api\/substack/, '') || '');
-        urlObj.searchParams.delete('__subpath');
+        const subpath = slugPart ? '/' + slugPart : (urlObj.pathname.replace(/^\/api\/substack/, '') || '');
+        urlObj.searchParams.delete('slug');
         const targetUrl = 'https://rekindle-substack.timjarnott.workers.dev' + (subpath || '/') + (urlObj.search ? urlObj.search : '');
 
         const headers = {

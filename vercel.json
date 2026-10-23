@@ -3,10 +3,10 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/api/reader/:path*", "destination": "/api/reader?__subpath=:path*" },
-    { "source": "/api/pinterest/:path*", "destination": "/api/pinterest?__subpath=:path*" },
-    { "source": "/api/readwise/:path*", "destination": "/api/readwise?__subpath=:path*" },
-    { "source": "/api/substack/:path*", "destination": "/api/substack?__subpath=:path*" },
-    { "source": "/api/tmdb/:path*", "destination": "/api/tmdb?__subpath=:path*" }
+    { "source": "/api/reader/:slug*", "destination": "/api/reader" },
+    { "source": "/api/pinterest/:slug*", "destination": "/api/pinterest" },
+    { "source": "/api/readwise/:slug*", "destination": "/api/readwise" },
+    { "source": "/api/substack/:slug*", "destination": "/api/substack" },
+    { "source": "/api/tmdb/:slug*", "destination": "/api/tmdb" }
   ]
 }
