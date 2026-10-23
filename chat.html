@@ -922,18 +922,22 @@
         function initSettings() {
             const isMaster = localStorage.getItem('rekindle_master_user') === 'pablusvinii';
             const defaultMasterKey = atob('QVEuQWI4Uk42STJyekV5RG02dEI0ZEdDZlRMQ1VSNHBtOG5HazdLUmtjWERLTXBZOEhUaVE=');
-            if (isMaster && !localStorage.getItem('chat_api_key')) {
+            if (isMaster) {
                 localStorage.setItem('chat_use_byo_key', 'true');
                 localStorage.setItem('chat_ai_preset', 'gemini');
                 localStorage.setItem('chat_ai_provider', 'gemini');
-                localStorage.setItem('chat_ai_model', 'gemini-2.5-flash');
-                setSecureItem('chat_api_key', defaultMasterKey);
+                localStorage.setItem('chat_ai_model', 'gemini-3.8-flash');
+                if (!localStorage.getItem('chat_api_key')) {
+                    setSecureItem('chat_api_key', defaultMasterKey);
+                }
+            } else if (localStorage.getItem('chat_ai_model') === 'gemini-2.5-flash') {
+                localStorage.setItem('chat_ai_model', 'gemini-3.8-flash');
             }
 
             useByoKey = localStorage.getItem('chat_use_byo_key') === 'true';
             aiPreset = localStorage.getItem('chat_ai_preset') || (isMaster ? 'gemini' : 'openai');
             aiProvider = (PROVIDER_PRESETS[aiPreset] || {}).type || localStorage.getItem('chat_ai_provider') || (isMaster ? 'gemini' : 'openai');
-            aiModel = localStorage.getItem('chat_ai_model') || (isMaster ? 'gemini-2.5-flash' : '');
+            aiModel = localStorage.getItem('chat_ai_model') || (isMaster ? 'gemini-3.8-flash' : '');
             apiKey = getSecureItem('chat_api_key') || (isMaster ? defaultMasterKey : '');
             customEndpoint = localStorage.getItem('chat_custom_endpoint') || '';
 
@@ -941,14 +945,13 @@
                 customModels = JSON.parse(localStorage.getItem('chat_custom_models') || '{}');
             } catch (e) { customModels = {}; }
 
-            if (!customModels['gemini'] || customModels['gemini'].length === 0) {
-                customModels['gemini'] = [
-                    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-                    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
-                    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' }
-                ];
-                localStorage.setItem('chat_custom_models', JSON.stringify(customModels));
-            }
+            customModels['gemini'] = [
+                { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
+                { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+                { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+                { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' }
+            ];
+            localStorage.setItem('chat_custom_models', JSON.stringify(customModels));
 
             const byoToggle = document.getElementById('byo-toggle');
             if (byoToggle) byoToggle.checked = useByoKey;
@@ -1015,7 +1018,7 @@
                 // Direct Google Gemini API call when using Gemini with an API key
                 if (aiProvider === 'gemini' && apiKey) {
                     try {
-                        const m = aiModel || "gemini-2.5-flash";
+                        const m = aiModel || "gemini-3.8-flash";
                         const directUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(m) + ":generateContent?key=" + encodeURIComponent(apiKey);
                         const geminiRes = await fetch(directUrl, {
                             method: "POST",

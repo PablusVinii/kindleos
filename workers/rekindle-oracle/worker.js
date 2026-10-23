@@ -120,7 +120,7 @@ export default {
       else {
         // Configuration
         const API_KEY = apiKey || env.GEMINI_API_KEY;
-        const MODEL = model || "gemini-2.5-flash";
+        const MODEL = model || "gemini-3.8-flash";
         const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 
         // Call Google Gemini

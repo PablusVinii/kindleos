@@ -819,7 +819,7 @@
                 localStorage.setItem('chat_use_byo_key', 'true');
                 localStorage.setItem('chat_ai_preset', 'gemini');
                 localStorage.setItem('chat_ai_provider', 'gemini');
-                localStorage.setItem('chat_ai_model', 'gemini-2.5-flash');
+                localStorage.setItem('chat_ai_model', 'gemini-3.8-flash');
                 var gKey = atob('QVEuQWI4Uk42STJyekV5RG02dEI0ZEdDZlRMQ1VSNHBtOG5HazdLUmtjWERLTXBZOEhUaVE=');
                 var k = 'rek';
                 var res = '';
