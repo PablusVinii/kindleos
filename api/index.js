@@ -144,6 +144,7 @@ module.exports = async function handler(req, res) {
                                 let match;
                                 while ((match = linkRegex.exec(ddgHtml)) !== null && results.length < 15) {
                                     let href = match[1];
+                                    if (href.startsWith('//')) href = 'https:' + href;
                                     if (href.includes('uddg=')) {
                                         try {
                                             const u = new URL(href, 'https://duckduckgo.com').searchParams.get('uddg');
@@ -225,6 +226,7 @@ module.exports = async function handler(req, res) {
                         const results = [];
                         while ((match = linkRegex.exec(html)) !== null && results.length < 20) {
                             let href = match[1];
+                            if (href.startsWith('//')) href = 'https:' + href;
                             if (href.includes('uddg=')) {
                                 try {
                                     const u = new URL(href, 'https://duckduckgo.com').searchParams.get('uddg');
