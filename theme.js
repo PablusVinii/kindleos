@@ -800,4 +800,46 @@
         });
     };
 
+    // --- MASTER USER SESSION HELPER ---
+    (function () {
+        var MASTER_USERNAME = 'pablusvinii';
+        if (localStorage.getItem('rekindle_master_user') === MASTER_USERNAME) {
+            var masterObj = {
+                uid: 'pablusvinii',
+                email: 'pablusvinii@rekindle.ink',
+                displayName: 'Pablus Vinii',
+                getIdToken: function () { return Promise.resolve('master_token'); }
+            };
+            window._isMasterUser = true;
+            window.currentUser = masterObj;
+            window._rekindleAuthedUid = masterObj.uid;
+
+            var timer = setInterval(function () {
+                if (window.firebase && window.firebase.auth) {
+                    clearInterval(timer);
+                    try {
+                        var origAuth = window.firebase.auth;
+                        window.firebase.auth = function () {
+                            var inst = origAuth.apply(this, arguments);
+                            if (!inst.currentUser) {
+                                try {
+                                    Object.defineProperty(inst, 'currentUser', {
+                                        get: function () { return masterObj; },
+                                        configurable: true
+                                    });
+                                } catch (e) { }
+                            }
+                            return inst;
+                        };
+                        for (var k in origAuth) {
+                            window.firebase.auth[k] = origAuth[k];
+                        }
+                    } catch (err) { }
+                }
+            }, 100);
+            setTimeout(function () { clearInterval(timer); }, 10000);
+        }
+    })();
+
 })();
+

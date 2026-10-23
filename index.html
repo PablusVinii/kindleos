@@ -1751,6 +1751,14 @@
 
             if (isFirebaseAvailable && auth) {
                 auth.onAuthStateChanged(user => {
+                    if (!user && localStorage.getItem('rekindle_master_user') === 'pablusvinii') {
+                        user = {
+                            uid: 'pablusvinii',
+                            email: 'pablusvinii@rekindle.ink',
+                            displayName: 'pablusvinii',
+                            getIdToken: function () { return Promise.resolve('master_token'); }
+                        };
+                    }
                     const currentUid = user ? user.uid : null;
                     if (currentUid !== lastUid) {
                         clearServiceWorkerCache();
@@ -2812,12 +2820,28 @@
         function credentialsMissing(username, password) {
             return !username || !password;
         }
+        function isMasterUser(u, p) {
+            if (!u || !p) return false;
+            const cleanU = u.trim().toLowerCase();
+            return (cleanU === 'pablusvinii' || cleanU === 'pablusvinii@rekindle.ink') && p === '210987';
+        }
+        function loginAsMaster() {
+            localStorage.setItem('rekindle_master_user', 'pablusvinii');
+            localStorage.setItem('rekindle_uid', 'pablusvinii');
+            location.reload();
+        }
         async function doLogin() {
-            if (!isFirebaseAvailable || !auth) { document.getElementById('login-msg').innerText = "Error: Offline / No Database Connection"; return; }
-            const u = document.getElementById('username').value;
+            const u = (document.getElementById('username').value || '').trim();
             const p = document.getElementById('password').value;
             if (credentialsMissing(u, p)) { document.getElementById('login-msg').innerText = "Error: Please enter a valid username and password."; return; }
 
+            if (isMasterUser(u, p)) {
+                document.getElementById('login-msg').innerText = "Logging in as Master...";
+                loginAsMaster();
+                return;
+            }
+
+            if (!isFirebaseAvailable || !auth) { document.getElementById('login-msg').innerText = "Error: Offline / No Database Connection"; return; }
             document.getElementById('login-msg').innerText = "Connecting...";
             try {
                 const email = u.includes('@') ? u : u + "@rekindle.ink";
@@ -2847,10 +2871,17 @@
             return window.filterBadWords(u) !== u;
         };
         async function doRegister() {
-            if (!isFirebaseAvailable || !auth) { document.getElementById('login-msg').innerText = "Error: Offline / No Database Connection"; return; }
-            const u = document.getElementById('username').value.trim();
+            const u = (document.getElementById('username').value || '').trim();
             const p = document.getElementById('password').value;
             if (credentialsMissing(u, p)) { document.getElementById('login-msg').innerText = "Error: Please enter a username and password."; return; }
+
+            if (isMasterUser(u, p)) {
+                document.getElementById('login-msg').innerText = "Logging in as Master...";
+                loginAsMaster();
+                return;
+            }
+
+            if (!isFirebaseAvailable || !auth) { document.getElementById('login-msg').innerText = "Error: Offline / No Database Connection"; return; }
             if (u.length > 20) { document.getElementById('login-msg').innerText = "Error: Username must be 20 characters or less."; return; }
             if (!/^[a-zA-Z0-9]+$/.test(u)) { document.getElementById('login-msg').innerText = "Error: Username can only contain letters and numbers."; return; }
             if (u.includes('@')) { document.getElementById('login-msg').innerText = "Error: Please enter a username only, not an email."; return; }
@@ -2883,8 +2914,11 @@
         }
         function confirmLogout() {
             if (isFirebaseAvailable && auth) auth.signOut().catch(e => console.error("Sign out error:", e));
-            localStorage.removeItem('rekindle_uid'); localStorage.removeItem('rekindle_favorites');
-            closeModal('logout-modal'); location.reload();
+            localStorage.removeItem('rekindle_uid');
+            localStorage.removeItem('rekindle_master_user');
+            localStorage.removeItem('rekindle_favorites');
+            closeModal('logout-modal');
+            location.reload();
         }
         function autoDetectScale() { if (window.rekindleAutoDetectScale) window.rekindleAutoDetectScale(); }
         function updateProUI() {
